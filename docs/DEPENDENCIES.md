@@ -3,7 +3,7 @@
 Every production and development dependency is pinned to an exact version with a one-line justification:
 
 ## Production Dependencies
-- `next` (`15.2.3`): React framework with App Router optimized for Vercel deployment.
+- `next` (`15.2.9`): React framework with App Router optimized for Vercel deployment.
 - `react` (`19.0.0`): Core declarative UI library for component rendering.
 - `react-dom` (`19.0.0`): DOM bindings for React components.
 - `zustand` (`5.0.3`): Lightweight state management store connecting UI to the deterministic engine and `SaveRepository`.
@@ -23,7 +23,7 @@ Every production and development dependency is pinned to an exact version with a
 - `postcss` (`8.5.3`): CSS transformation pipeline required by Tailwind CSS.
 - `autoprefixer` (`10.4.21`): Adds vendor prefixes automatically during CSS builds.
 - `eslint` (`9.22.0`): Static code analysis to catch bugs and enforce code quality.
-- `eslint-config-next` (`15.2.3`): Official Next.js ESLint ruleset.
+- `eslint-config-next` (`15.2.9`): Official Next.js ESLint ruleset.
 - `vitest` (`3.0.8`): Fast unit testing runner for `/src/engine` determinism and 1,000-match realism suites.
 - `@playwright/test` (`1.51.0`): End-to-end headless browser testing for walkthrough gates and smoke tests.
 - `fake-indexeddb` (`6.0.0`): In-memory IndexedDB polyfill for testing `IndexedDBSaveRepository` round-trips in Vitest.
