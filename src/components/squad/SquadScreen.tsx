@@ -1,9 +1,22 @@
+'use client';
+
 import React, { useState } from 'react';
-import { CheckCircle2, AlertTriangle, RefreshCw, ArrowLeftRight } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  ArrowLeftRight,
+  Eye,
+  Shield,
+  Zap,
+  Sparkles,
+} from 'lucide-react';
 import { FORMATION_SLOTS, validateLineup } from '@/engine/ratings';
 import { FormationCode, Player } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
+import { getPlayerShirtNumber, PlayerAvatar } from '../ui/FootballVisuals';
+import { PlayerProfileModal } from '../ui/PlayerProfileModal';
 
 const FORMATIONS: FormationCode[] = [
   '4-3-3',
@@ -16,10 +29,17 @@ const FORMATIONS: FormationCode[] = [
 ];
 
 export function SquadScreen() {
-  const { gameState, swapPlayersInSquad, autoPickUserLineup, setUserFormation } = useGameStore();
+  const {
+    gameState,
+    swapPlayersInSquad,
+    autoPickUserLineup,
+    setUserFormation,
+    updatePlayerRole,
+  } = useGameStore();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
+  const [profileModalPlayer, setProfileModalPlayer] = useState<Player | null>(null);
 
   if (!gameState) return null;
 
@@ -29,6 +49,38 @@ export function SquadScreen() {
 
   const slots = FORMATION_SLOTS[userClub.tactics.formation] ?? FORMATION_SLOTS['4-3-3'];
   const validation = validateLineup(userClub.startingXI, userClub.substitutes, clubPlayers);
+
+  // Compute Team Strength (ATT / MID / DEF) and Squad Chemistry (0..100)
+  const starters = userClub.startingXI
+    .map((id) => playerMap.get(id))
+    .filter((p): p is Player => !!p);
+
+  const attPlayers = starters.filter((p) => ['ST', 'LW', 'RW', 'CAM'].includes(p.primaryPosition));
+  const midPlayers = starters.filter((p) => ['CM', 'CDM', 'CAM'].includes(p.primaryPosition));
+  const defPlayers = starters.filter((p) => ['CB', 'LB', 'RB', 'GK'].includes(p.primaryPosition));
+
+  const avgOvr = (list: Player[]) =>
+    list.length > 0
+      ? Math.round(list.reduce((s, p) => s + p.overall, 0) / list.length)
+      : 70;
+
+  const attStrength = avgOvr(attPlayers);
+  const midStrength = avgOvr(midPlayers);
+  const defStrength = avgOvr(defPlayers);
+
+  let inPositionCount = 0;
+  slots.forEach((slot, idx) => {
+    const p = playerMap.get(userClub.startingXI[idx]);
+    if (!p) return;
+    if (p.primaryPosition === slot.position) inPositionCount += 1;
+    else if (p.secondaryPositions.includes(slot.position)) inPositionCount += 0.7;
+  });
+  const avgMorale =
+    starters.reduce((s, p) => s + p.morale, 0) / Math.max(1, starters.length);
+  const chemistry = Math.min(
+    100,
+    Math.round((inPositionCount / 11) * 70 + (avgMorale / 100) * 30)
+  );
 
   const handlePlayerTapOrClick = async (targetPlayerId: string) => {
     soundManager.playUiClick();
@@ -56,62 +108,102 @@ export function SquadScreen() {
 
   return (
     <div className="space-y-6" data-testid="squad-screen">
-      {/* Top Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-navy-900 border border-slate-800 rounded-2xl p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <label htmlFor="formation-select" className="text-xs font-bold uppercase text-slate-400">
-            Formation:
-          </label>
-          <select
-            id="formation-select"
-            data-testid="formation-select"
-            value={userClub.tactics.formation}
-            onChange={(e) => {
-              soundManager.playUiClick();
-              setUserFormation(e.target.value as FormationCode);
-            }}
-            className="px-3.5 py-2 rounded-xl bg-navy-950 border border-slate-700 text-sm font-bold text-pitch-400 focus:outline-none focus:border-pitch-500"
-          >
-            {FORMATIONS.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
+      <PlayerProfileModal
+        player={profileModalPlayer}
+        onClose={() => setProfileModalPlayer(null)}
+        allPlayers={gameState.players}
+        clubs={gameState.clubs}
+      />
 
-          <button
-            type="button"
-            data-testid="autopick-lineup-btn"
-            onClick={() => {
-              soundManager.playUiClick();
-              autoPickUserLineup();
-            }}
-            className="px-3.5 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 border border-slate-700 text-xs font-bold text-white flex items-center gap-1.5 transition"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-pitch-400" />
-            <span>Auto-Pick Best XI</span>
-          </button>
+      {/* Top Action Bar & Team Strength / Chemistry Indicators */}
+      <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="formation-select" className="text-xs font-bold uppercase text-slate-400">
+              Formation:
+            </label>
+            <select
+              id="formation-select"
+              data-testid="formation-select"
+              value={userClub.tactics.formation}
+              onChange={(e) => {
+                soundManager.playUiClick();
+                setUserFormation(e.target.value as FormationCode);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-navy-950 border border-slate-700 text-sm font-bold text-pitch-400 focus:outline-none focus:border-pitch-500"
+            >
+              {FORMATIONS.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              data-testid="autopick-lineup-btn"
+              onClick={() => {
+                soundManager.playUiClick();
+                autoPickUserLineup();
+              }}
+              className="px-3.5 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 border border-slate-700 text-xs font-bold text-white flex items-center gap-1.5 transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-pitch-400" />
+              <span>Auto-Pick Best XI</span>
+            </button>
+          </div>
+
+          {/* Lineup Validation Status Pill */}
+          <div className="flex items-center gap-2">
+            {validation.valid ? (
+              <span
+                data-testid="lineup-valid-badge"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pitch-500/20 border border-pitch-500/40 text-pitch-400 text-xs font-bold"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Lineup Valid (11 Starters, 1 GK)
+              </span>
+            ) : (
+              <span
+                data-testid="lineup-invalid-badge"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-bold"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                {validation.errors[0]}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Validation Status Pill */}
-        <div className="flex items-center gap-2">
-          {validation.valid ? (
-            <span
-              data-testid="lineup-valid-badge"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pitch-500/20 border border-pitch-500/40 text-pitch-400 text-xs font-bold"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Lineup Valid (11 Starters, 1 GK)
+        {/* Team Strength & Squad Chemistry Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800">
+          <div className="p-2.5 rounded-xl bg-navy-950 border border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-400 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-pitch-400" />
+              Attack Rating
             </span>
-          ) : (
-            <span
-              data-testid="lineup-invalid-badge"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-bold"
-            >
-              <AlertTriangle className="w-4 h-4" />
-              {validation.errors[0]}
+            <span className="text-base font-black text-pitch-400">{attStrength}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-navy-950 border border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-gold-400" />
+              Midfield Rating
             </span>
-          )}
+            <span className="text-base font-black text-gold-400">{midStrength}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-navy-950 border border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-400 flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-sky-400" />
+              Defense Rating
+            </span>
+            <span className="text-base font-black text-sky-400">{defStrength}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-navy-950 border border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-400">
+              Tactical Chemistry
+            </span>
+            <span className="text-base font-black text-white">{chemistry}%</span>
+          </div>
         </div>
       </div>
 
@@ -124,13 +216,25 @@ export function SquadScreen() {
               {playerMap.get(selectedPlayerId)?.lastName}.
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedPlayerId(null)}
-            className="underline text-white ml-4"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const p = playerMap.get(selectedPlayerId);
+                if (p) setProfileModalPlayer(p);
+              }}
+              className="px-2.5 py-1 rounded bg-pitch-600 text-white text-[11px] font-bold"
+            >
+              Open Full Profile &amp; Radar
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedPlayerId(null)}
+              className="underline text-white"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -139,24 +243,33 @@ export function SquadScreen() {
         <div className="xl:col-span-7 bg-navy-900 border border-slate-800 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-extrabold uppercase tracking-wider text-white">
-              Starting XI &bull; Interactive Pitch ({userClub.tactics.formation})
+              Starting XI &bull; Tactical Pitch ({userClub.tactics.formation})
             </h2>
             <span className="text-xs text-slate-400">Drag &amp; Drop or Tap-to-Swap</span>
           </div>
 
           <div
-            className="relative w-full h-[460px] rounded-xl overflow-hidden border-2 border-pitch-500/40 select-none"
+            className="relative w-full h-[500px] rounded-2xl overflow-hidden border-2 border-pitch-500/50 select-none shadow-inner"
             style={{
               background:
-                'repeating-linear-gradient(90deg, #064e3b 0px, #064e3b 48px, #065f46 48px, #065f46 96px)',
+                'repeating-linear-gradient(90deg, #064e3b 0px, #064e3b 52px, #047857 52px, #047857 104px)',
             }}
           >
-            {/* Pitch markings */}
-            <div className="absolute inset-3 border-2 border-white/30 rounded pointer-events-none" />
-            <div className="absolute top-3 bottom-3 left-1/2 w-0.5 bg-white/30 pointer-events-none" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border-2 border-white/30 pointer-events-none" />
-            <div className="absolute top-1/4 bottom-1/4 left-3 w-16 border-r-2 border-y-2 border-white/30 pointer-events-none" />
-            <div className="absolute top-1/4 bottom-1/4 right-3 w-16 border-l-2 border-y-2 border-white/30 pointer-events-none" />
+            {/* Detailed Pitch SVG Markings */}
+            <svg
+              viewBox="0 0 1000 620"
+              preserveAspectRatio="none"
+              className="absolute inset-0 w-full h-full pointer-events-none opacity-65"
+            >
+              <rect x="25" y="20" width="950" height="580" fill="none" stroke="#fff" strokeWidth="3" />
+              <line x1="500" y1="20" x2="500" y2="600" stroke="#fff" strokeWidth="3" />
+              <circle cx="500" cy="310" r="76" fill="none" stroke="#fff" strokeWidth="3" />
+              <circle cx="500" cy="310" r="5" fill="#fff" />
+              <rect x="25" y="135" width="145" height="350" fill="none" stroke="#fff" strokeWidth="3" />
+              <rect x="25" y="215" width="55" height="190" fill="none" stroke="#fff" strokeWidth="3" />
+              <rect x="830" y="135" width="145" height="350" fill="none" stroke="#fff" strokeWidth="3" />
+              <rect x="920" y="215" width="55" height="190" fill="none" stroke="#fff" strokeWidth="3" />
+            </svg>
 
             {slots.map((slot, idx) => {
               const pId = userClub.startingXI[idx];
@@ -166,6 +279,7 @@ export function SquadScreen() {
               const isOutOfPos =
                 player.primaryPosition !== slot.position &&
                 !player.secondaryPositions.includes(slot.position);
+              const shirtNo = getPlayerShirtNumber(player, idx);
 
               return (
                 <div
@@ -184,27 +298,35 @@ export function SquadScreen() {
                     isSelected ? 'scale-110 z-20' : 'z-10'
                   }`}
                 >
+                  {/* Player Card Token */}
                   <div
-                    className={`w-11 h-11 rounded-full flex flex-col items-center justify-center font-extrabold text-xs shadow-lg border-2 ${
+                    className={`relative rounded-xl p-0.5 shadow-xl border-2 ${
                       isSelected
-                        ? 'ring-4 ring-gold-400 border-white'
+                        ? 'ring-4 ring-gold-400 border-white bg-gold-500'
                         : isOutOfPos
-                          ? 'border-amber-400'
-                          : 'border-white'
+                          ? 'border-amber-400 bg-amber-950'
+                          : 'border-white/90 bg-navy-950'
                     }`}
-                    style={{
-                      backgroundColor:
-                        slot.position === 'GK' ? '#f59e0b' : userClub.primaryColor,
-                      color: slot.position === 'GK' ? '#000' : userClub.secondaryColor,
-                    }}
                   >
-                    <span>{player.overall}</span>
-                    <span className="text-[9px] opacity-90">{slot.position}</span>
+                    <PlayerAvatar
+                      player={player}
+                      clubColor={slot.position === 'GK' ? '#f59e0b' : userClub.primaryColor}
+                      secondaryColor={userClub.secondaryColor}
+                      size={42}
+                    />
+                    <span className="absolute -top-2 -left-2 px-1.5 py-0.2 rounded bg-gold-500 text-navy-950 font-black text-[10px] shadow">
+                      {player.overall}
+                    </span>
+                    <span className="absolute -top-2 -right-2 px-1 py-0.2 rounded bg-navy-900 border border-slate-700 text-white font-black text-[9px]">
+                      #{shirtNo}
+                    </span>
                   </div>
-                  <div className="mt-1 px-2 py-0.5 rounded bg-navy-950/90 border border-slate-700 text-[11px] font-bold text-white whitespace-nowrap shadow">
-                    {player.lastName}
+
+                  <div className="mt-1 px-2 py-0.5 rounded-md bg-navy-950/95 border border-slate-700 text-[10px] font-extrabold text-white whitespace-nowrap shadow flex items-center gap-1">
+                    <span className="text-pitch-400">{slot.position}</span>
+                    <span>{player.lastName}</span>
                   </div>
-                  <div className="w-12 h-1 bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                  <div className="w-12 h-1 bg-slate-900 rounded-full overflow-hidden mt-0.5 border border-white/10">
                     <div
                       className="h-full bg-pitch-400"
                       style={{ width: `${player.fitness}%` }}
@@ -215,39 +337,63 @@ export function SquadScreen() {
             })}
           </div>
 
-          {/* Inspected Player Attributes Strip */}
+          {/* Inspected Player Quick Strip + Role Selector & Profile Button */}
           {inspectedPlayer && (
-            <div className="p-3.5 rounded-xl bg-navy-950 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-extrabold text-white">
-                  {inspectedPlayer.firstName} {inspectedPlayer.lastName}{' '}
-                  <span className="text-pitch-400">({inspectedPlayer.primaryPosition})</span>
-                </div>
-                <div className="text-xs text-slate-400">
-                  Age {inspectedPlayer.age} &bull; {inspectedPlayer.nationality} &bull; Wage: £
-                  {inspectedPlayer.weeklyWage.toLocaleString()}/wk &bull; Value: £
-                  {(inspectedPlayer.marketValue / 1000000).toFixed(2)}M
+            <div className="p-4 rounded-2xl bg-navy-950 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <PlayerAvatar
+                  player={inspectedPlayer}
+                  clubColor={userClub.primaryColor}
+                  secondaryColor={userClub.secondaryColor}
+                  size={52}
+                />
+                <div>
+                  <div className="text-sm font-extrabold text-white flex items-center gap-2">
+                    <span>
+                      #{getPlayerShirtNumber(inspectedPlayer)} {inspectedPlayer.firstName}{' '}
+                      {inspectedPlayer.lastName}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-pitch-600/20 text-pitch-400 text-xs">
+                      {inspectedPlayer.primaryPosition}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Age {inspectedPlayer.age} &bull; {inspectedPlayer.nationality} &bull; Wage: £
+                    {inspectedPlayer.weeklyWage.toLocaleString()}/wk &bull; Value: £
+                    {(inspectedPlayer.marketValue / 1000000).toFixed(2)}M
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-3 text-xs">
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  PAC <strong className="text-pitch-400">{inspectedPlayer.attributes.pace}</strong>
-                </span>
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  SHO <strong className="text-pitch-400">{inspectedPlayer.attributes.shooting}</strong>
-                </span>
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  PAS <strong className="text-pitch-400">{inspectedPlayer.attributes.passing}</strong>
-                </span>
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  DRI <strong className="text-pitch-400">{inspectedPlayer.attributes.dribbling}</strong>
-                </span>
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  DEF <strong className="text-pitch-400">{inspectedPlayer.attributes.tackling}</strong>
-                </span>
-                <span className="px-2.5 py-1 rounded bg-navy-800 text-slate-200">
-                  PHY <strong className="text-pitch-400">{inspectedPlayer.attributes.strength}</strong>
-                </span>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-400 font-bold">Squad Role:</span>
+                  <select
+                    value={inspectedPlayer.roleExpectation}
+                    onChange={(e) =>
+                      updatePlayerRole(
+                        inspectedPlayer.id,
+                        e.target.value as 'star' | 'starter' | 'rotation' | 'prospect'
+                      )
+                    }
+                    className="px-2.5 py-1.5 rounded-lg bg-navy-900 border border-slate-700 text-xs font-bold text-gold-400 uppercase"
+                  >
+                    <option value="star">Star Player</option>
+                    <option value="starter">First Team Starter</option>
+                    <option value="rotation">Squad Rotation</option>
+                    <option value="prospect">Future Prospect</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="open-player-profile-btn"
+                  onClick={() => setProfileModalPlayer(inspectedPlayer)}
+                  className="px-3.5 py-2 rounded-xl bg-pitch-600 hover:bg-pitch-500 text-white text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Full Profile &amp; Radar</span>
+                </button>
               </div>
             </div>
           )}
@@ -274,27 +420,44 @@ export function SquadScreen() {
                     onDrop={() => handleDropOnPlayer(p.id)}
                     onClick={() => handlePlayerTapOrClick(p.id)}
                     data-testid={`sub-slot-${idx}`}
-                    className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center justify-between ${
+                    className={`p-2 rounded-xl border cursor-pointer transition flex items-center justify-between ${
                       isSelected
                         ? 'bg-pitch-600/20 border-pitch-500'
                         : 'bg-navy-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <PlayerAvatar
+                        player={p}
+                        clubColor={userClub.primaryColor}
+                        secondaryColor={userClub.secondaryColor}
+                        size={36}
+                      />
                       <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-pitch-400">
                         {p.primaryPosition}
                       </span>
                       <div>
                         <div className="text-xs font-bold text-white">
-                          {p.firstName} {p.lastName}
+                          #{getPlayerShirtNumber(p)} {p.firstName} {p.lastName}
                         </div>
                         <div className="text-[11px] text-slate-400">
                           Age {p.age} &bull; Fit {p.fitness}% &bull; Morale {p.morale}%
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <span className="text-sm font-black text-gold-400">{p.overall}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProfileModalPlayer(p);
+                        }}
+                        className="p-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300"
+                        title="Inspect Player Profile"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -320,19 +483,25 @@ export function SquadScreen() {
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => handleDropOnPlayer(p.id)}
                     onClick={() => handlePlayerTapOrClick(p.id)}
-                    className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center justify-between ${
+                    className={`p-2 rounded-xl border cursor-pointer transition flex items-center justify-between ${
                       isSelected
                         ? 'bg-pitch-600/20 border-pitch-500'
                         : 'bg-navy-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <PlayerAvatar
+                        player={p}
+                        clubColor={userClub.primaryColor}
+                        secondaryColor={userClub.secondaryColor}
+                        size={34}
+                      />
                       <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-300">
                         {p.primaryPosition}
                       </span>
                       <div>
                         <div className="text-xs font-bold text-white">
-                          {p.firstName} {p.lastName}
+                          #{getPlayerShirtNumber(p)} {p.firstName} {p.lastName}
                           {p.injuryWeeks > 0 && (
                             <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px]">
                               INJ {p.injuryWeeks}w
@@ -344,7 +513,20 @@ export function SquadScreen() {
                         </div>
                       </div>
                     </div>
-                    <span className="text-sm font-black text-slate-200">{p.overall}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-slate-200">{p.overall}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProfileModalPlayer(p);
+                        }}
+                        className="p-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300"
+                        title="Inspect Player Profile"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}

@@ -4,6 +4,7 @@ import { CLUB_PRESETS } from '@/engine/generator';
 import { AttackingStyle, ManagerProfile } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
+import { ClubCrest } from '../ui/FootballVisuals';
 
 export function CareerCreationScreen() {
   const { startNewCareer, saveSlots, loadFromSlot } = useGameStore();
@@ -173,15 +174,7 @@ export function CareerCreationScreen() {
             <div className="p-4 rounded-xl bg-navy-950 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-xs shadow"
-                    style={{
-                      backgroundColor: activeClub.primaryColor,
-                      color: activeClub.secondaryColor,
-                    }}
-                  >
-                    {activeClub.shortName}
-                  </div>
+                  <ClubCrest club={activeClub} size={42} />
                   <div>
                     <div className="font-bold text-white">{activeClub.name}</div>
                     <div className="text-xs text-slate-400">
@@ -264,15 +257,7 @@ export function CareerCreationScreen() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs shrink-0 border border-white/10"
-                        style={{
-                          backgroundColor: club.primaryColor,
-                          color: club.secondaryColor,
-                        }}
-                      >
-                        {club.shortName}
-                      </div>
+                      <ClubCrest club={club} size={42} />
                       <div>
                         <div className="font-bold text-sm text-white">{club.name}</div>
                         <div className="text-xs text-slate-400">{club.stadiumName}</div>

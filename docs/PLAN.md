@@ -1,6 +1,6 @@
 # Ultimate Football Manager — Milestone Plan
 
-This document tracks the project roadmap and milestone checklist from M1 through M6.
+This document tracks the project roadmap and milestone checklist from M1 through M6, plus the **v2.0 Design & Gameplay Upgrade (Sections A–N)**.
 
 ## Operating Loop & Gate Criteria
 - Inspect workspace & maintain `docs/PLAN.md`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, and `docs/DEPENDENCIES.md`.
@@ -9,7 +9,7 @@ This document tracks the project roadmap and milestone checklist from M1 through
   2. `npm test`
   3. `npm run build`
   4. Real browser walkthrough & verification
-  5. Git commit for the milestone
+  5. Git commit for the milestone & Vercel deployment
 
 ---
 
@@ -44,13 +44,13 @@ This document tracks the project roadmap and milestone checklist from M1 through
 
 ## M4: 3D Match Viewer
 - [x] React Three Fiber (`@react-three/fiber`, `@react-three/drei`, `three`) stadium scene: pitch markings, goals, nets, stands, floodlights, instanced crowd, ad boards, technical areas
-- [x] Procedural low-poly articulated players with animation states (`idle`, `walk`, `run`, `sprint`, `pass`, `shoot`, `tackle`, `header`, `dive`, `celebrate`) swappable via a single config file (`src/components/match3d/playerModelConfig.ts`)
+- [x] Procedural articulated human-proportioned 3D players with animation states (`idle`, `walk`, `run`, `sprint`, `pass`, `shoot`, `tackle`, `header`, `dive`, `celebrate`) swappable via a single config file (`src/components/match3d/playerModelConfig.ts`)
 - [x] 4 Camera angles: Broadcast, Tactical Overhead, Follow-Ball, Goal Replay
-- [x] Graphics quality settings: Low / Medium / High, lazy-loaded 3D canvas, proper disposal to prevent memory leaks
+- [x] Graphics quality settings: Low / Medium / High, lazy-loaded 3D canvas
 - [x] Driven strictly by `MatchEvent[]` snapshots & interpolation (never re-rolls outcome)
 
 ## M5: Cutscenes and Audio
-- [x] Skippable, event-triggered cinematic overlays/scenes: Goal celebration, Full-time whistle, Trophy presentation, Player signing, Manager introduction, Tunnel walkout, Pre-match talk, Half-time dressing room, Red card & Missed penalty reactions, League championship celebration
+- [x] Skippable, event-triggered cinematic overlays/scenes: Goal celebration, Full-time whistle, Trophy presentation, Player signing, Manager introduction, Tunnel walkout, Pre-match talk, Half-time dressing room, League championship celebration
 - [x] Web Audio API procedural sound synthesiser (crowd roar, goal cheer, referee whistle, ball kick, menu clicks) activated strictly after user interaction, with master volume, mute, and category sliders
 - [x] `docs/ASSETS.md` documenting 100% original / procedural / CC0 assets
 
@@ -60,3 +60,17 @@ This document tracks the project roadmap and milestone checklist from M1 through
 - [x] Error boundaries, loading skeletons, and pagination for large player tables
 - [x] Supabase optional cloud persistence adapter + `supabase/migrations/001_initial_schema.sql` (18 tables with RLS) + `supabase/seed.sql` + `.env.example`
 - [x] Comprehensive `README.md` with architecture, controls, testing, and Vercel deployment instructions
+
+---
+
+## v2.0 Design & Gameplay Upgrade (Sections A–N)
+- [x] **A. Complete Visual Redesign**: Stadium floodlight backdrop, heraldic SVG club crests (`ClubCrest`), deterministic player portraits (`PlayerAvatar`), dark navy/charcoal & pitch-green/trophy-gold hierarchy (`src/components/ui/FootballVisuals.tsx`).
+- [x] **B. Home Dashboard Redesign**: Large stadium hero banner, club crest & stadium capacity, manager profile, next match preview with opponent crest, last 5 match results, league position, recent form, transfer budget, board confidence, star player spotlight, club news, upcoming fixtures, club objectives, prominent `Play Matchday` button (`src/components/layout/HomeDashboard.tsx`).
+- [x] **C. Player Profiles**: Detailed player profile modal (`src/components/ui/PlayerProfileModal.tsx`) with portrait, shirt number, position, nationality, age, OVR, POT, market value, weekly salary, contract expiry, fitness, morale, form, 6-axis hexagonal attribute radar chart (`HexRadarChart`), and side-by-side player comparison tool.
+- [x] **D. Squad & Tactics**: Upgraded tactical pitch (`src/components/squad/SquadScreen.tsx`) with realistic pitch markings, player portrait cards, shirt numbers, drag-and-drop + tap-to-swap, player squad role selector (`star`, `starter`, `rotation`, `prospect`), team strength ratings (ATT / MID / DEF), tactical chemistry %, and preserved lineup validation.
+- [x] **E. Transfer Market**: Upgraded transfer hub (`src/components/management/TransfersScreen.tsx`) with player portraits, club crests, scouting dossier badges, contract durations, interested clubs, immersive negotiation room, and completed transfer history feed.
+- [x] **F. Matchday Experience**: Pre-match presentation sheet (stadium, weather & turf condition, match importance, starting lineups, tactical comparison), broadcast scoreboard with club crests, live player ratings panel, goal replay timeline, and upgraded 2D pitch viewer (`src/components/match/MatchdayScreen.tsx`, `src/components/match/Pitch2DViewer.tsx`).
+- [x] **G. Realistic 3D Football**: Human-proportioned articulated 3D footballers (head, hair cap, neck, jersey torso, shorts, shoulder/elbow arm rigs, hip/knee leg rigs, socks, boots) with skeletal limb animations (`idle`, `walk`, `run`, `sprint`, `pass`, `shoot`, `tackle`, `header`, `dive`, `celebrate`), full 3D pitch markings, cylindrical goalposts with nets, multi-tier roofed stands, dugouts, floodlights, and instanced crowd (`src/components/match3d/Pitch3DViewer.tsx`, `src/components/match3d/playerModelConfig.ts`).
+- [x] **H. Cinematic Cutscenes**: Rich animated SVG/canvas stage scenes (`src/components/layout/CutsceneModal.tsx`) for manager unveiling, player signing (held-up jersey & flashbulbs), stadium tunnel walkout, dressing room tactical board talk, goal celebration, full-time whistle, and trophy podium with confetti.
+- [x] **I. Fixtures & Competitions**: Club crests in league tables & fixtures, promotion/qualification & relegation zone highlights, and competition leaderboards (Top Scorers, Assist Leaders, Clean Sheets, Highest Avg Rating) (`src/components/management/ClubFinanceHistorySettingsScreens.tsx`).
+- [x] **J. Loading & Error Recovery**: 3.5-second IndexedDB timeout guard, loading progress bar, retry button, automatic save-slot fallback, and fresh career recovery (`src/store/useGameStore.ts`, `src/app/page.tsx`).

@@ -39,12 +39,16 @@ interface GameStore {
   gameState: GameState | null;
   activeTab: NavTab;
   isHydrated: boolean;
+  hydrationStep: string;
+  hydrationError: string | null;
   isSaving: boolean;
   saveSlots: SaveEnvelope[];
   activeCutscene: ActiveCutscene | null;
 
   // Actions
   hydrateFromStorage: () => Promise<void>;
+  recoverWithFreshCareerScreen: () => void;
+  updatePlayerRole: (playerId: string, role: 'star' | 'starter' | 'rotation' | 'prospect') => Promise<void>;
   setActiveTab: (tab: NavTab) => void;
   triggerCutscene: (cutscene: ActiveCutscene | null) => void;
   startNewCareer: (manager: ManagerProfile, seed?: number) => Promise<void>;
@@ -96,22 +100,70 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: null,
   activeTab: 'home',
   isHydrated: false,
+  hydrationStep: 'Connecting to local Career IndexedDB...',
+  hydrationError: null,
   isSaving: false,
   saveSlots: [],
   activeCutscene: null,
 
   hydrateFromStorage: async () => {
+    set({
+      hydrationStep: 'Opening IndexedDB career storage...',
+      hydrationError: null,
+    });
+    const timeoutPromise = new Promise<'timeout'>((resolve) =>
+      setTimeout(() => resolve('timeout'), 3500)
+    );
     try {
-      const slots = await defaultSaveRepository.listSlots();
-      const auto = await defaultSaveRepository.load('autosave');
+      const loadTask = (async () => {
+        const slots = await defaultSaveRepository.listSlots();
+        set({ hydrationStep: 'Validating save schema & loading autosave...' });
+        const auto = await defaultSaveRepository.load('autosave');
+        const fallbackSlot = !auto && slots.length > 0 ? slots[0] : null;
+        return { slots, loaded: auto ?? fallbackSlot };
+      })();
+
+      const outcome = await Promise.race([loadTask, timeoutPromise]);
+      if (outcome === 'timeout') {
+        set({
+          hydrationError:
+            'IndexedDB storage took longer than expected to respond. You can retry loading your save or proceed to the career screen.',
+          isHydrated: true,
+        });
+        return;
+      }
+
       set({
-        gameState: auto ? auto.state : null,
-        saveSlots: slots,
+        gameState: outcome.loaded ? outcome.loaded.state : null,
+        saveSlots: outcome.slots,
+        hydrationError: null,
         isHydrated: true,
       });
-    } catch {
-      set({ isHydrated: true });
+    } catch (err) {
+      set({
+        hydrationError:
+          err instanceof Error
+            ? `Save recovery notice: ${err.message}`
+            : 'Unable to read IndexedDB save storage.',
+        isHydrated: true,
+      });
     }
+  },
+
+  recoverWithFreshCareerScreen: () => {
+    set({ gameState: null, hydrationError: null, isHydrated: true });
+  },
+
+  updatePlayerRole: async (playerId, role) => {
+    const state = get().gameState;
+    if (!state) return;
+    const updatedPlayers = state.players.map((p) =>
+      p.id === playerId ? { ...p, roleExpectation: role } : p
+    );
+    const nextState: GameState = { ...state, players: updatedPlayers };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),

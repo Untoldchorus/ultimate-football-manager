@@ -40,6 +40,7 @@ import {
   SettingsScreen,
 } from '../management/ClubFinanceHistorySettingsScreens';
 import { MatchdayScreen } from '../match/MatchdayScreen';
+import { ClubCrest } from '../ui/FootballVisuals';
 
 const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'home', label: 'Home', icon: Home },
@@ -85,15 +86,7 @@ export function AppShell() {
           {/* Club Badge Header */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shadow border border-white/15 shrink-0"
-                style={{
-                  backgroundColor: userClub.primaryColor,
-                  color: userClub.secondaryColor,
-                }}
-              >
-                {userClub.shortName}
-              </div>
+              <ClubCrest club={userClub} size={42} />
               <div className="overflow-hidden">
                 <div
                   data-testid="header-club-name"
