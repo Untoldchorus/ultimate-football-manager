@@ -1,0 +1,8 @@
+node_modules
+.next
+.vercel
+tests/e2e
+playwright-report
+test-results
+docs/screenshots
+.git
