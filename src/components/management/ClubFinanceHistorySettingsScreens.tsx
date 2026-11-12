@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { calculateStandings } from '@/engine/standings';
 import { CompetitionType, Player } from '@/engine/types';
+import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
+import { ASSET_MANIFEST } from '@/data/assetManifest';
 import { soundManager } from '@/lib/audio';
 import { defaultSaveRepository, SaveSlotId } from '@/services/saveRepository';
 import { useGameStore } from '@/store/useGameStore';
@@ -49,14 +51,14 @@ export function MyClubScreen() {
           <div className="space-y-1">
             <div className="text-[11px] font-bold uppercase text-pitch-400 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5" />
-              <span>Club Identity</span>
+              <span>Club Identity &bull; Est. {userClub.foundedYear ?? 1900}</span>
             </div>
             <div className="text-xl font-black text-white">{userClub.name}</div>
             <div className="text-xs text-slate-400">
-              {userClub.stadiumName} ({userClub.stadiumCapacity.toLocaleString()} seats)
+              {userClub.city ?? 'City'} &bull; {userClub.stadiumName} ({userClub.stadiumCapacity.toLocaleString()} seats)
             </div>
             <div className="text-xs text-gold-400 font-semibold">
-              Division {userClub.division} &bull; Reputation {userClub.reputation}/100
+              Division {userClub.division} &bull; Reputation {userClub.reputation}/100 &bull; {(userClub.financialStatus ?? 'healthy').toUpperCase()}
             </div>
           </div>
         </div>
@@ -74,13 +76,13 @@ export function MyClubScreen() {
         </div>
 
         <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-2">
-          <div className="text-xs font-bold uppercase text-slate-400">Squad Harmony &amp; Contracts</div>
-          <div className="text-2xl font-black text-white">
-            {Math.round(squad.reduce((s, p) => s + p.morale, 0) / Math.max(1, squad.length))}% Avg Morale
-          </div>
-          <p className="text-xs text-slate-400">
-            {squad.filter((p) => p.contractEndSeason <= gameState.currentSeason + 1).length} players entering final contract year.
+          <div className="text-xs font-bold uppercase text-slate-400">Club Heritage &amp; Rivals</div>
+          <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
+            {userClub.clubHistory ?? 'Historic professional football club competing at the top level.'}
           </p>
+          <div className="text-[11px] text-slate-400 pt-1">
+            Real-World Head Coach Reference: <strong className="text-white">{userClub.managerName ?? 'Club Manager'}</strong>
+          </div>
         </div>
       </div>
 
@@ -323,6 +325,7 @@ export function FixturesScreen() {
 export function CompetitionsScreen() {
   const { gameState } = useGameStore();
   const [comp, setComp] = useState<CompetitionType>('division1');
+  const [selectedRegistryCompId, setSelectedRegistryCompId] = useState<string>('ALL');
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
 
   const clubMap = useMemo(
@@ -331,6 +334,8 @@ export function CompetitionsScreen() {
   );
 
   if (!gameState) return null;
+
+  const selectedRegistryComp = COMPETITIONS_REGISTRY.find((c) => c.id === selectedRegistryCompId);
 
   const isLeague = comp === 'division1' || comp === 'division2';
   const standings = isLeague
@@ -391,21 +396,24 @@ export function CompetitionsScreen() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {(
             [
-              ['division1', 'Premier Division 1'],
-              ['division2', 'Championship Division 2'],
-              ['domesticCup', 'National Challenge Cup'],
-              ['championsCup', 'Continental Champions Cup'],
+              ['division1', 'Premier Tier 1'],
+              ['division2', 'Championship Tier 2'],
+              ['domesticCup', 'Domestic Cup'],
+              ['championsCup', 'UEFA Champions League'],
             ] as const
           ).map(([key, label]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setComp(key)}
+              onClick={() => {
+                setComp(key);
+                setSelectedRegistryCompId('ALL');
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                comp === key
+                comp === key && selectedRegistryCompId === 'ALL'
                   ? 'bg-pitch-600 text-white shadow'
                   : 'bg-navy-950 border border-slate-800 text-slate-400 hover:text-white'
               }`}
@@ -413,8 +421,47 @@ export function CompetitionsScreen() {
               {label}
             </button>
           ))}
+
+          <select
+            value={selectedRegistryCompId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedRegistryCompId(id);
+              if (id === 'division1' || id === 'division2' || id === 'domesticCup' || id === 'championsCup') {
+                setComp(id);
+              }
+            }}
+            className="px-3 py-1.5 rounded-xl bg-navy-950 border border-slate-700 text-xs font-bold text-gold-400"
+          >
+            <option value="ALL">Browse All {COMPETITIONS_REGISTRY.length} World Competitions...</option>
+            {COMPETITIONS_REGISTRY.map((c) => {
+              const country = COUNTRIES_REGISTRY.find((cn) => cn.id === c.countryId);
+              return (
+                <option key={c.id} value={c.id}>
+                  {country?.flagEmoji} {c.name} ({c.populatedStatus === 'populated' ? 'Populated' : 'Unpopulated'})
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
+
+      {selectedRegistryComp && selectedRegistryComp.populatedStatus === 'expandable_unpopulated' && (
+        <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div>
+            <div className="font-black text-amber-300 uppercase">
+              {selectedRegistryComp.name} — Competition Data Not Yet Populated
+            </div>
+            <p className="text-slate-300 mt-0.5">
+              This real-world competition structure (Tier {selectedRegistryComp.tier},{' '}
+              {selectedRegistryComp.rules.promotionSpots} promotion / {selectedRegistryComp.rules.relegationSpots} relegation spots) is registered in the multi-league engine. In accordance with strict database integrity rules, no fictional clubs are invented for unpopulated leagues. You can import real club/player packs via Settings &rarr; Real-World Database Importer.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold uppercase text-[10px]">
+            Expandable Schema Ready
+          </span>
+        </div>
+      )}
 
       {isLeague ? (
         <div className="bg-navy-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
@@ -772,11 +819,62 @@ export function ClubHistoryScreen() {
 }
 
 export function SettingsScreen() {
-  const { gameState, saveSlots, saveToSlot, loadFromSlot, importSaveJson } = useGameStore();
+  const {
+    gameState,
+    saveSlots,
+    saveToSlot,
+    loadFromSlot,
+    importSaveJson,
+    importCustomDatabaseEntities,
+  } = useGameStore();
   const [audio, setAudio] = useState(soundManager.getSettings());
   const [importText, setImportText] = useState('');
+  const [dbPackText, setDbPackText] = useState('');
+  const [dbImportStatus, setDbImportStatus] = useState<string | null>(null);
 
   if (!gameState) return null;
+
+  const handleDbPackImport = async () => {
+    const raw = dbPackText.trim();
+    if (!raw) return;
+    try {
+      if (raw.startsWith('{') || raw.startsWith('[')) {
+        const parsed = JSON.parse(raw);
+        const payload = Array.isArray(parsed) ? { players: parsed } : parsed;
+        const res = await importCustomDatabaseEntities(payload);
+        setDbImportStatus(
+          `Database Import Complete: +${res.addedPlayers} added, ${res.updatedPlayers} updated, ${res.duplicatesSkipped} duplicate(s) skipped, ${res.updatedClubs} club(s) updated.`
+        );
+      } else {
+        // Parse CSV format: firstName,lastName,position,age,nationality,overall,clubId
+        const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        const players = lines
+          .filter((l) => !l.toLowerCase().startsWith('firstname,'))
+          .map((line) => {
+            const [firstName, lastName, primaryPosition, age, nationality, overall, clubId] =
+              line.split(',').map((s) => s.trim());
+            return {
+              firstName,
+              lastName,
+              primaryPosition: (primaryPosition as Player['primaryPosition']) || 'CM',
+              age: Number(age) || 23,
+              nationality: nationality || 'England',
+              overall: Number(overall) || 75,
+              clubId: clubId || gameState.manager.clubId,
+            };
+          });
+        const res = await importCustomDatabaseEntities({ players });
+        setDbImportStatus(
+          `CSV Import Complete: +${res.addedPlayers} added, ${res.updatedPlayers} updated, ${res.duplicatesSkipped} duplicate(s) skipped.`
+        );
+      }
+      setDbPackText('');
+    } catch (err) {
+      setDbImportStatus(
+        `Validation Error: ${err instanceof Error ? err.message : 'Invalid JSON or CSV syntax'}`
+      );
+    }
+  };
 
   const handleExport = () => {
     const json = defaultSaveRepository.exportJson(gameState);
@@ -941,6 +1039,49 @@ export function SettingsScreen() {
               />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Real-World Database Importer & Validator (JSON / CSV) + Asset Licensing Manifest */}
+      <div className="bg-navy-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-extrabold text-white">
+              Real-World Database Importer &amp; Validator (JSON / CSV)
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Import or update real-world clubs and players with automatic duplicate detection and schema validation.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-pitch-500/20 text-pitch-400 text-[10px] font-bold uppercase">
+            {ASSET_MANIFEST.length} Verified Assets in Manifest
+          </span>
+        </div>
+
+        <textarea
+          rows={3}
+          value={dbPackText}
+          onChange={(e) => setDbPackText(e.target.value)}
+          placeholder='Paste JSON ({"players":[{"firstName":"Kylian","lastName":"Mbappé","overall":91}]}) or CSV rows (firstName,lastName,position,age,nationality,overall,clubId)...'
+          className="w-full p-3 rounded-xl bg-navy-950 border border-slate-700 text-xs text-white font-mono"
+        />
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            data-testid="import-db-pack-btn"
+            onClick={handleDbPackImport}
+            className="px-4 py-2 rounded-xl bg-pitch-600 hover:bg-pitch-500 text-white text-xs font-bold flex items-center gap-1.5"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Validate &amp; Import Database Pack</span>
+          </button>
+
+          {dbImportStatus && (
+            <span className="text-xs font-bold text-pitch-400" data-testid="db-import-status">
+              {dbImportStatus}
+            </span>
+          )}
         </div>
       </div>
     </div>

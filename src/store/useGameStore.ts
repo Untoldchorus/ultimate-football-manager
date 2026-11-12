@@ -62,6 +62,11 @@ interface GameStore {
   autoPickUserLineup: () => Promise<void>;
   updateUserTactics: (partial: Partial<TacticsConfig>) => Promise<void>;
   setUserFormation: (formation: FormationCode) => Promise<void>;
+  updateClubCaptains: (captainId: string, viceCaptainId?: string) => Promise<void>;
+  importCustomDatabaseEntities: (payload: {
+    clubs?: Partial<GameState['clubs'][number]>[];
+    players?: Partial<GameState['players'][number]>[];
+  }) => Promise<{ addedPlayers: number; updatedPlayers: number; duplicatesSkipped: number; updatedClubs: number }>;
 
   // Training, Scouting, Youth, Transfers
   updateTrainingSchedule: (schedule: WeeklyTrainingSchedule) => Promise<void>;
@@ -315,6 +320,136 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ gameState: nextState });
     const slots = await persistAutosave(nextState);
     set({ saveSlots: slots });
+  },
+
+  updateClubCaptains: async (captainId, viceCaptainId) => {
+    const state = get().gameState;
+    if (!state) return;
+    const userClubId = state.manager.clubId;
+
+    const updatedClubs = state.clubs.map((club) =>
+      club.id === userClubId
+        ? {
+            ...club,
+            captainId,
+            viceCaptainId: viceCaptainId ?? club.viceCaptainId,
+          }
+        : club
+    );
+
+    const nextState: GameState = { ...state, clubs: updatedClubs };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  importCustomDatabaseEntities: async (payload) => {
+    const state = get().gameState;
+    if (!state) {
+      return { addedPlayers: 0, updatedPlayers: 0, duplicatesSkipped: 0, updatedClubs: 0 };
+    }
+
+    let updatedClubsCount = 0;
+    const nextClubs = state.clubs.map((club) => {
+      const incoming = payload.clubs?.find(
+        (c) => c.id === club.id || (c.name && c.name.toLowerCase() === club.name.toLowerCase())
+      );
+      if (!incoming) return club;
+      updatedClubsCount += 1;
+      return {
+        ...club,
+        name: incoming.name ?? club.name,
+        shortName: incoming.shortName ?? club.shortName,
+        stadiumName: incoming.stadiumName ?? club.stadiumName,
+        stadiumCapacity: incoming.stadiumCapacity ?? club.stadiumCapacity,
+        reputation: incoming.reputation ?? club.reputation,
+        managerName: incoming.managerName ?? club.managerName,
+        clubHistory: incoming.clubHistory ?? club.clubHistory,
+      };
+    });
+
+    let addedPlayers = 0;
+    let updatedPlayers = 0;
+    let duplicatesSkipped = 0;
+
+    const nextPlayers = [...state.players];
+    const seenKeys = new Set(
+      nextPlayers.map(
+        (p) => `${p.firstName.toLowerCase()}_${p.lastName.toLowerCase()}_${p.nationality.toLowerCase()}`
+      )
+    );
+
+    for (const raw of payload.players ?? []) {
+      if (!raw.firstName || !raw.lastName) continue;
+      const existingIdx = nextPlayers.findIndex(
+        (p) =>
+          (raw.id && p.id === raw.id) ||
+          (p.firstName.toLowerCase() === raw.firstName!.toLowerCase() &&
+            p.lastName.toLowerCase() === raw.lastName!.toLowerCase())
+      );
+
+      if (existingIdx >= 0) {
+        const existing = nextPlayers[existingIdx];
+        nextPlayers[existingIdx] = {
+          ...existing,
+          clubId: raw.clubId ?? existing.clubId,
+          overall: raw.overall ?? existing.overall,
+          potential: raw.potential ?? existing.potential,
+          marketValue: raw.marketValue ?? existing.marketValue,
+          weeklyWage: raw.weeklyWage ?? existing.weeklyWage,
+          shirtNumber: raw.shirtNumber ?? existing.shirtNumber,
+          photoUrl: raw.photoUrl ?? existing.photoUrl,
+        };
+        updatedPlayers += 1;
+      } else {
+        const dupKey = `${raw.firstName.toLowerCase()}_${raw.lastName.toLowerCase()}_${(raw.nationality ?? 'england').toLowerCase()}`;
+        if (seenKeys.has(dupKey)) {
+          duplicatesSkipped += 1;
+          continue;
+        }
+        seenKeys.add(dupKey);
+        const template = nextPlayers[0];
+        const newId = raw.id ?? `custom-player-${Date.now()}-${addedPlayers}`;
+        const targetClubId = raw.clubId ?? state.manager.clubId;
+        const ovr = raw.overall ?? 75;
+        nextPlayers.push({
+          ...template,
+          id: newId,
+          firstName: raw.firstName,
+          lastName: raw.lastName,
+          age: raw.age ?? 23,
+          nationality: raw.nationality ?? 'England',
+          clubId: targetClubId,
+          primaryPosition: raw.primaryPosition ?? 'CM',
+          secondaryPositions: raw.secondaryPositions ?? [],
+          overall: ovr,
+          potential: raw.potential ?? Math.min(94, ovr + 5),
+          marketValue: raw.marketValue ?? ovr * 450000,
+          weeklyWage: raw.weeklyWage ?? ovr * 950,
+          shirtNumber: raw.shirtNumber ?? 29,
+          photoUrl: raw.photoUrl,
+          isYouth: false,
+        });
+        const clubIdx = nextClubs.findIndex((c) => c.id === targetClubId);
+        if (clubIdx >= 0 && !nextClubs[clubIdx].reserves.includes(newId)) {
+          nextClubs[clubIdx] = {
+            ...nextClubs[clubIdx],
+            reserves: [...nextClubs[clubIdx].reserves, newId],
+          };
+        }
+        addedPlayers += 1;
+      }
+    }
+
+    const nextState: GameState = {
+      ...state,
+      clubs: nextClubs,
+      players: nextPlayers,
+    };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+    return { addedPlayers, updatedPlayers, duplicatesSkipped, updatedClubs: updatedClubsCount };
   },
 
   updateTrainingSchedule: async (schedule) => {

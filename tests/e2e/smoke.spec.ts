@@ -11,7 +11,7 @@ test.describe('Ultimate Football Manager — Full Career & Matchday Smoke Walkth
     await expect(nameInput).toBeVisible();
     await nameInput.fill('Jürgen Vance');
 
-    // Select Port Royale Athletic
+    // Select Chelsea FC (club-harbour)
     await page.getByTestId('club-card-club-harbour').click();
     await page.getByTestId('start-career-btn').click();
 
@@ -23,7 +23,7 @@ test.describe('Ultimate Football Manager — Full Career & Matchday Smoke Walkth
 
     // Verify Home Dashboard loaded
     await expect(page.getByTestId('home-dashboard')).toBeVisible();
-    await expect(page.getByTestId('header-club-name')).toContainText('Port Royale Athletic');
+    await expect(page.getByTestId('header-club-name')).toContainText('Chelsea FC');
     await page.screenshot({ path: 'docs/screenshots/02-home-dashboard.png' });
 
     // 2. Navigate to Squad Screen, change formation, and validate lineup
@@ -83,7 +83,7 @@ test.describe('Ultimate Football Manager — Full Career & Matchday Smoke Walkth
     // 6. Reload Browser and verify state persists via IndexedDB autosave
     await page.reload();
     await expect(page.getByTestId('home-dashboard')).toBeVisible();
-    await expect(page.getByTestId('header-club-name')).toContainText('Port Royale Athletic');
+    await expect(page.getByTestId('header-club-name')).toContainText('Chelsea FC');
     await expect(page.locator('header')).toContainText('Week 2');
   });
 });

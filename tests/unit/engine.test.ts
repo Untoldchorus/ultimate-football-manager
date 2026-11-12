@@ -7,6 +7,8 @@ import { calculateOverallRating, validateLineup } from '@/engine/ratings';
 import { advanceGameWeek } from '@/engine/season';
 import { calculateStandings } from '@/engine/standings';
 import { MAX_SEASON_ATTRIBUTE_GROWTH, MIN_SQUAD_SIZE } from '@/engine/transfers';
+import { migrateSaveEnvelope } from '@/engine/migrations';
+import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
 import { IndexedDBSaveRepository } from '@/services/saveRepository';
 
 describe('Engine Determinism, Fixtures, Standings, Lineup, Persistence & Multi-Season Loop', () => {
@@ -234,5 +236,60 @@ describe('Engine Determinism, Fixtures, Standings, Lineup, Persistence & Multi-S
     expect(state.currentSeason).toBe(2029);
     expect(state.seasonHistory.length).toBe(3);
     expect(state.trophies.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('validates real-world database integrity (31 attributes, real clubs, multi-league registry, and v1 -> v2 save migration)', () => {
+    const state = generateInitialGameState(20261112, manager);
+
+    // Verify real-world clubs & metadata
+    const arsenal = state.clubs.find((c) => c.id === 'club-albion')!;
+    expect(arsenal.name).toBe('Arsenal FC');
+    expect(arsenal.stadiumName).toBe('Emirates Stadium');
+    expect(arsenal.foundedYear).toBe(1886);
+    expect(arsenal.captainId).toBeDefined();
+
+    // Verify all 500 senior players have 31 attributes populated in [1..99]
+    const seniors = state.players.filter((p) => !p.isYouth);
+    expect(seniors.length).toBe(500);
+    const idSet = new Set<string>();
+    for (const p of seniors) {
+      expect(idSet.has(p.id)).toBe(false);
+      idSet.add(p.id);
+      expect(p.attributes.ballControl).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.freeKicks).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.penalties).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.decisions).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.anticipation).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.acceleration).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.balance).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.agility).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.diving).toBeGreaterThanOrEqual(1);
+      expect(p.attributes.aerialAbility).toBeGreaterThanOrEqual(1);
+    }
+
+    // Verify multi-league registry
+    expect(COUNTRIES_REGISTRY.length).toBeGreaterThanOrEqual(12);
+    expect(COMPETITIONS_REGISTRY.length).toBeGreaterThanOrEqual(24);
+    expect(COMPETITIONS_REGISTRY.some((c) => c.populatedStatus === 'populated')).toBe(true);
+    expect(COMPETITIONS_REGISTRY.some((c) => c.populatedStatus === 'expandable_unpopulated')).toBe(true);
+
+    // Verify v1 -> v2 save migration backfills 31 attributes & real club metadata
+    const legacyEnvelope = {
+      saveVersion: 1,
+      slotId: 'slot1',
+      savedAtIso: '2026-11-11T00:00:00.000Z',
+      managerName: 'Alex Vance',
+      clubName: 'Albion City FC',
+      seasonYear: 2026,
+      currentWeek: 1,
+      state: {
+        ...state,
+        saveVersion: 1,
+      },
+    };
+    const migrated = migrateSaveEnvelope(legacyEnvelope);
+    expect(migrated.saveVersion).toBe(2);
+    expect(migrated.state.saveVersion).toBe(2);
+    expect(migrated.state.players[0].attributes.decisions).toBeDefined();
   });
 });

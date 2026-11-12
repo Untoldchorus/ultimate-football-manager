@@ -10,23 +10,28 @@ export type FormationCode =
   | '5-3-2';
 
 export interface PlayerAttributes {
-  // Technical (8)
+  // Technical (10)
   passing: number;
   shooting: number;
   finishing: number;
   dribbling: number;
+  ballControl: number;
   crossing: number;
   tackling: number;
   firstTouch: number;
   heading: number;
-  // Physical (6)
+  longShots: number;
+  freeKicks: number;
+  penalties: number;
+  // Physical (7)
   pace: number;
   acceleration: number;
   strength: number;
   stamina: number;
   jumping: number;
+  balance: number;
   agility: number;
-  // Mental (7)
+  // Mental (8)
   vision: number;
   positioning: number;
   decisions: number;
@@ -34,10 +39,70 @@ export interface PlayerAttributes {
   leadership: number;
   workRate: number;
   aggression: number;
-  // Goalkeeper (3)
+  anticipation: number;
+  // Goalkeeper (6)
   reflexes: number;
   handling: number;
   distribution: number;
+  diving: number;
+  aerialAbility: number;
+  gkPositioning: number;
+}
+
+export interface PlayerCareerHistoryEntry {
+  season: string;
+  clubId: string;
+  clubName: string;
+  appearances: number;
+  goals: number;
+  assists: number;
+}
+
+export interface AssetManifestEntry {
+  entityId: string;
+  entityType: 'club' | 'player' | 'competition' | 'stadium';
+  assetPathOrUrl: string;
+  assetType: 'svg-crest' | 'png-crest' | 'licensed-photo' | 'generated-avatar';
+  license: string;
+  attribution: string;
+  verifiedDateIso: string;
+  isGeneratedFallback: boolean;
+}
+
+export interface CountryEntity {
+  id: string;
+  name: string;
+  code: string; // ISO-3166 alpha-3 e.g. ENG, ESP, GER
+  confederation: 'UEFA' | 'CONMEBOL' | 'CONCACAF' | 'AFC' | 'CAF';
+  flagEmoji: string;
+}
+
+export interface CompetitionRules {
+  pointsForWin: number;
+  pointsForDraw: number;
+  pointsForLoss: number;
+  promotionSpots: number;
+  relegationSpots: number;
+  continentalQualificationSpots: number;
+  maxSubstitutesOnBench: number;
+  maxSquadRegistration: number;
+  transferWindowWeeks: number[];
+}
+
+export interface LeagueCompetitionEntity {
+  id: string;
+  name: string;
+  shortName: string;
+  countryId: string;
+  tier: number; // 1 = top flight, 2 = second tier, 0 = cup/continental
+  type: 'league' | 'domesticCup' | 'continentalCup';
+  reputation: number;
+  populatedStatus: 'populated' | 'expandable_unpopulated';
+  promotedToLeagueId?: string;
+  relegatedToLeagueId?: string;
+  domesticCupId?: string;
+  continentalCupId?: string;
+  rules: CompetitionRules;
 }
 
 export interface PlayerSeasonStats {
@@ -56,6 +121,10 @@ export interface Player {
   firstName: string;
   lastName: string;
   age: number;
+  dateOfBirth?: string;
+  heightCm?: number;
+  preferredFoot?: 'Right' | 'Left' | 'Both';
+  shirtNumber?: number;
   nationality: string;
   clubId: string;
   loanedFromClubId?: string | null;
@@ -67,6 +136,13 @@ export interface Player {
   contractEndSeason: number;
   weeklyWage: number;
   marketValue: number;
+  releaseClause?: number;
+  agentFeePct?: number;
+  internationalApps?: number;
+  internationalGoals?: number;
+  photoUrl?: string;
+  photoAssetId?: string;
+  careerHistory?: PlayerCareerHistoryEntry[];
   fitness: number; // 0..100
   morale: number; // 0..100
   form: number; // 1..10
@@ -137,11 +213,24 @@ export interface FinanceTransaction {
   amount: number; // positive = income, negative = expense
 }
 
+export type FinancialStatus = 'Rich' | 'Secure' | 'Stable' | 'Tight' | 'Restricted';
+
 export interface Club {
   id: string;
   name: string;
   shortName: string;
   division: 1 | 2;
+  countryId?: string;
+  city?: string;
+  leagueId?: string;
+  foundedYear?: number;
+  financialStatus?: FinancialStatus;
+  managerName?: string;
+  rivalClubIds?: string[];
+  clubHistory?: string;
+  badgeAssetId?: string;
+  captainId?: string;
+  viceCaptainId?: string;
   primaryColor: string;
   secondaryColor: string;
   stadiumName: string;
@@ -263,7 +352,15 @@ export interface MatchSimulationInput {
   isNeutralVenue?: boolean;
 }
 
-export type CompetitionType = 'division1' | 'division2' | 'domesticCup' | 'championsCup' | 'superCup';
+export type CompetitionType =
+  | 'division1'
+  | 'division2'
+  | 'domesticCup'
+  | 'championsCup'
+  | 'superCup'
+  | 'europaLeague'
+  | 'conferenceLeague'
+  | string;
 
 export interface Fixture {
   id: string;
@@ -364,7 +461,10 @@ export interface TransferRecord {
   toClubId: string;
   toClubName: string;
   fee: number;
+  agentFee?: number;
   isLoan: boolean;
+  isLoanToBuy?: boolean;
+  loanBuyOptionFee?: number;
 }
 
 export type CutsceneType =

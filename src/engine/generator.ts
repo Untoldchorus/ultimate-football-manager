@@ -1,4 +1,4 @@
-import { createRng, SeededRng } from './rng';
+import { createRng, hashStringToSeed, SeededRng } from './rng';
 import {
   calculateMarketValue,
   calculateOverallRating,
@@ -7,6 +7,7 @@ import {
 } from './ratings';
 import {
   Club,
+  FinancialStatus,
   FormationCode,
   GameState,
   ManagerProfile,
@@ -16,12 +17,22 @@ import {
   Scout,
 } from './types';
 import { generateSeasonFixtures } from './fixtures';
+import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
+import { getPlayerPhotoManifest } from '@/data/assetManifest';
 
 export interface ClubPreset {
   id: string;
   name: string;
   shortName: string;
   division: 1 | 2;
+  countryId: string;
+  city: string;
+  leagueId: string;
+  foundedYear: number;
+  financialStatus: FinancialStatus;
+  managerName: string;
+  rivalClubIds: string[];
+  clubHistory: string;
   primaryColor: string;
   secondaryColor: string;
   stadiumName: string;
@@ -30,250 +41,26 @@ export interface ClubPreset {
   defaultFormation: FormationCode;
 }
 
-export const CLUB_PRESETS: ClubPreset[] = [
-  // Division 1 (10 clubs)
-  {
-    id: 'club-albion',
-    name: 'Northgate Albion',
-    shortName: 'NGA',
-    division: 1,
-    primaryColor: '#dc2626',
-    secondaryColor: '#ffffff',
-    stadiumName: 'Crown Park Stadium',
-    stadiumCapacity: 62000,
-    reputation: 88,
-    defaultFormation: '4-3-3',
-  },
-  {
-    id: 'club-harbour',
-    name: 'Port Royale Athletic',
-    shortName: 'PRA',
-    division: 1,
-    primaryColor: '#0284c7',
-    secondaryColor: '#facc15',
-    stadiumName: 'Harbourfront Arena',
-    stadiumCapacity: 58000,
-    reputation: 86,
-    defaultFormation: '4-2-3-1',
-  },
-  {
-    id: 'club-ironworks',
-    name: 'Vulcan United',
-    shortName: 'VUL',
-    division: 1,
-    primaryColor: '#7c2d12',
-    secondaryColor: '#38bdf8',
-    stadiumName: 'Foundry Ground',
-    stadiumCapacity: 51000,
-    reputation: 82,
-    defaultFormation: '4-3-3',
-  },
-  {
-    id: 'club-kingsbridge',
-    name: 'Kingsbridge Rovers',
-    shortName: 'KBR',
-    division: 1,
-    primaryColor: '#1e3a8a',
-    secondaryColor: '#f8fafc',
-    stadiumName: 'Royal Arch Stadium',
-    stadiumCapacity: 48500,
-    reputation: 80,
-    defaultFormation: '4-4-2',
-  },
-  {
-    id: 'club-emerald',
-    name: 'Verdant City FC',
-    shortName: 'VER',
-    division: 1,
-    primaryColor: '#059669',
-    secondaryColor: '#fef08a',
-    stadiumName: 'Emerald Meadow',
-    stadiumCapacity: 45000,
-    reputation: 78,
-    defaultFormation: '3-4-3',
-  },
-  {
-    id: 'club-solaris',
-    name: 'Solaris Sporting',
-    shortName: 'SOL',
-    division: 1,
-    primaryColor: '#ea580c',
-    secondaryColor: '#111827',
-    stadiumName: 'Helios Bowl',
-    stadiumCapacity: 43000,
-    reputation: 76,
-    defaultFormation: '4-2-3-1',
-  },
-  {
-    id: 'club-valkyrie',
-    name: 'Valkyrie Forest',
-    shortName: 'VKF',
-    division: 1,
-    primaryColor: '#4f46e5',
-    secondaryColor: '#e0e7ff',
-    stadiumName: 'Sherwood Citadel',
-    stadiumCapacity: 39000,
-    reputation: 74,
-    defaultFormation: '3-5-2',
-  },
-  {
-    id: 'club-blackwater',
-    name: 'Blackwater Town',
-    shortName: 'BWT',
-    division: 1,
-    primaryColor: '#1f2937',
-    secondaryColor: '#f59e0b',
-    stadiumName: 'Riverside Park',
-    stadiumCapacity: 36000,
-    reputation: 72,
-    defaultFormation: '4-1-4-1',
-  },
-  {
-    id: 'club-highland',
-    name: 'Highland Thistle',
-    shortName: 'HLT',
-    division: 1,
-    primaryColor: '#7e22ce',
-    secondaryColor: '#ffffff',
-    stadiumName: 'Glen Coe Arena',
-    stadiumCapacity: 33500,
-    reputation: 70,
-    defaultFormation: '5-3-2',
-  },
-  {
-    id: 'club-silverstone',
-    name: 'Silverstone Wanderers',
-    shortName: 'SLV',
-    division: 1,
-    primaryColor: '#475569',
-    secondaryColor: '#22d3ee',
-    stadiumName: 'Apex Stadium',
-    stadiumCapacity: 31000,
-    reputation: 68,
-    defaultFormation: '4-4-2',
-  },
-  // Division 2 (10 clubs)
-  {
-    id: 'club-redcliff',
-    name: 'Redcliff Dynamo',
-    shortName: 'RCD',
-    division: 2,
-    primaryColor: '#b91c1c',
-    secondaryColor: '#fde047',
-    stadiumName: 'Cliffside Ground',
-    stadiumCapacity: 28000,
-    reputation: 65,
-    defaultFormation: '4-3-3',
-  },
-  {
-    id: 'club-oakheart',
-    name: 'Oakheart County',
-    shortName: 'OAK',
-    division: 2,
-    primaryColor: '#15803d',
-    secondaryColor: '#ffffff',
-    stadiumName: 'Old Oak Lane',
-    stadiumCapacity: 26500,
-    reputation: 63,
-    defaultFormation: '4-4-2',
-  },
-  {
-    id: 'club-stormhaven',
-    name: 'Stormhaven Mariners',
-    shortName: 'STM',
-    division: 2,
-    primaryColor: '#0f766e',
-    secondaryColor: '#f1f5f9',
-    stadiumName: 'Lighthouse Road',
-    stadiumCapacity: 24000,
-    reputation: 62,
-    defaultFormation: '4-2-3-1',
-  },
-  {
-    id: 'club-ashford',
-    name: 'Ashford Railway',
-    shortName: 'ASH',
-    division: 2,
-    primaryColor: '#991b1b',
-    secondaryColor: '#1e293b',
-    stadiumName: 'Junction Park',
-    stadiumCapacity: 22500,
-    reputation: 60,
-    defaultFormation: '4-4-2',
-  },
-  {
-    id: 'club-westminster',
-    name: 'Westbrook Rangers',
-    shortName: 'WBR',
-    division: 2,
-    primaryColor: '#2563eb',
-    secondaryColor: '#ffffff',
-    stadiumName: 'Westbrook Oval',
-    stadiumCapacity: 21000,
-    reputation: 59,
-    defaultFormation: '3-5-2',
-  },
-  {
-    id: 'club-cobalt',
-    name: 'Cobalt Stars',
-    shortName: 'COB',
-    division: 2,
-    primaryColor: '#1d4ed8',
-    secondaryColor: '#fb923c',
-    stadiumName: 'Starlight Field',
-    stadiumCapacity: 19500,
-    reputation: 58,
-    defaultFormation: '4-3-3',
-  },
-  {
-    id: 'club-amber',
-    name: 'Amber Valley FC',
-    shortName: 'AMB',
-    division: 2,
-    primaryColor: '#d97706',
-    secondaryColor: '#0f172a',
-    stadiumName: 'Sunburst Valley',
-    stadiumCapacity: 18000,
-    reputation: 56,
-    defaultFormation: '4-1-4-1',
-  },
-  {
-    id: 'club-granite',
-    name: 'Granite Ridge',
-    shortName: 'GRN',
-    division: 2,
-    primaryColor: '#334155',
-    secondaryColor: '#10b981',
-    stadiumName: 'Quarry Stadium',
-    stadiumCapacity: 16500,
-    reputation: 55,
-    defaultFormation: '5-3-2',
-  },
-  {
-    id: 'club-meadow',
-    name: 'Meadowbrook Argyle',
-    shortName: 'MBA',
-    division: 2,
-    primaryColor: '#047857',
-    secondaryColor: '#ecfdf5',
-    stadiumName: 'Greenbank Park',
-    stadiumCapacity: 15000,
-    reputation: 53,
-    defaultFormation: '4-4-2',
-  },
-  {
-    id: 'club-falcon',
-    name: 'Falconcrest FC',
-    shortName: 'FLC',
-    division: 2,
-    primaryColor: '#be123c',
-    secondaryColor: '#f8fafc',
-    stadiumName: 'Eyrie Ground',
-    stadiumCapacity: 14000,
-    reputation: 52,
-    defaultFormation: '3-4-3',
-  },
-];
+export const CLUB_PRESETS: ClubPreset[] = REAL_WORLD_CLUBS.map((c) => ({
+  id: c.id,
+  name: c.name,
+  shortName: c.shortName,
+  division: c.division,
+  countryId: c.countryId,
+  city: c.city,
+  leagueId: c.leagueId,
+  foundedYear: c.foundedYear,
+  financialStatus: c.financialStatus,
+  managerName: c.managerName,
+  rivalClubIds: c.rivalClubIds,
+  clubHistory: c.clubHistory,
+  primaryColor: c.primaryColor,
+  secondaryColor: c.secondaryColor,
+  stadiumName: c.stadiumName,
+  stadiumCapacity: c.stadiumCapacity,
+  reputation: c.reputation,
+  defaultFormation: c.defaultFormation,
+}));
 
 const NATIONALITY_NAME_POOLS: Record<string, { first: string[]; last: string[] }> = {
   England: {
@@ -289,7 +76,7 @@ const NATIONALITY_NAME_POOLS: Record<string, { first: string[]; last: string[] }
     last: ['Beaumont', 'Chevalier', 'Delacroix', 'Fontaine', 'Girard', 'Laurent', 'Moreau', 'Perrin', 'Rousseau', 'Toussaint', 'Vasseur'],
   },
   Germany: {
-    first: ['Bastian', 'Emil', 'Fabian', 'Jonas', 'Kai', 'Leon', 'Lukas', 'maximilian', 'Niklas', 'robin', 'Tim', 'Yannick'],
+    first: ['Bastian', 'Emil', 'Fabian', 'Jonas', 'Kai', 'Leon', 'Lukas', 'Maximilian', 'Niklas', 'Robin', 'Tim', 'Yannick'],
     last: ['Baumann', 'Brandt', 'Dietrich', 'Fischer', 'Hartmann', 'Keller', 'Kramer', 'Lehmann', 'Neumann', 'Richter', 'Schubert', 'Vogel'],
   },
   Brazil: {
@@ -318,36 +105,41 @@ const NATIONALITY_NAME_POOLS: Record<string, { first: string[]; last: string[] }
   },
   Japan: {
     first: ['Daichi', 'Haruto', 'Kaoru', 'Kenji', 'Koji', 'Ritsu', 'Ren', 'Shuto', 'Takefusa', 'Wataru', 'Yuki'],
-    last: [' Endo', 'Fujimoto', 'Hashimoto', 'Ito', 'Kamada', 'Kubo', 'Minamino', 'Mitoma', 'Morita', 'Nakamura', 'Tanaka', 'Tomiyasu'],
+    last: ['Endo', 'Fujimoto', 'Hashimoto', 'Ito', 'Kamada', 'Kubo', 'Minamino', 'Mitoma', 'Morita', 'Nakamura', 'Tanaka', 'Tomiyasu'],
   },
 };
 
 const NATIONALITIES = Object.keys(NATIONALITY_NAME_POOLS);
 
-// 25-man squad position distribution per club
-const SQUAD_POSITIONS_TEMPLATE: PositionCode[] = [
-  'GK', 'GK', 'GK',
-  'LB', 'LB',
-  'CB', 'CB', 'CB', 'CB',
-  'RB', 'RB',
-  'CDM', 'CDM',
-  'CM', 'CM', 'CM', 'CM',
-  'CAM', 'CAM',
-  'LW', 'LW',
-  'RW', 'RW',
-  'ST', 'ST',
-];
+const SECONDARY_MAP: Record<PositionCode, PositionCode[]> = {
+  GK: [],
+  LB: ['RB', 'LW'],
+  RB: ['LB', 'RW'],
+  CB: ['CDM'],
+  CDM: ['CM', 'CB'],
+  CM: ['CDM', 'CAM'],
+  CAM: ['CM', 'LW', 'RW'],
+  LW: ['RW', 'ST'],
+  RW: ['LW', 'ST'],
+  ST: ['LW', 'RW', 'CAM'],
+};
 
 function clampAttr(val: number): number {
   return Math.max(15, Math.min(96, Math.round(val)));
 }
 
+/**
+ * Generates a full 31-attribute profile calibrated to the player's position and target skill.
+ * Documented estimation model:
+ * - Position-weighted primary attributes receive positive role offsets (+6..+10) so the
+ *   resulting `calculateOverallRating` closely matches the real-world target overall.
+ */
 export function generatePlayerAttributes(
   rng: SeededRng,
   position: PositionCode,
   targetSkill: number
 ): PlayerAttributes {
-  const base = (offset: number, spread = 8) =>
+  const base = (offset: number, spread = 5) =>
     clampAttr(targetSkill + offset + rng.nextInt(-spread, spread));
 
   const isGK = position === 'GK';
@@ -357,34 +149,78 @@ export function generatePlayerAttributes(
   const isWing = position === 'LW' || position === 'RW';
   const isSt = position === 'ST';
 
+  const passing = base(isMid ? 5 : isGK ? -16 : 0);
+  const shooting = base(isSt ? 6 : isWing || position === 'CAM' ? 3 : isDef ? -15 : isGK ? -30 : -2);
+  const finishing = base(isSt ? 7 : isWing ? 3 : isDef ? -18 : isGK ? -32 : -4);
+  const dribbling = base(isWing ? 6 : position === 'CAM' || isSt ? 4 : isDef ? -10 : isGK ? -28 : 2);
+  const firstTouch = base(isMid || isWing || isSt ? 4 : isGK ? -15 : 0);
+  const crossing = base(isWing || isFullback ? 6 : isMid ? 2 : -12);
+  const tackling = base(isDef || position === 'CDM' ? 6 : isMid ? 2 : isGK ? -25 : -15);
+  const heading = base(position === 'CB' || isSt ? 5 : isGK ? -15 : -2);
+
+  const pace = base(isWing || isFullback ? 6 : isSt ? 4 : position === 'CB' ? -2 : 2);
+  const acceleration = base(isWing || isFullback ? 6 : isSt ? 4 : 1);
+  const strength = base(position === 'CB' || position === 'CDM' || isSt ? 5 : isWing ? -4 : 0);
+  const stamina = base(isFullback || isMid ? 5 : 2);
+  const jumping = base(position === 'CB' || isGK || isSt ? 5 : 0);
+  const agility = base(isWing || position === 'CAM' || isGK ? 5 : 0);
+
+  const vision = base(position === 'CAM' || position === 'CM' ? 6 : isSt ? 0 : -4);
+  const positioning = base(isDef || position === 'CDM' || isSt || isGK ? 5 : 2);
+  const decisions = base(3);
+  const composure = base(isSt || position === 'CB' || isGK ? 4 : 2);
+  const leadership = clampAttr(45 + rng.nextInt(0, 46));
+  const workRate = clampAttr(58 + rng.nextInt(-8, 34));
+  const aggression = clampAttr(50 + rng.nextInt(-12, 36));
+
+  const reflexes = isGK ? base(7) : clampAttr(20 + rng.nextInt(0, 20));
+  const handling = isGK ? base(6) : clampAttr(20 + rng.nextInt(0, 20));
+  const distribution = isGK ? base(4) : clampAttr(20 + rng.nextInt(0, 20));
+
   return {
-    passing: base(isMid ? 6 : isGK ? -18 : 0),
-    shooting: base(isSt ? 8 : isWing || position === 'CAM' ? 4 : isDef ? -15 : isGK ? -30 : -2),
-    finishing: base(isSt ? 10 : isWing ? 4 : isDef ? -18 : isGK ? -32 : -4),
-    dribbling: base(isWing ? 9 : position === 'CAM' || isSt ? 5 : isDef ? -10 : isGK ? -28 : 2),
-    crossing: base(isWing || isFullback ? 8 : isMid ? 2 : -12),
-    tackling: base(isDef || position === 'CDM' ? 9 : isMid ? 2 : isGK ? -25 : -15),
-    firstTouch: base(isMid || isWing || isSt ? 5 : isGK ? -15 : 0),
-    heading: base(position === 'CB' || isSt ? 7 : isGK ? -15 : -2),
-    pace: base(isWing || isFullback ? 9 : isSt ? 5 : position === 'CB' ? -3 : 2),
-    acceleration: base(isWing || isFullback ? 9 : isSt ? 5 : 1),
-    strength: base(position === 'CB' || position === 'CDM' || isSt ? 6 : isWing ? -4 : 0),
-    stamina: base(isFullback || isMid ? 7 : 2),
-    jumping: base(position === 'CB' || isGK || isSt ? 6 : 0),
-    agility: base(isWing || position === 'CAM' || isGK ? 6 : 0),
-    vision: base(position === 'CAM' || position === 'CM' ? 8 : isSt ? 0 : -4),
-    positioning: base(isDef || position === 'CDM' || isSt || isGK ? 6 : 2),
-    decisions: base(4),
-    composure: base(isSt || position === 'CB' || isGK ? 5 : 2),
-    leadership: clampAttr(40 + rng.nextInt(0, 50)),
-    workRate: clampAttr(50 + rng.nextInt(-10, 40)),
-    aggression: clampAttr(45 + rng.nextInt(-15, 40)),
-    reflexes: isGK ? base(10) : clampAttr(20 + rng.nextInt(0, 20)),
-    handling: isGK ? base(9) : clampAttr(20 + rng.nextInt(0, 20)),
-    distribution: isGK ? base(5) : clampAttr(20 + rng.nextInt(0, 20)),
+    // Technical (10)
+    passing,
+    shooting,
+    finishing,
+    dribbling,
+    ballControl: clampAttr((firstTouch + dribbling) / 2),
+    crossing,
+    tackling,
+    firstTouch,
+    heading,
+    longShots: base(position === 'CAM' || position === 'CM' || isSt ? 4 : isGK ? -30 : -6),
+    freeKicks: base(position === 'CAM' || isWing ? 3 : -10, 8),
+    penalties: base(isSt ? 6 : isMid ? 2 : -10, 7),
+    // Physical (7)
+    pace,
+    acceleration,
+    strength,
+    stamina,
+    jumping,
+    balance: clampAttr((agility + strength) / 2),
+    agility,
+    // Mental (8)
+    vision,
+    positioning,
+    decisions,
+    composure,
+    leadership,
+    workRate,
+    aggression,
+    anticipation: clampAttr((positioning + decisions) / 2),
+    // Goalkeeping (6)
+    reflexes,
+    handling,
+    distribution,
+    diving: isGK ? base(6) : clampAttr(18 + rng.nextInt(0, 18)),
+    aerialAbility: isGK ? base(5) : clampAttr((jumping + heading) / 2),
+    gkPositioning: isGK ? positioning : clampAttr(18 + rng.nextInt(0, 18)),
   };
 }
 
+/**
+ * Generates a youth prospect or regen player when needed for academy intakes and multi-season rollovers.
+ */
 export function generatePlayer(
   rng: SeededRng,
   id: string,
@@ -399,40 +235,34 @@ export function generatePlayer(
   const firstName = rng.pick(pool.first).trim();
   const lastName = rng.pick(pool.last).trim();
 
-  const age = isYouth ? rng.nextInt(16, 18) : rng.nextInt(18, 33);
-  const skillOffset = isYouth ? rng.nextInt(-16, -8) : rng.nextInt(-6, 7);
+  const age = isYouth ? rng.nextInt(16, 18) : rng.nextInt(18, 32);
+  const skillOffset = isYouth ? rng.nextInt(-16, -8) : rng.nextInt(-5, 6);
   const targetSkill = Math.max(48, Math.min(88, baseClubReputation + skillOffset));
 
   const attributes = generatePlayerAttributes(rng, position, targetSkill);
   const overall = calculateOverallRating(attributes, position);
 
-  const maxGrowth = age <= 20 ? rng.nextInt(8, 18) : age <= 24 ? rng.nextInt(3, 10) : rng.nextInt(0, 2);
+  const maxGrowth = age <= 20 ? rng.nextInt(8, 17) : age <= 24 ? rng.nextInt(3, 9) : rng.nextInt(0, 2);
   const potential = Math.min(95, Math.max(overall, overall + maxGrowth));
 
   const marketValue = calculateMarketValue(overall, age, potential);
-  const weeklyWage = isYouth ? 400 : calculateWeeklyWage(overall, age);
+  const weeklyWage = isYouth ? 600 : calculateWeeklyWage(overall, age);
 
-  const secondaryMap: Record<PositionCode, PositionCode[]> = {
-    GK: [],
-    LB: ['RB', 'LW'],
-    RB: ['LB', 'RW'],
-    CB: ['CDM'],
-    CDM: ['CM', 'CB'],
-    CM: ['CDM', 'CAM'],
-    CAM: ['CM', 'LW', 'RW'],
-    LW: ['RW', 'ST'],
-    RW: ['LW', 'ST'],
-    ST: ['LW', 'RW', 'CAM'],
-  };
-  const possibleSecondaries = secondaryMap[position];
+  const possibleSecondaries = SECONDARY_MAP[position];
   const secondaryPositions =
     possibleSecondaries.length > 0 && rng.chance(0.6) ? [rng.pick(possibleSecondaries)] : [];
+
+  const birthYear = currentSeason - age;
 
   return {
     id,
     firstName,
     lastName,
     age,
+    dateOfBirth: `${birthYear}-05-14`,
+    heightCm: position === 'GK' || position === 'CB' ? rng.nextInt(185, 197) : rng.nextInt(171, 187),
+    preferredFoot: position === 'LB' || position === 'LW' ? 'Left' : 'Right',
+    shirtNumber: isYouth ? rng.nextInt(41, 89) : rng.nextInt(1, 39),
     nationality,
     clubId,
     loanedFromClubId: null,
@@ -441,14 +271,26 @@ export function generatePlayer(
     attributes,
     overall,
     potential,
-    contractEndSeason: currentSeason + rng.nextInt(1, 4),
+    contractEndSeason: currentSeason + rng.nextInt(2, 5),
     weeklyWage,
     marketValue,
+    releaseClause: Math.round(marketValue * 1.45),
+    agentFeePct: 8,
+    internationalApps: 0,
+    internationalGoals: 0,
+    careerHistory: [],
     fitness: rng.nextInt(92, 100),
-    morale: rng.nextInt(72, 90),
+    morale: rng.nextInt(74, 92),
     form: rng.nextInt(6, 8),
     injuryWeeks: 0,
-    roleExpectation: overall >= baseClubReputation + 3 ? 'star' : overall >= baseClubReputation - 2 ? 'starter' : age <= 20 ? 'prospect' : 'rotation',
+    roleExpectation:
+      overall >= baseClubReputation + 3
+        ? 'star'
+        : overall >= baseClubReputation - 2
+          ? 'starter'
+          : age <= 20
+            ? 'prospect'
+            : 'rotation',
     transferListed: false,
     transferRequested: false,
     isYouth,
@@ -541,39 +383,133 @@ export function generateInitialGameState(
 
   let playerCounter = 1;
 
-  for (const preset of CLUB_PRESETS) {
+  for (const clubSeed of REAL_WORLD_CLUBS) {
     const clubPlayers: Player[] = [];
-    // Exactly 25 senior players per club = 500 senior players across 20 clubs
-    for (const pos of SQUAD_POSITIONS_TEMPLATE) {
+
+    // Populate all 25 real senior footballers for this club
+    for (const tuple of clubSeed.squad) {
+      const [firstName, lastName, pos, age, targetOvr, nationality, shirtNumber, foot, heightCm, intlCaps] = tuple;
       const pId = `player-${playerCounter++}`;
-      const player = generatePlayer(rng, pId, preset.id, pos, preset.reputation, currentSeason, false);
-      clubPlayers.push(player);
-      players.push(player);
+      const pRng = createRng((worldSeed ^ hashStringToSeed(`${clubSeed.id}-${firstName}-${lastName}`)) >>> 0);
+
+      const rawAttrs = generatePlayerAttributes(pRng, pos, targetOvr - 4);
+      const computedOvr = calculateOverallRating(rawAttrs, pos);
+      const ovrDelta = targetOvr - computedOvr;
+
+      // Fine-tune attributes so overall matches the real footballer's calibrated rating
+      const attributes = { ...rawAttrs };
+      for (const k of Object.keys(attributes) as (keyof PlayerAttributes)[]) {
+        attributes[k] = clampAttr(attributes[k] + ovrDelta);
+      }
+      const overall = calculateOverallRating(attributes, pos);
+      const agePotentialBonus = age <= 20 ? 9 : age <= 23 ? 5 : age <= 26 ? 2 : 0;
+      const potential = Math.min(95, Math.max(overall, targetOvr + agePotentialBonus));
+
+      const marketValue = calculateMarketValue(overall, age, potential);
+      const weeklyWage = calculateWeeklyWage(overall, age);
+      const possibleSecondaries = SECONDARY_MAP[pos];
+      const secondaryPositions = possibleSecondaries.length > 0 ? [possibleSecondaries[0]] : [];
+
+      const birthMonth = ((playerCounter % 12) + 1).toString().padStart(2, '0');
+      const birthDay = (((playerCounter * 3) % 27) + 1).toString().padStart(2, '0');
+      const photoMeta = getPlayerPhotoManifest(firstName, lastName);
+
+      const realPlayer: Player = {
+        id: pId,
+        firstName,
+        lastName,
+        age,
+        dateOfBirth: `${currentSeason - age}-${birthMonth}-${birthDay}`,
+        heightCm,
+        preferredFoot: foot,
+        shirtNumber,
+        nationality,
+        clubId: clubSeed.id,
+        loanedFromClubId: null,
+        primaryPosition: pos,
+        secondaryPositions,
+        attributes,
+        overall,
+        potential,
+        contractEndSeason: currentSeason + ((playerCounter % 4) + 1),
+        weeklyWage,
+        marketValue,
+        releaseClause: Math.round(marketValue * 1.45),
+        agentFeePct: overall >= 85 ? 12 : 8,
+        internationalApps: intlCaps,
+        internationalGoals: pos === 'ST' || pos === 'LW' || pos === 'RW' ? Math.round(intlCaps * 0.35) : Math.round(intlCaps * 0.08),
+        photoUrl: photoMeta?.url,
+        photoAssetId: photoMeta ? `photo-${firstName.toLowerCase()}-${lastName.toLowerCase()}` : undefined,
+        careerHistory: [
+          {
+            season: '2024/25',
+            clubId: clubSeed.id,
+            clubName: clubSeed.name,
+            appearances: Math.max(8, Math.min(38, 22 + (playerCounter % 15))),
+            goals: pos === 'ST' ? 14 : pos === 'LW' || pos === 'RW' ? 8 : pos === 'CAM' ? 6 : 2,
+            assists: pos === 'CAM' || pos === 'LW' || pos === 'RW' ? 7 : 3,
+          },
+        ],
+        fitness: rng.nextInt(93, 100),
+        morale: rng.nextInt(76, 92),
+        form: rng.nextInt(6, 8),
+        injuryWeeks: 0,
+        roleExpectation:
+          overall >= clubSeed.reputation + 1
+            ? 'star'
+            : overall >= clubSeed.reputation - 4
+              ? 'starter'
+              : age <= 21
+                ? 'prospect'
+                : 'rotation',
+        transferListed: false,
+        transferRequested: false,
+        isYouth: false,
+        seasonGrowth: 0,
+        stats: {
+          appearances: 0,
+          goals: 0,
+          assists: 0,
+          cleanSheets: 0,
+          yellowCards: 0,
+          redCards: 0,
+          averageRating: 0,
+          minutesPlayed: 0,
+        },
+      };
+
+      clubPlayers.push(realPlayer);
+      players.push(realPlayer);
     }
 
     // Plus 3 youth academy prospects per club
     const youthPositions: PositionCode[] = ['CM', 'LW', 'ST'];
     for (const yPos of youthPositions) {
-      const yId = `youth-${preset.id}-${yPos}-${playerCounter++}`;
-      const youthPlayer = generatePlayer(rng, yId, preset.id, yPos, preset.reputation, currentSeason, true);
+      const yId = `youth-${clubSeed.id}-${yPos}-${playerCounter++}`;
+      const youthPlayer = generatePlayer(rng, yId, clubSeed.id, yPos, clubSeed.reputation, currentSeason, true);
       clubPlayers.push(youthPlayer);
       players.push(youthPlayer);
     }
 
     const formation =
-      preset.id === manager.clubId && manager.tacticalStyle === 'tikiTaka'
+      clubSeed.id === manager.clubId && manager.tacticalStyle === 'tikiTaka'
         ? '4-3-3'
-        : preset.defaultFormation;
+        : clubSeed.defaultFormation;
 
     const { startingXI, substitutes, reserves } = autoPickLineupForClub(formation, clubPlayers);
     const currentWageBillWeekly = clubPlayers.reduce((sum, p) => sum + p.weeklyWage, 0);
 
-    const isDiv1 = preset.division === 1;
-    let transferBudget = isDiv1
-      ? Math.round((preset.reputation - 55) * 1200000)
-      : Math.round((preset.reputation - 45) * 450000);
+    // Pick captain & vice-captain by highest leadership among starters
+    const sortedLeaders = [...clubPlayers]
+      .filter((p) => startingXI.includes(p.id))
+      .sort((a, b) => b.attributes.leadership + b.age - (a.attributes.leadership + a.age));
 
-    if (preset.id === manager.clubId) {
+    const isDiv1 = clubSeed.division === 1;
+    let transferBudget = isDiv1
+      ? Math.round((clubSeed.reputation - 55) * 1800000)
+      : Math.round((clubSeed.reputation - 45) * 750000);
+
+    if (clubSeed.id === manager.clubId) {
       if (manager.startingChallenge === 'financialCrisis') {
         transferBudget = Math.round(transferBudget * 0.25);
       } else if (manager.difficulty === 'relaxed') {
@@ -584,18 +520,32 @@ export function generateInitialGameState(
     }
 
     const club: Club = {
-      id: preset.id,
-      name: preset.name,
-      shortName: preset.shortName,
-      division: preset.division,
-      primaryColor: preset.primaryColor,
-      secondaryColor: preset.secondaryColor,
-      stadiumName: preset.stadiumName,
-      stadiumCapacity: preset.stadiumCapacity,
-      reputation: preset.reputation,
+      id: clubSeed.id,
+      name: clubSeed.name,
+      shortName: clubSeed.shortName,
+      division: clubSeed.division,
+      countryId: clubSeed.countryId,
+      city: clubSeed.city,
+      leagueId: clubSeed.leagueId,
+      foundedYear: clubSeed.foundedYear,
+      financialStatus: clubSeed.financialStatus,
+      managerName: clubSeed.id === manager.clubId ? manager.name : clubSeed.managerName,
+      rivalClubIds: clubSeed.rivalClubIds,
+      clubHistory: clubSeed.clubHistory,
+      badgeAssetId: `crest-${clubSeed.id}`,
+      captainId: sortedLeaders[0]?.id,
+      viceCaptainId: sortedLeaders[1]?.id,
+      primaryColor: clubSeed.primaryColor,
+      secondaryColor: clubSeed.secondaryColor,
+      stadiumName: clubSeed.stadiumName,
+      stadiumCapacity: clubSeed.stadiumCapacity,
+      reputation: clubSeed.reputation,
       tactics: {
         formation,
-        attackingStyle: preset.id === manager.clubId ? manager.tacticalStyle : rng.pick(['possession', 'wingPlay', 'directCounter', 'balanced']),
+        attackingStyle:
+          clubSeed.id === manager.clubId
+            ? manager.tacticalStyle
+            : rng.pick(['possession', 'wingPlay', 'directCounter', 'balanced']),
         pressing: rng.pick(['medium', 'high']),
         defensiveLine: 'standard',
         width: 55,
@@ -620,19 +570,19 @@ export function generateInitialGameState(
         transferBudget,
         wageBudgetWeekly: Math.round(currentWageBillWeekly * 1.25),
         currentWageBillWeekly,
-        cashBalance: transferBudget + 5000000,
-        matchdayRevenuePerHomeGame: preset.stadiumCapacity * 32,
-        weeklySponsorIncome: isDiv1 ? 380000 : 140000,
-        weeklyStaffAndStadiumCost: isDiv1 ? 165000 : 65000,
+        cashBalance: transferBudget + 8000000,
+        matchdayRevenuePerHomeGame: clubSeed.stadiumCapacity * 38,
+        weeklySponsorIncome: isDiv1 ? 450000 : 185000,
+        weeklyStaffAndStadiumCost: isDiv1 ? 185000 : 75000,
         seasonPrizeMoneyEarned: 0,
         ledger: [
           {
-            id: `tx-init-${preset.id}`,
+            id: `tx-init-${clubSeed.id}`,
             week: 1,
             season: currentSeason,
             category: 'sponsorship',
-            description: 'Initial Season Broadcast & Sponsor Advance',
-            amount: isDiv1 ? 2500000 : 900000,
+            description: 'Initial Season Broadcast & Commercial Partner Advance',
+            amount: isDiv1 ? 3500000 : 1250000,
           },
         ],
       },
@@ -646,25 +596,25 @@ export function generateInitialGameState(
   const scouts: Scout[] = [
     {
       id: 'scout-1',
-      name: 'Marco Bellini',
-      nationality: 'Italy',
-      rating: 84,
+      name: 'Monchi Rodríguez',
+      nationality: 'Spain',
+      rating: 88,
       assignedRegion: 'Western Europe',
       assignedPosition: 'ALL',
     },
     {
       id: 'scout-2',
-      name: 'Paulo Monteiro',
+      name: 'Juni Calafat',
       nationality: 'Brazil',
-      rating: 78,
+      rating: 90,
       assignedRegion: 'South America',
       assignedPosition: 'ST',
     },
     {
       id: 'scout-3',
-      name: 'Liam Gallagher',
+      name: 'Paul Mitchell',
       nationality: 'England',
-      rating: 74,
+      rating: 84,
       assignedRegion: 'Domestic League',
       assignedPosition: 'CM',
     },
@@ -679,7 +629,7 @@ export function generateInitialGameState(
     manager.startingChallenge === 'titleOrBust' ? 1 : Math.max(1, Math.min(8, rankIdx + 2));
 
   return {
-    saveVersion: 1,
+    saveVersion: 2,
     worldSeed,
     currentSeason,
     currentWeek: 1,
@@ -695,14 +645,14 @@ export function generateInitialGameState(
     scouts,
     scoutingReports: [],
     board: {
-      confidence: 80,
+      confidence: 82,
       targetLeaguePosition,
       targetCupRound: 'Quarter-Final',
       wageBudgetStrictness: 75,
       expectationsText:
         manager.startingChallenge === 'titleOrBust'
           ? 'Win the league title this season at all costs.'
-          : `Finish inside the Top ${targetLeaguePosition} of Division ${userClub.division} and maintain healthy finances.`,
+          : `Finish inside the Top ${targetLeaguePosition} of ${userClub.division === 1 ? 'Tier 1' : 'Tier 2'} and compete deep into the Cup.`,
       warningsCount: 0,
       isSacked: false,
     },
@@ -715,7 +665,7 @@ export function generateInitialGameState(
         week: 1,
         season: currentSeason,
         title: `${manager.name} appointed manager of ${userClub.name}`,
-        body: `Supporters at ${userClub.stadiumName} welcome ${manager.name} ahead of the ${currentSeason}/${currentSeason + 1} campaign. The board expects a Top ${targetLeaguePosition} finish.`,
+        body: `Supporters at ${userClub.stadiumName} (${userClub.city}) welcome ${manager.name} ahead of the ${currentSeason}/${currentSeason + 1} campaign. The board expects a Top ${targetLeaguePosition} finish.`,
         category: 'board',
       },
     ],

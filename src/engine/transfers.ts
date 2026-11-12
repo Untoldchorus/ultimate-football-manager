@@ -191,6 +191,9 @@ export interface TransferNegotiationResponse {
   accepted: boolean;
   counterFee?: number;
   requiredWage: number;
+  agentFee: number;
+  releaseClauseTriggered?: boolean;
+  willingnessScore: number; // 0..100
   reason: string;
 }
 
@@ -202,13 +205,26 @@ export function evaluateTransferOffer(
   offeredWage: number,
   isLoan = false
 ): TransferNegotiationResponse {
+  const agentFeePct = player.agentFeePct ?? 8;
+  const agentFee = isLoan ? 0 : Math.round((offeredFee * agentFeePct) / 100);
+  const repDiff = buyingClub.reputation - sellingClub.reputation;
+  const willingnessScore = Math.max(
+    15,
+    Math.min(99, 68 + repDiff * 2 + (player.transferRequested ? 20 : 0))
+  );
+
   if (isLoan) {
-    const canLoan = player.age <= 22 || player.roleExpectation === 'prospect' || player.roleExpectation === 'rotation';
+    const canLoan =
+      player.age <= 22 ||
+      player.roleExpectation === 'prospect' ||
+      player.roleExpectation === 'rotation';
     const requiredWage = Math.round(player.weeklyWage * 0.8);
     if (!canLoan) {
       return {
         accepted: false,
         requiredWage,
+        agentFee: 0,
+        willingnessScore,
         reason: `${sellingClub.name} consider ${player.firstName} ${player.lastName} a core first-team starter and will not loan him out.`,
       };
     }
@@ -216,34 +232,55 @@ export function evaluateTransferOffer(
       return {
         accepted: false,
         requiredWage,
+        agentFee: 0,
+        willingnessScore,
         reason: `Player wants at least £${requiredWage.toLocaleString()}/wk wage contribution during the loan.`,
       };
     }
     return {
       accepted: true,
       requiredWage,
+      agentFee: 0,
+      willingnessScore,
       reason: `${sellingClub.name} and ${player.firstName} ${player.lastName} have accepted the season-long loan deal!`,
     };
   }
 
-  const askingMultiplier = player.transferListed ? 0.85 : player.roleExpectation === 'star' ? 1.35 : 1.1;
-  const minAcceptableFee = Math.round((player.marketValue * askingMultiplier) / 10000) * 10000;
-  const requiredWage = Math.round(calculateWeeklyWage(player.overall, player.age) * 1.05);
+  const releaseClause = player.releaseClause ?? Math.round(player.marketValue * 1.45);
+  const releaseClauseTriggered = offeredFee >= releaseClause;
 
-  if (offeredFee < minAcceptableFee * 0.78) {
+  const askingMultiplier = player.transferListed
+    ? 0.85
+    : player.roleExpectation === 'star'
+      ? 1.35
+      : 1.1;
+  const minAcceptableFee = releaseClauseTriggered
+    ? releaseClause
+    : Math.round((player.marketValue * askingMultiplier) / 10000) * 10000;
+
+  const repWageFactor = repDiff < -10 ? 1.18 : 1.05;
+  const requiredWage = Math.round(
+    calculateWeeklyWage(player.overall, player.age) * repWageFactor
+  );
+
+  if (!releaseClauseTriggered && offeredFee < minAcceptableFee * 0.78) {
     return {
       accepted: false,
       counterFee: minAcceptableFee,
       requiredWage,
-      reason: `${sellingClub.name} rejected the offer outright. They value ${player.lastName} at £${minAcceptableFee.toLocaleString()}.`,
+      agentFee,
+      willingnessScore,
+      reason: `${sellingClub.name} rejected the offer outright. They value ${player.lastName} at £${minAcceptableFee.toLocaleString()} (Release Clause: £${releaseClause.toLocaleString()}).`,
     };
   }
 
-  if (offeredFee < minAcceptableFee) {
+  if (!releaseClauseTriggered && offeredFee < minAcceptableFee) {
     return {
       accepted: false,
       counterFee: minAcceptableFee,
       requiredWage,
+      agentFee,
+      willingnessScore,
       reason: `${sellingClub.name} submitted a counter-offer of £${minAcceptableFee.toLocaleString()}.`,
     };
   }
@@ -253,14 +290,26 @@ export function evaluateTransferOffer(
       accepted: false,
       counterFee: offeredFee,
       requiredWage,
-      reason: `${sellingClub.name} accepted the fee, but ${player.lastName}'s agent demands £${requiredWage.toLocaleString()}/wk.`,
+      agentFee,
+      releaseClauseTriggered,
+      willingnessScore,
+      reason: `${
+        releaseClauseTriggered
+          ? `Release clause (£${releaseClause.toLocaleString()}) triggered!`
+          : `${sellingClub.name} accepted the fee,`
+      } However, ${player.lastName}'s agent demands £${requiredWage.toLocaleString()}/wk (plus ${agentFeePct}% agent fee).`,
     };
   }
 
   return {
     accepted: true,
     requiredWage: offeredWage,
-    reason: `Deal agreed! ${player.firstName} ${player.lastName} is ready to sign for ${buyingClub.name}.`,
+    agentFee,
+    releaseClauseTriggered,
+    willingnessScore,
+    reason: `${
+      releaseClauseTriggered ? 'Release clause triggered! ' : 'Deal agreed! '
+    }${player.firstName} ${player.lastName} has signed for ${buyingClub.name}.`,
   };
 }
 

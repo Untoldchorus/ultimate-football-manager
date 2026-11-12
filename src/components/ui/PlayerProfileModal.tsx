@@ -1,9 +1,21 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { X, GitCompare, Shield, TrendingUp, Activity, Award } from 'lucide-react';
+import {
+  X,
+  GitCompare,
+  Shield,
+  TrendingUp,
+  Activity,
+  Award,
+  Globe,
+  History,
+  FileSignature,
+  CheckCircle2,
+} from 'lucide-react';
 import { Club, Player } from '@/engine/types';
-import { computeRadarStats, getPlayerShirtNumber, PlayerAvatar } from './FootballVisuals';
+import { getPlayerPhotoManifest } from '@/data/assetManifest';
+import { ClubCrest, computeRadarStats, getPlayerShirtNumber, PlayerAvatar } from './FootballVisuals';
 
 interface PlayerProfileModalProps {
   player: Player | null;
@@ -59,7 +71,6 @@ function HexRadarChart({
 
   return (
     <svg viewBox="0 0 260 260" className="w-full max-w-[260px] mx-auto select-none">
-      {/* Concentric Hexagon Rings */}
       {[0.25, 0.5, 0.75, 1].map((scale, sIdx) => {
         const pts = keys
           .map((_, i) => {
@@ -79,7 +90,6 @@ function HexRadarChart({
         );
       })}
 
-      {/* Axis Spokes & Labels */}
       {keys.map((key, i) => {
         const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
         const endX = cx + Math.cos(angle) * maxR;
@@ -111,7 +121,6 @@ function HexRadarChart({
         );
       })}
 
-      {/* Compare Polygon */}
       {comparePolygon && (
         <polygon
           points={comparePolygon}
@@ -122,7 +131,6 @@ function HexRadarChart({
         />
       )}
 
-      {/* Primary Player Polygon */}
       <polygon
         points={primaryPolygon}
         fill={primaryColor}
@@ -152,6 +160,7 @@ export function PlayerProfileModal({
   const club = explicitClub ?? clubMap.get(player.clubId);
   const shirtNumber = getPlayerShirtNumber(player);
   const radarStats = computeRadarStats(player);
+  const photoMeta = getPlayerPhotoManifest(player.firstName, player.lastName);
 
   const comparePlayer = comparePlayerId
     ? allPlayers.find((p) => p.id === comparePlayerId) ?? null
@@ -165,6 +174,9 @@ export function PlayerProfileModal({
         ? 'text-gold-400 font-bold'
         : 'text-slate-300 font-medium';
 
+  const a = player.attributes;
+  const ca = comparePlayer?.attributes;
+
   return (
     <div
       data-testid="player-profile-modal"
@@ -172,7 +184,7 @@ export function PlayerProfileModal({
       aria-modal="true"
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 overflow-y-auto"
     >
-      <div className="max-w-5xl w-full bg-navy-900 border-2 border-slate-700 rounded-3xl overflow-hidden shadow-2xl my-auto">
+      <div className="max-w-6xl w-full bg-navy-900 border-2 border-slate-700 rounded-3xl overflow-hidden shadow-2xl my-auto">
         {/* Top Hero Banner */}
         <div
           className="p-6 relative border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -195,15 +207,16 @@ export function PlayerProfileModal({
                 player={player}
                 clubColor={club?.primaryColor}
                 secondaryColor={club?.secondaryColor}
-                size={84}
+                size={92}
+                showBadge
                 className="border-2 border-gold-400 shadow-xl"
               />
-              <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-lg bg-gold-500 text-navy-950 font-black text-xs shadow">
+              <span className="absolute -top-2 -right-2 px-2 py-0.5 rounded-lg bg-gold-500 text-navy-950 font-black text-xs shadow">
                 #{shirtNumber}
               </span>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded bg-pitch-600 text-white text-xs font-black">
                   {player.primaryPosition}
@@ -216,8 +229,11 @@ export function PlayerProfileModal({
                     {sp}
                   </span>
                 ))}
-                <span className="text-xs text-slate-400 font-semibold">
-                  {player.nationality} &bull; Age {player.age}
+                <span className="text-xs text-slate-300 font-semibold">
+                  {player.nationality} &bull; Age {player.age} ({player.dateOfBirth ?? '1999-05-14'})
+                </span>
+                <span className="text-xs text-slate-400">
+                  &bull; {player.heightCm ?? 181} cm &bull; {player.preferredFoot ?? 'Right'} Foot
                 </span>
               </div>
 
@@ -226,16 +242,29 @@ export function PlayerProfileModal({
               </h2>
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-                <span className="flex items-center gap-1 font-bold text-white">
-                  <Shield className="w-3.5 h-3.5 text-pitch-400" />
-                  {club?.name ?? 'Free Agent'}
+                <span className="flex items-center gap-1.5 font-bold text-white">
+                  {club ? <ClubCrest club={club} size={20} /> : <Shield className="w-3.5 h-3.5 text-pitch-400" />}
+                  <span>{club?.name ?? 'Free Agent'}</span>
                 </span>
                 <span>&bull;</span>
-                <span>Value: <strong className="text-pitch-400">£{(player.marketValue / 1000000).toFixed(2)}M</strong></span>
+                <span>
+                  Market Value: <strong className="text-pitch-400">£{(player.marketValue / 1000000).toFixed(2)}M</strong>
+                </span>
                 <span>&bull;</span>
-                <span>Wage: <strong className="text-gold-400">£{player.weeklyWage.toLocaleString()}/wk</strong></span>
+                <span>
+                  Release Clause:{' '}
+                  <strong className="text-sky-400">
+                    £{((player.releaseClause ?? player.marketValue * 1.45) / 1000000).toFixed(2)}M
+                  </strong>
+                </span>
                 <span>&bull;</span>
-                <span>Contract Until: <strong>{player.contractEndSeason}</strong></span>
+                <span>
+                  Wage: <strong className="text-gold-400">£{player.weeklyWage.toLocaleString()}/wk</strong>
+                </span>
+                <span>&bull;</span>
+                <span>
+                  Contract Until: <strong>{player.contractEndSeason}</strong>
+                </span>
               </div>
             </div>
           </div>
@@ -262,8 +291,8 @@ export function PlayerProfileModal({
           </div>
         </div>
 
-        {/* Status Bar: Fitness, Morale, Form, Season Stats */}
-        <div className="bg-navy-950 px-6 py-3 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
+        {/* Status Bar: Fitness, Morale, Form, Season Stats, International Caps */}
+        <div className="bg-navy-950 px-6 py-3 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-7 gap-3 text-xs">
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Fitness</span>
             <span className="font-extrabold text-pitch-400">{player.fitness}%</span>
@@ -277,7 +306,7 @@ export function PlayerProfileModal({
             <span className="font-extrabold text-gold-400">{player.form.toFixed(1)} / 10</span>
           </div>
           <div>
-            <span className="text-slate-400 block text-[10px] uppercase font-bold">Appearances</span>
+            <span className="text-slate-400 block text-[10px] uppercase font-bold">Season Apps</span>
             <span className="font-extrabold text-white">{player.stats.appearances}</span>
           </div>
           <div>
@@ -287,87 +316,138 @@ export function PlayerProfileModal({
             </span>
           </div>
           <div>
+            <span className="text-slate-400 block text-[10px] uppercase font-bold">Intl Caps / Goals</span>
+            <span className="font-extrabold text-sky-400">
+              {player.internationalApps ?? 0} Caps / {player.internationalGoals ?? 0}G
+            </span>
+          </div>
+          <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Squad Role</span>
             <span className="font-extrabold uppercase text-pitch-400">{player.roleExpectation}</span>
           </div>
         </div>
 
-        {/* Main Body: Radar & Comparison + Full 24 Attributes */}
+        {/* Main Body: Radar & Career History + Full 31 Attributes across 4 Categories */}
         <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-h-[65vh] overflow-y-auto">
-          {/* Left: Radar Chart & Player Comparison */}
-          <div className="lg:col-span-5 bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 flex items-center gap-1.5">
-                <Activity className="w-4 h-4" />
-                <span>Attribute Radar</span>
+          {/* Left: Radar Chart, Comparison & Career History */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 flex items-center gap-1.5">
+                  <Activity className="w-4 h-4" />
+                  <span>Attribute Radar</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <GitCompare className="w-3.5 h-3.5 text-gold-400" />
+                  <select
+                    aria-label="Compare with player"
+                    value={comparePlayerId}
+                    onChange={(e) => setComparePlayerId(e.target.value)}
+                    className="px-2 py-1 rounded-lg bg-navy-900 border border-slate-700 text-[11px] text-white font-bold max-w-[145px]"
+                  >
+                    <option value="">Compare Player...</option>
+                    {allPlayers
+                      .filter((p) => p.id !== player.id && !p.isYouth)
+                      .slice(0, 80)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.firstName} {p.lastName} ({p.overall} {p.primaryPosition})
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <GitCompare className="w-3.5 h-3.5 text-gold-400" />
-                <select
-                  aria-label="Compare with player"
-                  value={comparePlayerId}
-                  onChange={(e) => setComparePlayerId(e.target.value)}
-                  className="px-2.5 py-1 rounded-lg bg-navy-900 border border-slate-700 text-[11px] text-white font-bold max-w-[160px]"
-                >
-                  <option value="">Compare Player...</option>
-                  {allPlayers
-                    .filter((p) => p.id !== player.id && !p.isYouth)
-                    .slice(0, 60)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName} ({p.overall} {p.primaryPosition})
-                      </option>
-                    ))}
-                </select>
-              </div>
+
+              <HexRadarChart primaryStats={radarStats} compareStats={compareRadar} />
+
+              {comparePlayer && (
+                <div className="p-2.5 rounded-xl bg-navy-900 border border-gold-500/30 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase text-gold-400 font-bold block">
+                      Comparing Against
+                    </span>
+                    <strong className="text-white">
+                      {comparePlayer.firstName} {comparePlayer.lastName} ({comparePlayer.overall} OVR)
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setComparePlayerId('')}
+                    className="text-slate-400 hover:text-white text-[11px] underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
 
-            <HexRadarChart primaryStats={radarStats} compareStats={compareRadar} />
-
-            {comparePlayer && (
-              <div className="p-3 rounded-xl bg-navy-900 border border-gold-500/30 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] uppercase text-gold-400 font-bold block">
-                    Comparing Against
-                  </span>
-                  <strong className="text-white">
-                    {comparePlayer.firstName} {comparePlayer.lastName} ({comparePlayer.overall} OVR)
-                  </strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setComparePlayerId('')}
-                  className="text-slate-400 hover:text-white text-[11px] underline"
-                >
-                  Clear
-                </button>
+            {/* Career History & Image Attribution Box */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div className="font-extrabold uppercase tracking-wider text-gold-400 flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5" />
+                <span>Career Statistics &amp; Bio</span>
               </div>
-            )}
+              {player.careerHistory && player.careerHistory.length > 0 ? (
+                <div className="space-y-1.5">
+                  {player.careerHistory.map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between py-1 border-b border-slate-800/60 text-[11px]"
+                    >
+                      <span className="text-slate-300 font-semibold">
+                        {h.season} &bull; {h.clubName}
+                      </span>
+                      <span className="text-white font-bold">
+                        {h.appearances} Apps &bull; {h.goals}G &bull; {h.assists}A
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-slate-400 text-[11px]">Debut senior campaign recorded.</div>
+              )}
+
+              <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <FileSignature className="w-3 h-3 text-pitch-400" />
+                  Agent Fee: <strong>{player.agentFeePct ?? 8}%</strong>
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-sky-400" />
+                  {photoMeta
+                    ? `Photo: ${photoMeta.license}`
+                    : 'Portrait: Generated Avatar'}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Right: Technical, Physical, Mental & GK Attributes */}
-          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Technical */}
-            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+          {/* Right: Complete 31-Attribute Breakdown (Technical 10, Mental 8, Physical 7, GK 6) */}
+          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Technical (10) */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
               <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
                 <Award className="w-3.5 h-3.5" />
-                <span>Technical</span>
+                <span>Technical (10)</span>
               </div>
               {(
                 [
-                  ['Passing', player.attributes.passing, comparePlayer?.attributes.passing],
-                  ['Shooting', player.attributes.shooting, comparePlayer?.attributes.shooting],
-                  ['Finishing', player.attributes.finishing, comparePlayer?.attributes.finishing],
-                  ['Dribbling', player.attributes.dribbling, comparePlayer?.attributes.dribbling],
-                  ['Crossing', player.attributes.crossing, comparePlayer?.attributes.crossing],
-                  ['Tackling', player.attributes.tackling, comparePlayer?.attributes.tackling],
-                  ['First Touch', player.attributes.firstTouch, comparePlayer?.attributes.firstTouch],
-                  ['Heading', player.attributes.heading, comparePlayer?.attributes.heading],
+                  ['Finishing', a.finishing, ca?.finishing],
+                  ['Passing', a.passing, ca?.passing],
+                  ['Crossing', a.crossing, ca?.crossing],
+                  ['Dribbling', a.dribbling, ca?.dribbling],
+                  ['Ball Control', a.ballControl ?? a.firstTouch, ca?.ballControl],
+                  ['First Touch', a.firstTouch, ca?.firstTouch],
+                  ['Tackling', a.tackling, ca?.tackling],
+                  ['Heading', a.heading, ca?.heading],
+                  ['Long Shots', a.longShots ?? a.shooting, ca?.longShots],
+                  ['Free Kicks', a.freeKicks ?? a.passing, ca?.freeKicks],
+                  ['Penalties', a.penalties ?? a.finishing, ca?.penalties],
                 ] as const
               ).map(([label, val, cmp]) => (
-                <div key={label} className="flex items-center justify-between text-xs py-0.5">
+                <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
                   <span className="text-slate-400">{label}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={attrColor(val)}>{val}</span>
                     {typeof cmp === 'number' && (
                       <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
@@ -377,27 +457,56 @@ export function PlayerProfileModal({
               ))}
             </div>
 
-            {/* Physical */}
-            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+            {/* Mental (8) */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-sky-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5" />
+                <span>Mental (8)</span>
+              </div>
+              {(
+                [
+                  ['Decisions', a.decisions, ca?.decisions],
+                  ['Vision', a.vision, ca?.vision],
+                  ['Positioning', a.positioning, ca?.positioning],
+                  ['Anticipation', a.anticipation ?? a.positioning, ca?.anticipation],
+                  ['Composure', a.composure, ca?.composure],
+                  ['Leadership', a.leadership, ca?.leadership],
+                  ['Aggression', a.aggression, ca?.aggression],
+                  ['Work Rate', a.workRate, ca?.workRate],
+                ] as const
+              ).map(([label, val, cmp]) => (
+                <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
+                  <span className="text-slate-400">{label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={attrColor(val)}>{val}</span>
+                    {typeof cmp === 'number' && (
+                      <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Physical (7) */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
               <div className="text-xs font-extrabold uppercase tracking-wider text-gold-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
                 <TrendingUp className="w-3.5 h-3.5" />
-                <span>Physical &amp; GK</span>
+                <span>Physical (7)</span>
               </div>
               {(
                 [
-                  ['Pace', player.attributes.pace, comparePlayer?.attributes.pace],
-                  ['Acceleration', player.attributes.acceleration, comparePlayer?.attributes.acceleration],
-                  ['Strength', player.attributes.strength, comparePlayer?.attributes.strength],
-                  ['Stamina', player.attributes.stamina, comparePlayer?.attributes.stamina],
-                  ['Jumping', player.attributes.jumping, comparePlayer?.attributes.jumping],
-                  ['Agility', player.attributes.agility, comparePlayer?.attributes.agility],
-                  ['GK Reflexes', player.attributes.reflexes, comparePlayer?.attributes.reflexes],
-                  ['GK Handling', player.attributes.handling, comparePlayer?.attributes.handling],
+                  ['Pace', a.pace, ca?.pace],
+                  ['Acceleration', a.acceleration, ca?.acceleration],
+                  ['Strength', a.strength, ca?.strength],
+                  ['Stamina', a.stamina, ca?.stamina],
+                  ['Jumping', a.jumping, ca?.jumping],
+                  ['Balance', a.balance ?? a.agility, ca?.balance],
+                  ['Agility', a.agility, ca?.agility],
                 ] as const
               ).map(([label, val, cmp]) => (
-                <div key={label} className="flex items-center justify-between text-xs py-0.5">
+                <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
                   <span className="text-slate-400">{label}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={attrColor(val)}>{val}</span>
                     {typeof cmp === 'number' && (
                       <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
@@ -407,26 +516,25 @@ export function PlayerProfileModal({
               ))}
             </div>
 
-            {/* Mental */}
-            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-sky-400 border-b border-slate-800 pb-1.5">
-                Mental
+            {/* Goalkeeping (6) */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" />
+                <span>Goalkeeping (6)</span>
               </div>
               {(
                 [
-                  ['Vision', player.attributes.vision, comparePlayer?.attributes.vision],
-                  ['Positioning', player.attributes.positioning, comparePlayer?.attributes.positioning],
-                  ['Decisions', player.attributes.decisions, comparePlayer?.attributes.decisions],
-                  ['Composure', player.attributes.composure, comparePlayer?.attributes.composure],
-                  ['Leadership', player.attributes.leadership, comparePlayer?.attributes.leadership],
-                  ['Work Rate', player.attributes.workRate, comparePlayer?.attributes.workRate],
-                  ['Aggression', player.attributes.aggression, comparePlayer?.attributes.aggression],
-                  ['Distribution', player.attributes.distribution, comparePlayer?.attributes.distribution],
+                  ['Reflexes', a.reflexes, ca?.reflexes],
+                  ['Handling', a.handling, ca?.handling],
+                  ['GK Positioning', a.gkPositioning ?? a.positioning, ca?.gkPositioning],
+                  ['Diving', a.diving ?? a.reflexes, ca?.diving],
+                  ['Distribution', a.distribution, ca?.distribution],
+                  ['Aerial Ability', a.aerialAbility ?? a.jumping, ca?.aerialAbility],
                 ] as const
               ).map(([label, val, cmp]) => (
-                <div key={label} className="flex items-center justify-between text-xs py-0.5">
+                <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
                   <span className="text-slate-400">{label}</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={attrColor(val)}>{val}</span>
                     {typeof cmp === 'number' && (
                       <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>

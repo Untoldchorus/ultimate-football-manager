@@ -291,12 +291,24 @@ export function TransfersScreen() {
                   {negotiatingPlayer.firstName} {negotiatingPlayer.lastName}{' '}
                   <span className="text-gold-400">({negotiatingPlayer.overall} OVR)</span>
                 </h3>
-                <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2 mt-0.5">
                   <span>Current Club: {clubMap.get(negotiatingPlayer.clubId)?.name}</span>
                   <span>&bull;</span>
                   <span>Contract Until: {negotiatingPlayer.contractEndSeason}</span>
                   <span>&bull;</span>
                   <span>Potential: {negotiatingPlayer.potential} POT</span>
+                  {negotiatingPlayer.releaseClause && (
+                    <>
+                      <span>&bull;</span>
+                      <span className="text-pitch-400 font-bold">
+                        Release Clause: £{(negotiatingPlayer.releaseClause / 1000000).toFixed(2)}M
+                      </span>
+                    </>
+                  )}
+                  <span>&bull;</span>
+                  <span className="text-gold-400 font-bold">
+                    Agent Fee: {negotiatingPlayer.agentFeePct ?? 8}%
+                  </span>
                 </div>
               </div>
             </div>

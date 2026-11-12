@@ -313,7 +313,7 @@ export function simulateMatch(
   }
 
   let eventSeq = events.length + 1;
-  const homeAdvBonus = input.isNeutralVenue ? 0 : 2.95;
+  const homeAdvBonus = input.isNeutralVenue ? 0 : 4.85;
 
   // Kickoff event
   if (startMin === 1) {

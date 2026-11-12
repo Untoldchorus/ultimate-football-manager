@@ -35,6 +35,7 @@ export function SquadScreen() {
     autoPickUserLineup,
     setUserFormation,
     updatePlayerRole,
+    updateClubCaptains,
   } = useGameStore();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
@@ -151,6 +152,24 @@ export function SquadScreen() {
               <RefreshCw className="w-3.5 h-3.5 text-pitch-400" />
               <span>Auto-Pick Best XI</span>
             </button>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-bold uppercase text-gold-400">Captain (C):</span>
+              <select
+                value={userClub.captainId ?? userClub.startingXI[0]}
+                onChange={(e) => {
+                  soundManager.playUiClick();
+                  updateClubCaptains(e.target.value, userClub.viceCaptainId);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-navy-950 border border-slate-700 text-xs font-bold text-white"
+              >
+                {clubPlayers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    #{getPlayerShirtNumber(p)} {p.firstName[0]}. {p.lastName} ({p.attributes.leadership ?? 70} LDR)
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Lineup Validation Status Pill */}
@@ -325,6 +344,12 @@ export function SquadScreen() {
                   <div className="mt-1 px-2 py-0.5 rounded-md bg-navy-950/95 border border-slate-700 text-[10px] font-extrabold text-white whitespace-nowrap shadow flex items-center gap-1">
                     <span className="text-pitch-400">{slot.position}</span>
                     <span>{player.lastName}</span>
+                    {userClub.captainId === player.id && (
+                      <span className="px-1 rounded bg-gold-500 text-navy-950 text-[8px] font-black">C</span>
+                    )}
+                    {userClub.viceCaptainId === player.id && (
+                      <span className="px-1 rounded bg-slate-700 text-gold-400 text-[8px] font-black">VC</span>
+                    )}
                   </div>
                   <div className="w-12 h-1 bg-slate-900 rounded-full overflow-hidden mt-0.5 border border-white/10">
                     <div
@@ -441,7 +466,7 @@ export function SquadScreen() {
                           #{getPlayerShirtNumber(p)} {p.firstName} {p.lastName}
                         </div>
                         <div className="text-[11px] text-slate-400">
-                          Age {p.age} &bull; Fit {p.fitness}% &bull; Morale {p.morale}%
+                          Age {p.age} &bull; Fit {p.fitness}% &bull; Morale {p.morale}% &bull; £{(p.marketValue / 1000000).toFixed(1)}M &bull; C:{p.contractEndSeason}
                         </div>
                       </div>
                     </div>
