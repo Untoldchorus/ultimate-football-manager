@@ -19,6 +19,7 @@ import {
   Sparkles,
   Users,
   Star,
+  Cpu,
 } from 'lucide-react';
 import { resimulateFromMinute, simulateMatch } from '@/engine/matchEngine';
 import { Club, MatchResult, Player, TacticalMentality } from '@/engine/types';
@@ -37,7 +38,16 @@ const LazyPitch3DViewer = dynamic(() => import('../match3d/Pitch3DViewer'), {
   ),
 });
 
-export type ViewMode = 'text' | '2d' | '3d';
+const LazyGodotMatchViewer = dynamic(() => import('./GodotMatchViewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[420px] rounded-2xl bg-navy-900 border border-slate-800 flex items-center justify-center text-sm font-bold text-sky-400">
+      Connecting Godot 4 Engine JavaScriptBridge...
+    </div>
+  ),
+});
+
+export type ViewMode = 'text' | '2d' | '3d' | 'godot';
 
 const WEATHER_CONDITIONS = [
   { label: 'Clear Floodlit Night • 14°C', pitch: 'Pristine Fast Turf' },
@@ -404,6 +414,17 @@ export function MatchdayScreen() {
               <Box className="w-3.5 h-3.5" />
               <span>3D Stadium</span>
             </button>
+            <button
+              type="button"
+              data-testid="view-mode-godot"
+              onClick={() => setViewMode('godot')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'godot' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>Godot Engine</span>
+            </button>
           </div>
 
           {/* Playback Controls */}
@@ -587,8 +608,8 @@ export function MatchdayScreen() {
         </div>
       )}
 
-      {/* 3D Camera & Quality Sub-bar when in 3D mode */}
-      {viewMode === '3d' && (
+      {/* 3D Camera & Quality Sub-bar when in 3D or Godot mode */}
+      {(viewMode === '3d' || viewMode === 'godot') && (
         <div className="bg-navy-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase">Camera:</span>
@@ -660,6 +681,21 @@ export function MatchdayScreen() {
                 awayColor={liveAwayClub.primaryColor}
                 cameraPreset={cameraPreset}
                 quality={quality}
+              />
+            </Suspense>
+          )}
+
+          {viewMode === 'godot' && (
+            <Suspense fallback={<div className="p-8 text-center">Loading Godot 4 Bridge...</div>}>
+              <LazyGodotMatchViewer
+                events={matchResult.events}
+                currentClockSeconds={clockSeconds}
+                homeClubId={liveHomeClub.id}
+                homeColor={liveHomeClub.primaryColor}
+                awayColor={liveAwayClub.primaryColor}
+                cameraPreset={cameraPreset}
+                quality={quality}
+                playerMap={playerMap}
               />
             </Suspense>
           )}

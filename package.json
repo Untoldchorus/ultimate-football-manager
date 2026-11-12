@@ -9,7 +9,9 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "godot:editor": "godot --path ./godot --editor",
+    "godot:export": "godot --headless --path ./godot --export-release \"Web\" ../public/godot/match_viewer.html"
   },
   "dependencies": {
     "@react-three/drei": "10.0.4",

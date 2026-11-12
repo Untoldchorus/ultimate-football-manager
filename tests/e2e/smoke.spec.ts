@@ -58,11 +58,20 @@ test.describe('Ultimate Football Manager — Full Career & Matchday Smoke Walkth
     await expect(page.getByTestId('pitch-2d-viewer')).toBeVisible();
     await page.screenshot({ path: 'docs/screenshots/05-match-2d-pitch.png' });
 
+    // Switch to Godot Engine Viewer and verify bridge status bar & viewport render
+    await page.getByTestId('view-mode-godot').click();
+    await expect(page.getByTestId('godot-match-viewer')).toBeVisible();
+    await expect(page.getByTestId('godot-match-viewer')).toContainText('Godot 4.3 Engine Bridge');
+
     // Skip to full time and record final scoreline
     await page.getByTestId('skip-to-end-btn').click();
-    const finalScore2D = await page.getByTestId('match-scoreline').textContent();
+    const finalScoreGodot = await page.getByTestId('match-scoreline').textContent();
 
-    // Switch to Text mode and verify identical final scoreline
+    // Switch to 2D and Text mode and verify identical final scoreline across all viewers
+    await page.getByTestId('view-mode-2d').click();
+    const finalScore2D = await page.getByTestId('match-scoreline').textContent();
+    expect(finalScore2D).toBe(finalScoreGodot);
+
     await page.getByTestId('view-mode-text').click();
     const finalScoreText = await page.getByTestId('match-scoreline').textContent();
     expect(finalScoreText).toBe(finalScore2D);
