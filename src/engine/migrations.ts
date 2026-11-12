@@ -37,6 +37,7 @@ function backfillPlayerAttributes(raw: Partial<PlayerAttributes>): PlayerAttribu
     ballControl: raw.ballControl ?? Math.round((firstTouch + dribbling) / 2),
     crossing,
     tackling,
+    marking: raw.marking ?? Math.round((tackling + positioning) / 2),
     firstTouch,
     heading,
     longShots: raw.longShots ?? shooting,

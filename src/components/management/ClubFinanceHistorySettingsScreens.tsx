@@ -18,6 +18,8 @@ import {
 import { calculateStandings } from '@/engine/standings';
 import { CompetitionType, Player } from '@/engine/types';
 import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
+import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
+import { verifyGlobalDatabaseCompleteness } from '@/engine/completenessVerifier';
 import { ASSET_MANIFEST } from '@/data/assetManifest';
 import { soundManager } from '@/lib/audio';
 import { defaultSaveRepository, SaveSlotId } from '@/services/saveRepository';
@@ -326,7 +328,11 @@ export function CompetitionsScreen() {
   const { gameState } = useGameStore();
   const [comp, setComp] = useState<CompetitionType>('division1');
   const [selectedRegistryCompId, setSelectedRegistryCompId] = useState<string>('ALL');
+  const [selectedGlobalClubId, setSelectedGlobalClubId] = useState<string | null>(null);
+  const [showCompletenessTable, setShowCompletenessTable] = useState<boolean>(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
+
+  const completenessReport = useMemo(() => verifyGlobalDatabaseCompleteness(), []);
 
   const clubMap = useMemo(
     () => new Map((gameState?.clubs ?? []).map((c) => [c.id, c])),
@@ -336,6 +342,12 @@ export function CompetitionsScreen() {
   if (!gameState) return null;
 
   const selectedRegistryComp = COMPETITIONS_REGISTRY.find((c) => c.id === selectedRegistryCompId);
+  const globalDivisionClubs =
+    selectedRegistryComp && selectedRegistryComp.populatedStatus === 'populated'
+      ? GLOBAL_CLUBS_REGISTRY.filter((c) => c.leagueId === selectedRegistryComp.id)
+      : [];
+  const inspectedGlobalClub =
+    globalDivisionClubs.find((c) => c.id === selectedGlobalClubId) ?? globalDivisionClubs[0] ?? null;
 
   const isLeague = comp === 'division1' || comp === 'division2';
   const standings = isLeague
@@ -443,8 +455,193 @@ export function CompetitionsScreen() {
               );
             })}
           </select>
+
+          <button
+            type="button"
+            onClick={() => setShowCompletenessTable((prev) => !prev)}
+            className="px-3 py-1.5 rounded-xl bg-navy-950 border border-pitch-500/40 text-xs font-bold text-pitch-400 hover:bg-navy-800 transition"
+          >
+            {showCompletenessTable
+              ? 'Hide 40-Division Audit'
+              : `20-Nation Audit (${completenessReport.completedDivisionsCount}/${completenessReport.totalDivisions} COMPLETE)`}
+          </button>
         </div>
       </div>
+
+      {showCompletenessTable && (
+        <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-xl">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                Global 20-Nation / 40-Division Completeness Verification Report
+              </h3>
+              <p className="text-xs text-slate-400">
+                Reference Season: {completenessReport.seasonLabel} ({completenessReport.referenceDate}) &bull;{' '}
+                {completenessReport.totalImportedClubs} Real Participating Clubs &bull;{' '}
+                {completenessReport.totalImportedPlayers.toLocaleString()} Registered Senior Players
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-pitch-500/20 text-pitch-400 font-black text-xs uppercase">
+              Overall Status: {completenessReport.overallStatus}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto max-h-80 border border-slate-800 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-navy-950 text-slate-400 uppercase sticky top-0">
+                <tr>
+                  <th className="py-2.5 px-3">Country</th>
+                  <th className="py-2.5 px-3">Tier</th>
+                  <th className="py-2.5 px-3">Division</th>
+                  <th className="py-2.5 px-3">Format</th>
+                  <th className="py-2.5 px-3">Expected Clubs</th>
+                  <th className="py-2.5 px-3">Imported Clubs</th>
+                  <th className="py-2.5 px-3">Imported Players</th>
+                  <th className="py-2.5 px-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {completenessReport.divisions.map((d) => (
+                  <tr
+                    key={d.leagueId}
+                    onClick={() => {
+                      setSelectedRegistryCompId(d.leagueId);
+                      setSelectedGlobalClubId(null);
+                    }}
+                    className="hover:bg-navy-800/50 cursor-pointer"
+                  >
+                    <td className="py-2 px-3 font-bold text-white">
+                      #{d.worldRank} {d.flagEmoji} {d.countryName}
+                    </td>
+                    <td className="py-2 px-3 text-slate-300">Tier {d.divisionTier}</td>
+                    <td className="py-2 px-3 font-bold text-pitch-400">{d.leagueName}</td>
+                    <td className="py-2 px-3 text-slate-400">{d.competitionFormat}</td>
+                    <td className="py-2 px-3 text-slate-300">{d.expectedClubs}</td>
+                    <td className="py-2 px-3 font-bold text-white">{d.importedClubs}</td>
+                    <td className="py-2 px-3 font-bold text-gold-400">{d.importedPlayers}</td>
+                    <td className="py-2 px-3">
+                      <span className="px-2 py-0.5 rounded bg-pitch-500/20 text-pitch-400 font-black text-[10px] uppercase">
+                        {d.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {selectedRegistryComp &&
+        selectedRegistryComp.populatedStatus === 'populated' &&
+        selectedRegistryCompId !== 'ALL' &&
+        selectedRegistryCompId !== 'division1' &&
+        selectedRegistryCompId !== 'division2' &&
+        selectedRegistryCompId !== 'domesticCup' &&
+        selectedRegistryCompId !== 'championsCup' && (
+          <div className="bg-navy-900 border border-pitch-500/30 rounded-2xl p-5 space-y-4 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-black text-white uppercase">
+                  {selectedRegistryComp.name} &mdash; All {globalDivisionClubs.length} Participating Real Clubs &amp; Senior Squads
+                </div>
+                <p className="text-xs text-slate-400">
+                  Tier {selectedRegistryComp.tier} &bull; {selectedRegistryComp.rules.competitionFormat ?? 'Double Round-Robin'} &bull;{' '}
+                  {selectedRegistryComp.rules.promotionSpots} Promotion / {selectedRegistryComp.rules.relegationSpots} Relegation Spots &bull;{' '}
+                  {(globalDivisionClubs.length * 25).toLocaleString()} Registered Senior Players
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-pitch-500/20 text-pitch-400 font-black uppercase text-[10px]">
+                COMPLETE ({globalDivisionClubs.length}/{selectedRegistryComp.rules.expectedClubCount ?? globalDivisionClubs.length} Clubs)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
+                {globalDivisionClubs.map((gc) => {
+                  const isSelected = inspectedGlobalClub?.id === gc.id;
+                  return (
+                    <button
+                      key={gc.id}
+                      type="button"
+                      onClick={() => setSelectedGlobalClubId(gc.id)}
+                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 text-xs transition ${
+                        isSelected
+                          ? 'bg-navy-800 border-pitch-500'
+                          : 'bg-navy-950 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ClubCrest club={gc} size={28} />
+                        <div className="truncate">
+                          <div className="font-bold text-white truncate">{gc.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {gc.city} &bull; {gc.stadiumName}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-gold-400 font-black text-[11px] shrink-0">{gc.reputation}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {inspectedGlobalClub && (
+                <div className="lg:col-span-7 bg-navy-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-3">
+                      <ClubCrest club={inspectedGlobalClub} size={40} />
+                      <div>
+                        <div className="font-black text-white text-sm">
+                          {inspectedGlobalClub.name} ({inspectedGlobalClub.foundedYear})
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {inspectedGlobalClub.city} &bull; {inspectedGlobalClub.stadiumName} (
+                          {inspectedGlobalClub.stadiumCapacity.toLocaleString()}) &bull; Manager:{' '}
+                          <strong className="text-pitch-400">{inspectedGlobalClub.managerName}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-gold-500/20 text-gold-400 font-black text-xs">
+                      {inspectedGlobalClub.squad.length} Senior Players
+                    </span>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="text-slate-400 uppercase border-b border-slate-800">
+                        <tr>
+                          <th className="py-1.5 px-2">#</th>
+                          <th className="py-1.5 px-2">Player</th>
+                          <th className="py-1.5 px-2">Pos</th>
+                          <th className="py-1.5 px-2">Age</th>
+                          <th className="py-1.5 px-2">Nationality</th>
+                          <th className="py-1.5 px-2">Foot</th>
+                          <th className="py-1.5 px-2">OVR</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {inspectedGlobalClub.squad.map((tuple, idx) => (
+                          <tr key={idx} className="hover:bg-navy-900/60">
+                            <td className="py-1 px-2 text-slate-400 font-bold">{tuple[6]}</td>
+                            <td className="py-1 px-2 font-bold text-white">
+                              {tuple[0]} {tuple[1]}
+                            </td>
+                            <td className="py-1 px-2 text-pitch-400 font-bold">{tuple[2]}</td>
+                            <td className="py-1 px-2 text-slate-300">{tuple[3]}</td>
+                            <td className="py-1 px-2 text-slate-300">{tuple[5]}</td>
+                            <td className="py-1 px-2 text-slate-400">{tuple[7]}</td>
+                            <td className="py-1 px-2 font-black text-gold-400">{tuple[4]}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {selectedRegistryComp && selectedRegistryComp.populatedStatus === 'expandable_unpopulated' && (
         <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">

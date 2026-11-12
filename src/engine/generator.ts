@@ -17,7 +17,8 @@ import {
   Scout,
 } from './types';
 import { generateSeasonFixtures } from './fixtures';
-import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
+import { REAL_WORLD_CLUBS, RealClubSeed } from '@/data/realWorldDatabase';
+import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
 
 export interface ClubPreset {
@@ -42,6 +43,27 @@ export interface ClubPreset {
 }
 
 export const CLUB_PRESETS: ClubPreset[] = REAL_WORLD_CLUBS.map((c) => ({
+  id: c.id,
+  name: c.name,
+  shortName: c.shortName,
+  division: c.division,
+  countryId: c.countryId,
+  city: c.city,
+  leagueId: c.leagueId,
+  foundedYear: c.foundedYear,
+  financialStatus: c.financialStatus,
+  managerName: c.managerName,
+  rivalClubIds: c.rivalClubIds,
+  clubHistory: c.clubHistory,
+  primaryColor: c.primaryColor,
+  secondaryColor: c.secondaryColor,
+  stadiumName: c.stadiumName,
+  stadiumCapacity: c.stadiumCapacity,
+  reputation: c.reputation,
+  defaultFormation: c.defaultFormation,
+}));
+
+export const GLOBAL_CLUB_PRESETS: ClubPreset[] = GLOBAL_CLUBS_REGISTRY.map((c) => ({
   id: c.id,
   name: c.name,
   shortName: c.shortName,
@@ -186,6 +208,7 @@ export function generatePlayerAttributes(
     ballControl: clampAttr((firstTouch + dribbling) / 2),
     crossing,
     tackling,
+    marking: clampAttr((tackling + positioning) / 2),
     firstTouch,
     heading,
     longShots: base(position === 'CAM' || position === 'CM' || isSt ? 4 : isGK ? -30 : -6),
@@ -372,6 +395,56 @@ export function autoPickLineupForClub(
   return { startingXI, substitutes, reserves };
 }
 
+export function selectActiveSimulationClubSeeds(selectedClubId: string): RealClubSeed[] {
+  const isFlagshipClub = REAL_WORLD_CLUBS.some((c) => c.id === selectedClubId);
+  if (isFlagshipClub) {
+    return REAL_WORLD_CLUBS;
+  }
+
+  const chosenClub = GLOBAL_CLUBS_REGISTRY.find((c) => c.id === selectedClubId);
+  if (!chosenClub) {
+    return REAL_WORLD_CLUBS;
+  }
+
+  const countryClubs = GLOBAL_CLUBS_REGISTRY.filter((c) => c.countryId === chosenClub.countryId);
+  const countryDiv1 = countryClubs
+    .filter((c) => c.division === 1 && c.id !== chosenClub.id)
+    .sort((a, b) => b.reputation - a.reputation);
+  const countryDiv2 = countryClubs
+    .filter((c) => c.division === 2 && c.id !== chosenClub.id)
+    .sort((a, b) => b.reputation - a.reputation);
+
+  const tier1Pool: RealClubSeed[] = [];
+  const tier2Pool: RealClubSeed[] = [];
+
+  if (chosenClub.division === 1) {
+    tier1Pool.push(chosenClub);
+  } else {
+    tier2Pool.push(chosenClub);
+  }
+
+  for (const c of countryDiv1) {
+    if (tier1Pool.length >= 10) break;
+    tier1Pool.push(c);
+  }
+  for (const c of countryDiv2) {
+    if (tier2Pool.length >= 10) break;
+    tier2Pool.push(c);
+  }
+
+  // Fallback fill from REAL_WORLD_CLUBS if a country has fewer than 10 clubs in a division
+  for (const c of REAL_WORLD_CLUBS) {
+    if (c.division === 1 && tier1Pool.length < 10 && !tier1Pool.some((x) => x.id === c.id)) {
+      tier1Pool.push(c);
+    }
+    if (c.division === 2 && tier2Pool.length < 10 && !tier2Pool.some((x) => x.id === c.id)) {
+      tier2Pool.push(c);
+    }
+  }
+
+  return [...tier1Pool.slice(0, 10), ...tier2Pool.slice(0, 10)];
+}
+
 export function generateInitialGameState(
   worldSeed: number,
   manager: ManagerProfile
@@ -382,8 +455,9 @@ export function generateInitialGameState(
   const players: Player[] = [];
 
   let playerCounter = 1;
+  const activeClubSeeds = selectActiveSimulationClubSeeds(manager.clubId);
 
-  for (const clubSeed of REAL_WORLD_CLUBS) {
+  for (const clubSeed of activeClubSeeds) {
     const clubPlayers: Player[] = [];
 
     // Populate all 25 real senior footballers for this club

@@ -7,17 +7,24 @@ import {
   Flame,
   Globe,
   MapPin,
-  Landmark,
   Info,
   CheckCircle2,
   Clock,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Database,
 } from 'lucide-react';
-import { CLUB_PRESETS } from '@/engine/generator';
+import { CLUB_PRESETS, GLOBAL_CLUB_PRESETS } from '@/engine/generator';
+import { verifyGlobalDatabaseCompleteness } from '@/engine/completenessVerifier';
 import { AttackingStyle, FinancialStatus, ManagerProfile } from '@/engine/types';
 import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY, getCountryById } from '@/data/competitionsRegistry';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { ClubCrest } from '../ui/FootballVisuals';
+
+const PAGE_SIZE = 24;
+const FLAGSHIP_IDS = new Set(CLUB_PRESETS.map((c) => c.id));
 
 export function CareerCreationScreen() {
   const { startNewCareer, saveSlots, loadFromSlot } = useGameStore();
@@ -27,35 +34,65 @@ export function CareerCreationScreen() {
   const [difficulty, setDifficulty] = useState<ManagerProfile['difficulty']>('standard');
   const [startingChallenge, setStartingChallenge] = useState<ManagerProfile['startingChallenge']>('none');
 
-  // Multi-Dimensional Real Club Filters
+  // Multi-Dimensional Real Club Filters across all 20 Nations & 40 Divisions
   const [selectedTier, setSelectedTier] = useState<'ALL' | 1 | 2>('ALL');
   const [countryFilter, setCountryFilter] = useState<string>('ALL');
   const [leagueFilter, setLeagueFilter] = useState<string>('ALL');
   const [financeFilter, setFinanceFilter] = useState<FinancialStatus | 'ALL'>('ALL');
   const [minRepFilter, setMinRepFilter] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [page, setPage] = useState<number>(0);
   const [showCompetitionsRegistry, setShowCompetitionsRegistry] = useState<boolean>(false);
 
   const [selectedClubId, setSelectedClubId] = useState<string>(CLUB_PRESETS[0].id);
 
+  const completenessReport = useMemo(() => verifyGlobalDatabaseCompleteness(), []);
+
+  // Order flagship 20 clubs first so Page 1 shows Arsenal, Chelsea (club-harbour), Man City, Real Madrid, etc. immediately,
+  // followed by all remaining 713 clubs sorted by reputation descending.
+  const orderedGlobalPresets = useMemo(() => {
+    const flagships = GLOBAL_CLUB_PRESETS.filter((c) => FLAGSHIP_IDS.has(c.id));
+    const others = GLOBAL_CLUB_PRESETS.filter((c) => !FLAGSHIP_IDS.has(c.id)).sort(
+      (a, b) => b.reputation - a.reputation
+    );
+    return [...flagships, ...others];
+  }, []);
+
   const filteredClubs = useMemo(() => {
-    return CLUB_PRESETS.filter((c) => {
+    const q = searchQuery.trim().toLowerCase();
+    return orderedGlobalPresets.filter((c) => {
       if (selectedTier !== 'ALL' && c.division !== selectedTier) return false;
       if (countryFilter !== 'ALL' && c.countryId !== countryFilter) return false;
       if (leagueFilter !== 'ALL' && c.leagueId !== leagueFilter) return false;
       if (financeFilter !== 'ALL' && c.financialStatus !== financeFilter) return false;
       if (c.reputation < minRepFilter) return false;
+      if (q) {
+        const matchName = c.name.toLowerCase().includes(q);
+        const matchShort = c.shortName.toLowerCase().includes(q);
+        const matchCity = c.city.toLowerCase().includes(q);
+        const matchStadium = c.stadiumName.toLowerCase().includes(q);
+        const matchManager = c.managerName.toLowerCase().includes(q);
+        if (!matchName && !matchShort && !matchCity && !matchStadium && !matchManager) return false;
+      }
       return true;
     });
-  }, [selectedTier, countryFilter, leagueFilter, financeFilter, minRepFilter]);
+  }, [orderedGlobalPresets, selectedTier, countryFilter, leagueFilter, financeFilter, minRepFilter, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredClubs.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paginatedClubs = useMemo(
+    () => filteredClubs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
+    [filteredClubs, safePage]
+  );
 
   const activeClub =
-    CLUB_PRESETS.find((c) => c.id === selectedClubId) ??
+    GLOBAL_CLUB_PRESETS.find((c) => c.id === selectedClubId) ??
     filteredClubs[0] ??
-    CLUB_PRESETS[0];
+    GLOBAL_CLUB_PRESETS[0];
 
   const activeCountry = getCountryById(activeClub.countryId);
   const rivalNames = activeClub.rivalClubIds
-    .map((id) => CLUB_PRESETS.find((c) => c.id === id)?.name)
+    .map((id) => GLOBAL_CLUB_PRESETS.find((c) => c.id === id)?.name)
     .filter(Boolean)
     .join(', ');
 
@@ -85,7 +122,8 @@ export function CareerCreationScreen() {
                 ULTIMATE FOOTBALL MANAGER
               </h1>
               <p className="text-xs md:text-sm text-pitch-400 font-medium uppercase tracking-widest">
-                Real-World Football Database &bull; Multi-League Career Edition
+                20-Nation &bull; 40-Division Global Database ({completenessReport.totalImportedClubs} Clubs &bull;{' '}
+                {completenessReport.totalImportedPlayers.toLocaleString()} Players)
               </p>
             </div>
           </div>
@@ -93,14 +131,15 @@ export function CareerCreationScreen() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              data-testid="toggle-completeness-audit-btn"
               onClick={() => setShowCompetitionsRegistry((prev) => !prev)}
               className="px-3.5 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-700 text-xs font-bold text-gold-400 flex items-center gap-1.5 transition"
             >
-              <Globe className="w-3.5 h-3.5" />
+              <Database className="w-3.5 h-3.5" />
               <span>
                 {showCompetitionsRegistry
-                  ? 'Hide World Competitions Directory'
-                  : `World Competitions (${COMPETITIONS_REGISTRY.length} Leagues & Cups)`}
+                  ? 'Hide 20-Nation / 40-Division Completeness Report'
+                  : `Global 40-Division Audit (${completenessReport.completedDivisionsCount}/${completenessReport.totalDivisions} COMPLETE)`}
               </span>
             </button>
 
@@ -120,54 +159,77 @@ export function CareerCreationScreen() {
           </div>
         </header>
 
-        {/* Transparent World Competitions Status Drawer (Clearly identifies populated vs unpopulated leagues) */}
+        {/* Live 20-Nation / 40-Division Completeness Verification Table */}
         {showCompetitionsRegistry && (
-          <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-2xl">
+          <div
+            data-testid="global-completeness-drawer"
+            className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-2xl"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Info className="w-4 h-4 text-pitch-400" />
                 <h2 className="text-sm font-extrabold uppercase tracking-wider text-white">
-                  Real-World Leagues &amp; Competitions Database Status
+                  20-Nation / 40-Division Global Football Database Completeness Report (Ref:{' '}
+                  {completenessReport.referenceDate})
                 </h2>
               </div>
-              <span className="text-xs text-slate-400">
-                Populated leagues contain real verified squads; Expandable leagues can be populated via the Settings JSON/CSV Importer.
-              </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-2.5 py-1 rounded-lg bg-pitch-500/20 text-pitch-400 font-black">
+                  Countries: {completenessReport.totalCountries}/20
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-pitch-500/20 text-pitch-400 font-black">
+                  Divisions: {completenessReport.completedDivisionsCount}/{completenessReport.totalDivisions} COMPLETE
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-gold-500/20 text-gold-400 font-black">
+                  Clubs: {completenessReport.totalImportedClubs}/{completenessReport.totalExpectedClubs}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-400 font-black">
+                  Senior Players: {completenessReport.totalImportedPlayers.toLocaleString()}
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 max-h-60 overflow-y-auto pr-1 text-xs">
-              {COMPETITIONS_REGISTRY.map((comp) => {
-                const country = getCountryById(comp.countryId);
-                const isPopulated = comp.populatedStatus === 'populated';
-                return (
-                  <div
-                    key={comp.id}
-                    className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
-                      isPopulated
-                        ? 'bg-navy-950 border-pitch-500/30'
-                        : 'bg-navy-950/50 border-slate-800 opacity-80'
-                    }`}
-                  >
-                    <div className="truncate">
-                      <div className="font-bold text-white truncate">
-                        {country.flagEmoji} {comp.shortName}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {country.name} &bull; Rep {comp.reputation}
-                      </div>
-                    </div>
-                    {isPopulated ? (
-                      <span className="px-2 py-0.5 rounded bg-pitch-500/20 text-pitch-400 font-black text-[9px] uppercase flex items-center gap-1 shrink-0">
-                        <CheckCircle2 className="w-2.5 h-2.5" /> Active
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-bold text-[9px] uppercase flex items-center gap-1 shrink-0">
-                        <Clock className="w-2.5 h-2.5" /> Unpopulated
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto max-h-72 border border-slate-800 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-navy-950 text-slate-400 uppercase sticky top-0">
+                  <tr>
+                    <th className="py-2.5 px-3">Rank &amp; Country</th>
+                    <th className="py-2.5 px-3">Tier</th>
+                    <th className="py-2.5 px-3">Division Name</th>
+                    <th className="py-2.5 px-3">Expected Clubs</th>
+                    <th className="py-2.5 px-3">Imported Clubs</th>
+                    <th className="py-2.5 px-3">Imported Players</th>
+                    <th className="py-2.5 px-3">Badges</th>
+                    <th className="py-2.5 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/70">
+                  {completenessReport.divisions.map((div) => (
+                    <tr key={div.leagueId} className="hover:bg-navy-800/40">
+                      <td className="py-2 px-3 font-bold text-white">
+                        #{div.worldRank} {div.flagEmoji} {div.countryName}
+                      </td>
+                      <td className="py-2 px-3 text-slate-300">Tier {div.divisionTier}</td>
+                      <td className="py-2 px-3 font-bold text-pitch-400">{div.leagueName}</td>
+                      <td className="py-2 px-3 text-slate-300">{div.expectedClubs}</td>
+                      <td className="py-2 px-3 font-bold text-white">{div.importedClubs}</td>
+                      <td className="py-2 px-3 text-gold-400 font-bold">{div.importedPlayers}</td>
+                      <td className="py-2 px-3 text-sky-400">{div.clubsWithBadgesCount}/{div.expectedClubs}</td>
+                      <td className="py-2 px-3">
+                        {div.status === 'COMPLETE' ? (
+                          <span className="px-2 py-0.5 rounded bg-pitch-500/20 text-pitch-400 font-black text-[10px] uppercase inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> COMPLETE
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] uppercase inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> INCOMPLETE
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -207,13 +269,33 @@ export function CareerCreationScreen() {
                   onChange={(e) => setNationality(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-navy-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pitch-500"
                 >
-                  {['England', 'Spain', 'France', 'Germany', 'Brazil', 'Argentina', 'Netherlands', 'Italy', 'Portugal', 'Nigeria', 'USA', 'Saudi Arabia', 'Japan'].map(
-                    (nat) => (
-                      <option key={nat} value={nat}>
-                        {nat}
-                      </option>
-                    )
-                  )}
+                  {[
+                    'England',
+                    'Spain',
+                    'Germany',
+                    'Italy',
+                    'France',
+                    'Portugal',
+                    'Netherlands',
+                    'Brazil',
+                    'Argentina',
+                    'Mexico',
+                    'USA',
+                    'Saudi Arabia',
+                    'Turkey',
+                    'Belgium',
+                    'Scotland',
+                    'Austria',
+                    'Switzerland',
+                    'Denmark',
+                    'Japan',
+                    'South Korea',
+                    'Nigeria',
+                  ].map((nat) => (
+                    <option key={nat} value={nat}>
+                      {nat}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -312,7 +394,7 @@ export function CareerCreationScreen() {
                 </div>
                 <div className="p-2 rounded-lg bg-navy-900 border border-slate-800">
                   <span className="text-slate-400 block text-[9px] uppercase font-bold">Rivals</span>
-                  <strong className="text-gold-400 truncate block">{rivalNames || 'Regional'}</strong>
+                  <strong className="text-gold-400 truncate block">{rivalNames || 'Regional Derby'}</strong>
                 </div>
               </div>
             </div>
@@ -327,13 +409,13 @@ export function CareerCreationScreen() {
             </button>
           </div>
 
-          {/* Right column: Real Club Picker with Country, League, Reputation & Finance Filters */}
+          {/* Right column: Real Club Picker with Country, League, Reputation, Search & Pagination */}
           <div className="lg:col-span-7 bg-navy-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-gold-400 font-bold uppercase tracking-wider text-xs">
                 <Shield className="w-4 h-4" />
                 <span>
-                  Step 2 &bull; Select Real Club ({filteredClubs.length} of {CLUB_PRESETS.length} Verified Squads)
+                  Step 2 &bull; Select Real Club ({filteredClubs.length} of {GLOBAL_CLUB_PRESETS.length} Global Clubs)
                 </span>
               </div>
 
@@ -341,14 +423,17 @@ export function CareerCreationScreen() {
                 {(
                   [
                     ['ALL', 'All Tiers'],
-                    [1, 'Tier 1 Elite'],
-                    [2, 'Tier 2 & Global'],
+                    [1, '1st Division (T1)'],
+                    [2, '2nd Division (T2)'],
                   ] as const
                 ).map(([tierVal, label]) => (
                   <button
                     key={String(tierVal)}
                     type="button"
-                    onClick={() => setSelectedTier(tierVal)}
+                    onClick={() => {
+                      setSelectedTier(tierVal);
+                      setPage(0);
+                    }}
                     className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
                       selectedTier === tierVal
                         ? 'bg-pitch-600 text-white'
@@ -361,15 +446,34 @@ export function CareerCreationScreen() {
               </div>
             </div>
 
-            {/* Filter Bar: Country, League, Financial Strength, Reputation */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {/* Search + Filter Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+              <div className="relative sm:col-span-1">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  aria-label="Search clubs"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Search club/city..."
+                  className="w-full pl-8 pr-2.5 py-2 rounded-xl bg-navy-950 border border-slate-800 text-xs text-white font-semibold focus:outline-none focus:border-pitch-500"
+                />
+              </div>
+
               <select
                 aria-label="Filter by Country"
                 value={countryFilter}
-                onChange={(e) => setCountryFilter(e.target.value)}
+                onChange={(e) => {
+                  setCountryFilter(e.target.value);
+                  setLeagueFilter('ALL');
+                  setPage(0);
+                }}
                 className="px-3 py-2 rounded-xl bg-navy-950 border border-slate-800 text-xs text-white font-semibold"
               >
-                <option value="ALL">All Countries</option>
+                <option value="ALL">All 20 Nations</option>
                 {COUNTRIES_REGISTRY.filter((c) => c.id !== 'EUR').map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.flagEmoji} {c.name}
@@ -380,15 +484,21 @@ export function CareerCreationScreen() {
               <select
                 aria-label="Filter by League"
                 value={leagueFilter}
-                onChange={(e) => setLeagueFilter(e.target.value)}
+                onChange={(e) => {
+                  setLeagueFilter(e.target.value);
+                  setPage(0);
+                }}
                 className="px-3 py-2 rounded-xl bg-navy-950 border border-slate-800 text-xs text-white font-semibold"
               >
-                <option value="ALL">All Leagues</option>
+                <option value="ALL">All 40 Divisions</option>
                 {COMPETITIONS_REGISTRY.filter(
-                  (l) => l.type === 'league' && l.populatedStatus === 'populated'
+                  (l) =>
+                    l.type === 'league' &&
+                    l.populatedStatus === 'populated' &&
+                    (countryFilter === 'ALL' || l.countryId === countryFilter)
                 ).map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.shortName}
+                    {l.shortName} (T{l.tier})
                   </option>
                 ))}
               </select>
@@ -396,19 +506,26 @@ export function CareerCreationScreen() {
               <select
                 aria-label="Filter by Financial Strength"
                 value={financeFilter}
-                onChange={(e) => setFinanceFilter(e.target.value as FinancialStatus | 'ALL')}
+                onChange={(e) => {
+                  setFinanceFilter(e.target.value as FinancialStatus | 'ALL');
+                  setPage(0);
+                }}
                 className="px-3 py-2 rounded-xl bg-navy-950 border border-slate-800 text-xs text-white font-semibold"
               >
                 <option value="ALL">Any Finances</option>
                 <option value="Rich">Rich Club</option>
                 <option value="Secure">Secure Finances</option>
                 <option value="Stable">Stable Finances</option>
+                <option value="Tight">Tight Budget</option>
               </select>
 
               <select
                 aria-label="Filter by Reputation"
                 value={minRepFilter}
-                onChange={(e) => setMinRepFilter(Number(e.target.value))}
+                onChange={(e) => {
+                  setMinRepFilter(Number(e.target.value));
+                  setPage(0);
+                }}
                 className="px-3 py-2 rounded-xl bg-navy-950 border border-slate-800 text-xs text-white font-semibold"
               >
                 <option value={0}>Any Reputation</option>
@@ -418,8 +535,8 @@ export function CareerCreationScreen() {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[450px] overflow-y-auto pr-1">
-              {filteredClubs.map((club) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto pr-1">
+              {paginatedClubs.map((club) => {
                 const isSelected = club.id === activeClub.id;
                 const country = getCountryById(club.countryId);
                 return (
@@ -447,6 +564,8 @@ export function CareerCreationScreen() {
                           {country.flagEmoji} {club.city} &bull; {club.stadiumName}
                         </div>
                         <div className="text-[11px] text-pitch-400 font-semibold mt-0.5 flex items-center gap-2">
+                          <span>T{club.division}</span>
+                          <span>&bull;</span>
                           <span>{club.defaultFormation}</span>
                           <span>&bull;</span>
                           <span>{(club.stadiumCapacity / 1000).toFixed(1)}k cap</span>
@@ -467,6 +586,35 @@ export function CareerCreationScreen() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400">
+              <span>
+                Showing {filteredClubs.length === 0 ? 0 : safePage * PAGE_SIZE + 1}&ndash;
+                {Math.min(filteredClubs.length, (safePage + 1) * PAGE_SIZE)} of {filteredClubs.length} clubs
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="px-2.5 py-1 rounded-lg bg-navy-950 border border-slate-800 disabled:opacity-40 text-white font-bold flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                </button>
+                <span className="font-bold text-white">
+                  Page {safePage + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="px-2.5 py-1 rounded-lg bg-navy-950 border border-slate-800 disabled:opacity-40 text-white font-bold flex items-center gap-1"
+                >
+                  Next <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         </form>

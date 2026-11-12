@@ -439,6 +439,7 @@ export function PlayerProfileModal({
                   ['Ball Control', a.ballControl ?? a.firstTouch, ca?.ballControl],
                   ['First Touch', a.firstTouch, ca?.firstTouch],
                   ['Tackling', a.tackling, ca?.tackling],
+                  ['Marking', a.marking ?? a.tackling, ca?.marking],
                   ['Heading', a.heading, ca?.heading],
                   ['Long Shots', a.longShots ?? a.shooting, ca?.longShots],
                   ['Free Kicks', a.freeKicks ?? a.passing, ca?.freeKicks],

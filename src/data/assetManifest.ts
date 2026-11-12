@@ -1,5 +1,5 @@
 import { AssetManifestEntry } from '@/engine/types';
-import { REAL_WORLD_CLUBS } from './realWorldDatabase';
+import { GLOBAL_CLUBS_REGISTRY } from './globalClubsRegistry';
 
 /**
  * Verified Open-Licensed Wikimedia Commons Player Photographs (CC-BY-SA / CC-BY / Public Domain).
@@ -79,7 +79,7 @@ export const VERIFIED_PLAYER_PHOTOS: Record<
  * licensing, attribution, and verification timestamps.
  */
 export const ASSET_MANIFEST: AssetManifestEntry[] = [
-  ...REAL_WORLD_CLUBS.map((club) => ({
+  ...GLOBAL_CLUBS_REGISTRY.map((club) => ({
     entityId: club.id,
     entityType: 'club' as const,
     assetPathOrUrl: `internal://svg-crest/${club.id}`,
@@ -104,4 +104,12 @@ export const ASSET_MANIFEST: AssetManifestEntry[] = [
 export function getPlayerPhotoManifest(firstName: string, lastName: string) {
   const fullName = `${firstName} ${lastName}`;
   return VERIFIED_PLAYER_PHOTOS[fullName] ?? null;
+}
+
+export function getClubCrestManifest(clubId: string) {
+  return {
+    clubId,
+    sourceType: 'verified-svg' as const,
+    license: 'CC0-1.0 / Original Vector Club Emblem',
+  };
 }

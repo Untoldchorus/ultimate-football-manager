@@ -10,7 +10,7 @@ export type FormationCode =
   | '5-3-2';
 
 export interface PlayerAttributes {
-  // Technical (10)
+  // Technical (11)
   passing: number;
   shooting: number;
   finishing: number;
@@ -18,6 +18,7 @@ export interface PlayerAttributes {
   ballControl: number;
   crossing: number;
   tackling: number;
+  marking: number;
   firstTouch: number;
   heading: number;
   longShots: number;
@@ -75,9 +76,13 @@ export interface CountryEntity {
   code: string; // ISO-3166 alpha-3 e.g. ENG, ESP, GER
   confederation: 'UEFA' | 'CONMEBOL' | 'CONCACAF' | 'AFC' | 'CAF';
   flagEmoji: string;
+  worldRank?: number; // 1..20 global football nation rank
+  rankingMethodology?: string;
 }
 
 export interface CompetitionRules {
+  expectedClubCount?: number;
+  expectedMinSquadSize?: number;
   pointsForWin: number;
   pointsForDraw: number;
   pointsForLoss: number;
@@ -87,6 +92,7 @@ export interface CompetitionRules {
   maxSubstitutesOnBench: number;
   maxSquadRegistration: number;
   transferWindowWeeks: number[];
+  competitionFormat?: 'double_round_robin' | 'split_phase' | 'apertura_clausura' | 'conference_playoffs' | 'knockout';
 }
 
 export interface LeagueCompetitionEntity {

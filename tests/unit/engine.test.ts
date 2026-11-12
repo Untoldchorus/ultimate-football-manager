@@ -8,6 +8,7 @@ import { advanceGameWeek } from '@/engine/season';
 import { calculateStandings } from '@/engine/standings';
 import { MAX_SEASON_ATTRIBUTE_GROWTH, MIN_SQUAD_SIZE } from '@/engine/transfers';
 import { migrateSaveEnvelope } from '@/engine/migrations';
+import { verifyGlobalDatabaseCompleteness } from '@/engine/completenessVerifier';
 import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
 import { IndexedDBSaveRepository } from '@/services/saveRepository';
 
@@ -291,5 +292,38 @@ describe('Engine Determinism, Fixtures, Standings, Lineup, Persistence & Multi-S
     expect(migrated.saveVersion).toBe(2);
     expect(migrated.state.saveVersion).toBe(2);
     expect(migrated.state.players[0].attributes.decisions).toBeDefined();
+    expect(migrated.state.players[0].attributes.marking).toBeDefined();
+  });
+
+  it('verifies 100% completeness across all 20 football nations, 40 divisions, 732 clubs, and 18,300 senior players', () => {
+    const report = verifyGlobalDatabaseCompleteness(true);
+
+    expect(report.totalCountries).toBe(20);
+    expect(report.totalDivisions).toBe(40);
+    expect(report.totalExpectedClubs).toBe(732);
+    expect(report.totalImportedClubs).toBe(732);
+    expect(report.totalMissingClubs).toBe(0);
+    expect(report.totalImportedPlayers).toBe(18300);
+    expect(report.totalDuplicateClubIds).toBe(0);
+    expect(report.totalDuplicatePlayerIds).toBe(0);
+    expect(report.completedDivisionsCount).toBe(40);
+    expect(report.incompleteDivisionsCount).toBe(0);
+    expect(report.overallStatus).toBe('COMPLETE');
+
+    for (const div of report.divisions) {
+      expect(div.status).toBe('COMPLETE');
+      expect(div.importedClubs).toBe(div.expectedClubs);
+      expect(div.missingClubs).toBe(0);
+      expect(div.importedPlayers).toBe(div.expectedClubs * 25);
+    }
+
+    // Verify starting a career with a non-flagship global club (e.g. River Plate `arg-lpf-riv`)
+    const riverState = generateInitialGameState(20261112, {
+      ...manager,
+      clubId: 'arg-lpf-riv',
+    });
+    expect(riverState.clubs.length).toBe(20);
+    expect(riverState.clubs.some((c) => c.id === 'arg-lpf-riv')).toBe(true);
+    expect(riverState.players.filter((p) => !p.isYouth).length).toBe(500);
   });
 });
