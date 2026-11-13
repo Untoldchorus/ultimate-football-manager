@@ -38,8 +38,30 @@ func _initialize() -> void:
 	var stadium := stadium_packed.instantiate()
 	root.add_child(stadium)
 
+	# Spawn rigged 3D characters (manager & player) with skeletal animations
+	var is_signing := scene_id in ["player_signing", "manager_intro", "pre_match_talk", "half_time_talk"]
+	var char_path := "res://assets/characters/player.glb" if scene_id in ["player_signing", "goal_celebration", "red_card_reaction", "missed_penalty", "career_milestone"] else "res://assets/characters/manager.glb"
+	if ResourceLoader.exists(char_path):
+		var char_packed := ResourceLoader.load(char_path) as PackedScene
+		var char_node := char_packed.instantiate()
+		char_node.position = Vector3(0.0, 0.0, 0.0)
+		char_node.scale = Vector3(1.15, 1.15, 1.15)
+		stadium.add_child(char_node)
+		var anim_player := char_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if anim_player:
+			var anims := anim_player.get_animation_list()
+			var chosen := ""
+			for preferred in (["walk", "Walk", "idle", "Idle"] if is_signing else ["run", "Run", "walk", "Walk", "idle", "Idle"]):
+				if preferred in anims:
+					chosen = preferred
+					break
+			if chosen == "" and anims.size() > 0:
+				chosen = anims[0]
+			if chosen != "":
+				anim_player.play(chosen)
+
 	var cam := Camera3D.new()
-	cam.fov = 50.0
+	cam.fov = 40.0
 	cam.current = true
 	stadium.add_child(cam)
 
@@ -59,14 +81,14 @@ func _initialize() -> void:
 		"career_milestone": 5.0,
 	}
 	var dur: float = durations.get(scene_id, 5.0)
-	var start_pos := Vector3(-42.0, 18.0, 36.0)
-	var end_pos := Vector3(42.0, 12.0, -28.0)
+	var start_pos := Vector3(-2.8, 1.65, 3.8)
+	var end_pos := Vector3(2.4, 1.55, 3.2)
 	cam.position = start_pos
-	cam.look_at(Vector3.ZERO, Vector3.UP)
+	cam.look_at(Vector3(0.0, 1.25, 0.0), Vector3.UP)
 
 	var tween := create_tween()
 	tween.tween_method(func(t: float) -> void:
 		cam.position = start_pos.lerp(end_pos, t)
-		cam.look_at(Vector3(0.0, 2.0, 0.0), Vector3.UP)
+		cam.look_at(Vector3(0.0, 1.25, 0.0), Vector3.UP)
 	, 0.0, 1.0, dur)
 	tween.tween_callback(func() -> void: quit(0))

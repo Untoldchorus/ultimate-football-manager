@@ -26,6 +26,6 @@ foreach ($s in $ScenesToRender) {
 
   Write-Host "Encoding WebM (VP9), MP4 (H.264), and Poster JPG..."
   ffmpeg -y -i $aviPath -c:v libvpx-vp9 -b:v 6M -maxrate 8M -bufsize 12M -c:a libopus "$outDir/$Club.webm"
-  ffmpeg -y -i $aviPath -c:v libx264 -preset slow -crf 21 -maxrate 8M -bufsize 12M -movflags +faststart -c:a aac "$outDir/$Club.mp4"
+  ffmpeg -y -i $aviPath -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:v libx264 -preset slow -crf 21 -maxrate 8M -bufsize 12M -movflags +faststart -c:a aac "$outDir/$Club.mp4"
   ffmpeg -y -i $aviPath -ss 00:00:01 -vframes 1 -q:v 2 "$outDir/$Club.jpg"
 }
