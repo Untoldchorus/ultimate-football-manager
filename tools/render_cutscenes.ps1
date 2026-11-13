@@ -20,7 +20,9 @@ foreach ($s in $ScenesToRender) {
   New-Item -ItemType Directory -Force -Path $outDir | Out-Null
   $aviPath = "$env:TEMP/ufm_${s}_${Club}.avi"
   Write-Host "Rendering $s ($Club @ $Res) via Godot Movie Maker..."
-  godot --headless --path godot --write-movie $aviPath --fixed-fps 30 --resolution $Res --script res://tools/render_cutscene.gd -- --scene=$s
+  $godotBin = (Get-Command godot).Definition
+  $p = Start-Process -FilePath $godotBin -ArgumentList "--path","godot","--write-movie",$aviPath,"--fixed-fps","30","--resolution",$Res,"--script","res://tools/render_cutscene.gd","--","--scene=$s" -Wait -PassThru
+  if ($p.ExitCode -ne 0) { throw "Godot failed with exit code $($p.ExitCode)" }
 
   Write-Host "Encoding WebM (VP9), MP4 (H.264), and Poster JPG..."
   ffmpeg -y -i $aviPath -c:v libvpx-vp9 -b:v 6M -maxrate 8M -bufsize 12M -c:a libopus "$outDir/$Club.webm"
