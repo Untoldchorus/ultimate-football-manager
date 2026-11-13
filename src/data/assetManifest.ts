@@ -1,5 +1,6 @@
 import { AssetManifestEntry } from '@/engine/types';
 import { GLOBAL_CLUBS_REGISTRY } from './globalClubsRegistry';
+import { getPlayerImageRecord } from './playerImageDatabase';
 
 /**
  * Verified Open-Licensed Wikimedia Commons Player Photographs (CC-BY-SA / CC-BY / Public Domain).
@@ -101,7 +102,22 @@ export const ASSET_MANIFEST: AssetManifestEntry[] = [
   })),
 ];
 
-export function getPlayerPhotoManifest(firstName: string, lastName: string) {
+export function getPlayerPhotoManifest(firstName: string, lastName: string, stablePlayerId?: string) {
+  if (stablePlayerId) {
+    const rec = getPlayerImageRecord(stablePlayerId);
+    if (rec && rec.image_url && rec.image_status !== 'broken' && rec.image_status !== 'missing') {
+      return {
+        url: rec.image_url,
+        license: rec.image_license,
+        attribution: rec.attribution,
+        verifiedDateIso: rec.last_verified,
+        sourceName: rec.source_name,
+        sourceUrl: rec.source_url,
+        identityVerified: rec.identity_verified,
+        imageStatus: rec.image_status,
+      };
+    }
+  }
   const fullName = `${firstName} ${lastName}`;
   return VERIFIED_PLAYER_PHOTOS[fullName] ?? null;
 }

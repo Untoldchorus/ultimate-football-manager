@@ -20,6 +20,7 @@ import { CompetitionType, Player } from '@/engine/types';
 import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
 import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
 import { verifyGlobalDatabaseCompleteness } from '@/engine/completenessVerifier';
+import { verifyGlobalImageCompleteness } from '@/engine/imageCompletenessVerifier';
 import { ASSET_MANIFEST } from '@/data/assetManifest';
 import { soundManager } from '@/lib/audio';
 import { defaultSaveRepository, SaveSlotId } from '@/services/saveRepository';
@@ -330,9 +331,11 @@ export function CompetitionsScreen() {
   const [selectedRegistryCompId, setSelectedRegistryCompId] = useState<string>('ALL');
   const [selectedGlobalClubId, setSelectedGlobalClubId] = useState<string | null>(null);
   const [showCompletenessTable, setShowCompletenessTable] = useState<boolean>(false);
+  const [showImageAuditTable, setShowImageAuditTable] = useState<boolean>(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
 
   const completenessReport = useMemo(() => verifyGlobalDatabaseCompleteness(), []);
+  const imageCompletenessReport = useMemo(() => verifyGlobalImageCompleteness(), []);
 
   const clubMap = useMemo(
     () => new Map((gameState?.clubs ?? []).map((c) => [c.id, c])),
@@ -465,8 +468,80 @@ export function CompetitionsScreen() {
               ? 'Hide 40-Division Audit'
               : `20-Nation Audit (${completenessReport.completedDivisionsCount}/${completenessReport.totalDivisions} COMPLETE)`}
           </button>
+
+          <button
+            type="button"
+            data-testid="toggle-image-audit-btn"
+            onClick={() => setShowImageAuditTable((prev) => !prev)}
+            className="px-3 py-1.5 rounded-xl bg-navy-950 border border-sky-500/40 text-xs font-bold text-sky-400 hover:bg-navy-800 transition"
+          >
+            {showImageAuditTable
+              ? 'Hide Photo Audit'
+              : `Photo Audit (${imageCompletenessReport.globalCompletionPct}%)`}
+          </button>
         </div>
       </div>
+
+      {showImageAuditTable && (
+        <div
+          data-testid="image-completeness-dashboard"
+          className="bg-navy-900 border border-sky-500/30 rounded-2xl p-5 space-y-3 shadow-xl"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                Automated Player Photograph Completeness Checker
+              </h3>
+              <p className="text-xs text-slate-400">
+                Real Photos: <strong className="text-pitch-400">{imageCompletenessReport.totalRealPhotos}</strong> /{' '}
+                {imageCompletenessReport.totalPlayers.toLocaleString()} &bull; Missing:{' '}
+                <strong className="text-amber-300">{imageCompletenessReport.totalMissingPhotos.toLocaleString()}</strong> &bull; Verified:{' '}
+                <strong className="text-sky-400">{imageCompletenessReport.totalVerifiedPhotos}</strong> &bull; Broken:{' '}
+                <strong className="text-red-400">{imageCompletenessReport.totalBrokenLinks}</strong> &bull; Duplicates:{' '}
+                <strong className="text-red-400">{imageCompletenessReport.totalDuplicateImages}</strong>
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 font-black text-xs uppercase">
+              Global Completion: {imageCompletenessReport.globalCompletionPct}% (Target: 100%)
+            </span>
+          </div>
+
+          <div className="overflow-x-auto max-h-80 border border-slate-800 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-navy-950 text-slate-400 uppercase sticky top-0">
+                <tr>
+                  <th className="py-2.5 px-3">Country</th>
+                  <th className="py-2.5 px-3">Competition</th>
+                  <th className="py-2.5 px-3">Total Players</th>
+                  <th className="py-2.5 px-3">Real Photos</th>
+                  <th className="py-2.5 px-3">Missing Photos</th>
+                  <th className="py-2.5 px-3">Verified</th>
+                  <th className="py-2.5 px-3">Broken</th>
+                  <th className="py-2.5 px-3">Duplicates</th>
+                  <th className="py-2.5 px-3">Completion</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {imageCompletenessReport.divisions.map((d) => (
+                  <tr key={d.leagueId} className="hover:bg-navy-800/50">
+                    <td className="py-2 px-3 font-bold text-white">
+                      {d.flagEmoji} {d.countryName}
+                    </td>
+                    <td className="py-2 px-3 font-bold text-pitch-400">{d.leagueName}</td>
+                    <td className="py-2 px-3 text-slate-300">{d.totalPlayers}</td>
+                    <td className="py-2 px-3 font-bold text-pitch-400">{d.realPhotos}</td>
+                    <td className="py-2 px-3 font-bold text-amber-300">{d.missingPhotos}</td>
+                    <td className="py-2 px-3 text-sky-400">{d.verifiedPhotos}</td>
+                    <td className="py-2 px-3 text-red-400">{d.brokenLinks}</td>
+                    <td className="py-2 px-3 text-red-400">{d.duplicateImages}</td>
+                    <td className="py-2 px-3 font-black text-white">{d.completionPct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {showCompletenessTable && (
         <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-xl">

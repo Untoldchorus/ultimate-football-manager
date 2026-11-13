@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Club, Player } from '@/engine/types';
 import { hashStringToSeed } from '@/engine/rng';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
+import { buildStablePlayerImageId, markPlayerImageBroken } from '@/data/playerImageDatabase';
 import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
 
 const SKIN_TONES = ['#f8d5c2', '#e8b89a', '#d2996c', '#a86e44', '#6b3e26', '#4a2918'];
@@ -90,30 +91,32 @@ export function PlayerAvatar({
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  const photoMeta = getPlayerPhotoManifest(player.firstName, player.lastName);
+  const stableId = buildStablePlayerImageId(
+    player.clubId,
+    player.shirtNumber ?? 0,
+    player.firstName,
+    player.lastName
+  );
+  const photoMeta = getPlayerPhotoManifest(player.firstName, player.lastName, stableId);
   const resolvedPhotoUrl = player.photoUrl ?? photoMeta?.url;
 
   const isGK = player.primaryPosition === 'GK';
   const resolvedPrimary =
     clubColor ?? (isGK ? '#f59e0b' : club?.primaryColor ?? '#10b981');
-  const resolvedSecondary = secondaryColor ?? club?.secondaryColor ?? '#ffffff';
 
-  const seed = hashStringToSeed(`${player.id}-${player.firstName}-${player.lastName}`);
-  const skin = SKIN_TONES[seed % SKIN_TONES.length];
-  const hair = HAIR_COLORS[(seed >>> 3) % HAIR_COLORS.length];
-  const hairStyle = (seed >>> 6) % 5;
-  const hasBeard = player.age >= 21 && (seed >>> 9) % 3 === 0;
+  const initials = `${player.firstName?.[0] ?? ''}${player.lastName?.[0] ?? ''}`.toUpperCase();
+  const shirtNum = getPlayerShirtNumber(player);
 
   const useRealPhoto = Boolean(resolvedPhotoUrl && !imgError);
 
   return (
     <div
       style={{ width: size, height: size }}
-      className={`relative rounded-xl overflow-hidden shrink-0 select-none bg-navy-950 ${className}`}
+      className={`relative rounded-xl overflow-hidden shrink-0 select-none bg-navy-950 border border-slate-800/80 ${className}`}
       title={
         useRealPhoto && photoMeta
-          ? `${player.firstName} ${player.lastName} • Licensed Photo (${photoMeta.license}, ${photoMeta.attribution})`
-          : `${player.firstName} ${player.lastName} • Generated Footballer Portrait`
+          ? `${player.firstName} ${player.lastName} • Verified Real Photo (${photoMeta.license}, ${photoMeta.attribution})`
+          : `${player.firstName} ${player.lastName} • Real Photograph Missing (Pending Acquisition)`
       }
     >
       {useRealPhoto && (
@@ -122,7 +125,10 @@ export function PlayerAvatar({
           alt={`${player.firstName} ${player.lastName} photograph`}
           loading="lazy"
           onLoad={() => setImgLoaded(true)}
-          onError={() => setImgError(true)}
+          onError={() => {
+            setImgError(true);
+            markPlayerImageBroken(stableId);
+          }}
           className={`w-full h-full object-cover object-top transition-opacity duration-200 ${
             imgLoaded ? 'opacity-100' : 'opacity-0'
           }`}
@@ -130,84 +136,28 @@ export function PlayerAvatar({
       )}
 
       {(!useRealPhoto || !imgLoaded) && (
-        <svg
-          width={size}
-          height={size}
-          viewBox="0 0 100 100"
-          className="w-full h-full block"
-          aria-label={`${player.firstName} ${player.lastName} portrait`}
+        <div
+          className="w-full h-full flex flex-col items-center justify-center text-center"
+          style={{
+            background: `linear-gradient(135deg, ${resolvedPrimary}33 0%, #090d16 80%)`,
+          }}
+          aria-label={`${player.firstName} ${player.lastName} photo missing`}
         >
-          <defs>
-            <linearGradient id={`bg-${player.id}`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#0f172a" />
-              <stop offset="100%" stopColor="#1e293b" />
-            </linearGradient>
-          </defs>
-
-          {/* Studio Portrait Backdrop */}
-          <rect width="100" height="100" fill={`url(#bg-${player.id})`} />
-          <circle cx="50" cy="48" r="42" fill={resolvedPrimary} opacity="0.18" />
-
-          {/* Athletic Shoulders & Authentic Football Kit Collar */}
-          <path d="M14 100 C17 72, 83 72, 86 100 Z" fill={resolvedPrimary} />
-          <path d="M26 82 L26 100 M74 82 L74 100" stroke={resolvedSecondary} strokeWidth="3.5" opacity="0.55" />
-          <path d="M34 77 L50 92 L66 77" fill="none" stroke={resolvedSecondary} strokeWidth="4" />
-
-          {/* Neck & Shading */}
-          <rect x="42" y="59" width="16" height="19" rx="6" fill={skin} />
-          <path d="M42 64 Q50 69 58 64" fill="none" stroke="#00000028" strokeWidth="2.5" />
-
-          {/* Proportional Head & Jawline */}
-          <path
-            d="M30 40 C30 22, 70 22, 70 40 C70 55, 61 66, 50 66 C39 66, 30 55, 30 40 Z"
-            fill={skin}
-          />
-
-          {/* Ears */}
-          <circle cx="29" cy="44" r="3.8" fill={skin} />
-          <circle cx="71" cy="44" r="3.8" fill={skin} />
-
-          {/* Eyes, Pupils & Brows */}
-          <ellipse cx="41.5" cy="42.5" rx="2.6" ry="2.1" fill="#ffffff" />
-          <ellipse cx="58.5" cy="42.5" rx="2.6" ry="2.1" fill="#ffffff" />
-          <circle cx="41.5" cy="42.5" r="1.5" fill="#0f172a" />
-          <circle cx="58.5" cy="42.5" r="1.5" fill="#0f172a" />
-          <path d="M36 37.5 Q41.5 35.5 46 37.5" stroke={hair} strokeWidth="2.2" fill="none" strokeLinecap="round" />
-          <path d="M54 37.5 Q58.5 35.5 64 37.5" stroke={hair} strokeWidth="2.2" fill="none" strokeLinecap="round" />
-
-          {/* Nose & Expression */}
-          <path d="M50 41 L48.2 49.5 L52 49.5" stroke="#00000038" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-          <path d="M44 55.5 Q50 59 56 55.5" stroke="#451a03" strokeWidth="2" fill="none" strokeLinecap="round" />
-
-          {/* Beard / Stubble */}
-          {hasBeard && (
-            <path
-              d="M31.5 48 Q34 65.5 50 66.5 Q66 65.5 68.5 48 Q64 58 50 59 Q36 58 31.5 48 Z"
-              fill={hair}
-              opacity="0.72"
-            />
+          <span
+            className="font-black tracking-tight text-white leading-none"
+            style={{ fontSize: Math.max(11, Math.round(size * 0.34)) }}
+          >
+            {initials}
+          </span>
+          {size >= 40 && (
+            <span
+              className="font-bold text-slate-400 uppercase mt-0.5 leading-none"
+              style={{ fontSize: Math.max(7, Math.round(size * 0.14)) }}
+            >
+              #{shirtNum}
+            </span>
           )}
-
-          {/* Varied Footballer Hairstyles */}
-          {hairStyle === 0 && (
-            <path d="M29 38 C29 17, 71 17, 71 38 C66 27, 34 27, 29 38 Z" fill={hair} />
-          )}
-          {hairStyle === 1 && (
-            <path d="M28 40 C26 14, 74 14, 72 40 C65 24, 35 24, 28 40 Z" fill={hair} />
-          )}
-          {hairStyle === 2 && (
-            <g fill={hair}>
-              <path d="M30 35 C32 16, 68 16, 70 35 Z" />
-              <circle cx="50" cy="19" r="7.5" />
-            </g>
-          )}
-          {hairStyle === 3 && (
-            <path d="M31 33 Q50 17 69 33 Q60 24 50 24 Q40 24 31 33 Z" fill={hair} />
-          )}
-          {hairStyle === 4 && (
-            <path d="M29 36 C31 15, 69 15, 71 36 C67 22, 33 22, 29 36 Z" fill={hair} />
-          )}
-        </svg>
+        </div>
       )}
 
       {showBadge && (
@@ -215,10 +165,10 @@ export function PlayerAvatar({
           className={`absolute bottom-0.5 left-0.5 right-0.5 text-center py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${
             useRealPhoto
               ? 'bg-pitch-600/90 text-white'
-              : 'bg-navy-950/90 text-slate-300 border border-slate-700/80'
+              : 'bg-amber-950/90 text-amber-300 border border-amber-500/40'
           }`}
         >
-          {useRealPhoto ? 'Verified Photo' : 'Generated Portrait'}
+          {useRealPhoto ? 'Verified Photo' : 'Photo Missing'}
         </span>
       )}
     </div>

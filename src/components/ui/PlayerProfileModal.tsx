@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Club, Player } from '@/engine/types';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
+import { buildStablePlayerImageId } from '@/data/playerImageDatabase';
 import { ClubCrest, computeRadarStats, getPlayerShirtNumber, PlayerAvatar } from './FootballVisuals';
 
 interface PlayerProfileModalProps {
@@ -160,7 +161,13 @@ export function PlayerProfileModal({
   const club = explicitClub ?? clubMap.get(player.clubId);
   const shirtNumber = getPlayerShirtNumber(player);
   const radarStats = computeRadarStats(player);
-  const photoMeta = getPlayerPhotoManifest(player.firstName, player.lastName);
+  const stableId = buildStablePlayerImageId(
+    player.clubId,
+    player.shirtNumber ?? 0,
+    player.firstName,
+    player.lastName
+  );
+  const photoMeta = getPlayerPhotoManifest(player.firstName, player.lastName, stableId);
 
   const comparePlayer = comparePlayerId
     ? allPlayers.find((p) => p.id === comparePlayerId) ?? null
@@ -207,7 +214,7 @@ export function PlayerProfileModal({
                 player={player}
                 clubColor={club?.primaryColor}
                 secondaryColor={club?.secondaryColor}
-                size={92}
+                size={116}
                 showBadge
                 className="border-2 border-gold-400 shadow-xl"
               />
@@ -416,7 +423,7 @@ export function PlayerProfileModal({
                   <CheckCircle2 className="w-3 h-3 text-sky-400" />
                   {photoMeta
                     ? `Photo: ${photoMeta.license}`
-                    : 'Portrait: Generated Avatar'}
+                    : 'Photo: Missing (Pending Acquisition)'}
                 </span>
               </div>
             </div>

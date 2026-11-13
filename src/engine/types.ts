@@ -59,6 +59,25 @@ export interface PlayerCareerHistoryEntry {
   assists: number;
 }
 
+export type PlayerImageStatus = 'verified' | 'unverified' | 'broken' | 'missing';
+
+export interface PlayerImageRecord {
+  player_id: string;
+  player_name: string;
+  club_id: string;
+  league_id: string;
+  country_id: string;
+  image_url: string;
+  local_image_path?: string;
+  source_name: string;
+  source_url: string;
+  image_license: string;
+  attribution: string;
+  identity_verified: boolean;
+  image_status: PlayerImageStatus;
+  last_verified: string;
+}
+
 export interface AssetManifestEntry {
   entityId: string;
   entityType: 'club' | 'player' | 'competition' | 'stadium';
