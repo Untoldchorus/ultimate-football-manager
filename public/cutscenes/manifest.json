@@ -1,21 +1,148 @@
-{
-  "version": 1,
-  "maxClipSizeBytes": 12582912,
-  "resolution": "1920x1080",
-  "fps": 30,
-  "cutscenes": {
-    "manager_intro": { "durationSec": 13, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 6.0 }, { "name": "outro", "t": 11.0 }] },
-    "stadium_entrance": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.0 }, { "name": "outro", "t": 7.5 }] },
-    "tunnel_walkout": { "durationSec": 10.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 5.0 }, { "name": "outro", "t": 9.0 }] },
-    "pre_match_talk": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
-    "goal_celebration": { "durationSec": 5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.2 }, { "name": "outro", "t": 4.2 }] },
-    "half_time_talk": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
-    "red_card_reaction": { "durationSec": 4.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.0 }, { "name": "outro", "t": 3.8 }] },
-    "missed_penalty": { "durationSec": 4.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.0 }, { "name": "outro", "t": 3.8 }] },
-    "full_time": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
-    "player_signing": { "durationSec": 11, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 5.0 }, { "name": "outro", "t": 9.5 }] },
-    "trophy_presentation": { "durationSec": 13.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 6.0 }, { "name": "outro", "t": 11.5 }] },
-    "league_championship": { "durationSec": 16, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 7.5 }, { "name": "outro", "t": 14.0 }] },
-    "career_milestone": { "durationSec": 7, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 3.5 }, { "name": "outro", "t": 6.0 }] }
-  }
+﻿{
+    "version":  1,
+    "clips":  {
+                  "red_card_reaction":  {
+                                            "generic":  {
+                                                            "mp4":  "/cutscenes/red_card_reaction/generic.mp4",
+                                                            "webm":  "/cutscenes/red_card_reaction/generic.webm",
+                                                            "height":  748,
+                                                            "sizeBytes":  790537,
+                                                            "poster":  "/cutscenes/red_card_reaction/generic.jpg",
+                                                            "durationSec":  4.5,
+                                                            "width":  1370
+                                                        }
+                                        },
+                  "league_championship":  {
+                                              "generic":  {
+                                                              "mp4":  "/cutscenes/league_championship/generic.mp4",
+                                                              "webm":  "/cutscenes/league_championship/generic.webm",
+                                                              "height":  748,
+                                                              "sizeBytes":  1113991,
+                                                              "poster":  "/cutscenes/league_championship/generic.jpg",
+                                                              "durationSec":  7,
+                                                              "width":  1370
+                                                          }
+                                          },
+                  "full_time":  {
+                                    "generic":  {
+                                                    "mp4":  "/cutscenes/full_time/generic.mp4",
+                                                    "webm":  "/cutscenes/full_time/generic.webm",
+                                                    "height":  748,
+                                                    "sizeBytes":  992922,
+                                                    "poster":  "/cutscenes/full_time/generic.jpg",
+                                                    "durationSec":  6,
+                                                    "width":  1370
+                                                }
+                                },
+                  "half_time_talk":  {
+                                         "generic":  {
+                                                         "mp4":  "/cutscenes/half_time_talk/generic.mp4",
+                                                         "webm":  "/cutscenes/half_time_talk/generic.webm",
+                                                         "height":  748,
+                                                         "sizeBytes":  856376,
+                                                         "poster":  "/cutscenes/half_time_talk/generic.jpg",
+                                                         "durationSec":  5,
+                                                         "width":  1370
+                                                     }
+                                     },
+                  "tunnel_walkout":  {
+                                         "generic":  {
+                                                         "mp4":  "/cutscenes/tunnel_walkout/generic.mp4",
+                                                         "webm":  "/cutscenes/tunnel_walkout/generic.webm",
+                                                         "height":  748,
+                                                         "sizeBytes":  992922,
+                                                         "poster":  "/cutscenes/tunnel_walkout/generic.jpg",
+                                                         "durationSec":  6,
+                                                         "width":  1370
+                                                     }
+                                     },
+                  "career_milestone":  {
+                                           "generic":  {
+                                                           "mp4":  "/cutscenes/career_milestone/generic.mp4",
+                                                           "webm":  "/cutscenes/career_milestone/generic.webm",
+                                                           "height":  748,
+                                                           "sizeBytes":  856376,
+                                                           "poster":  "/cutscenes/career_milestone/generic.jpg",
+                                                           "durationSec":  5,
+                                                           "width":  1370
+                                                       }
+                                       },
+                  "stadium_entrance":  {
+                                           "generic":  {
+                                                           "mp4":  "/cutscenes/stadium_entrance/generic.mp4",
+                                                           "webm":  "/cutscenes/stadium_entrance/generic.webm",
+                                                           "height":  748,
+                                                           "sizeBytes":  992922,
+                                                           "poster":  "/cutscenes/stadium_entrance/generic.jpg",
+                                                           "durationSec":  6,
+                                                           "width":  1370
+                                                       }
+                                       },
+                  "trophy_presentation":  {
+                                              "generic":  {
+                                                              "mp4":  "/cutscenes/trophy_presentation/generic.mp4",
+                                                              "webm":  "/cutscenes/trophy_presentation/generic.webm",
+                                                              "height":  748,
+                                                              "sizeBytes":  992922,
+                                                              "poster":  "/cutscenes/trophy_presentation/generic.jpg",
+                                                              "durationSec":  6,
+                                                              "width":  1370
+                                                          }
+                                          },
+                  "manager_intro":  {
+                                        "generic":  {
+                                                        "mp4":  "/cutscenes/manager_intro/generic.mp4",
+                                                        "webm":  "/cutscenes/manager_intro/generic.webm",
+                                                        "height":  748,
+                                                        "sizeBytes":  992922,
+                                                        "poster":  "/cutscenes/manager_intro/generic.jpg",
+                                                        "durationSec":  6,
+                                                        "width":  1370
+                                                    }
+                                    },
+                  "missed_penalty":  {
+                                         "generic":  {
+                                                         "mp4":  "/cutscenes/missed_penalty/generic.mp4",
+                                                         "webm":  "/cutscenes/missed_penalty/generic.webm",
+                                                         "height":  748,
+                                                         "sizeBytes":  790537,
+                                                         "poster":  "/cutscenes/missed_penalty/generic.jpg",
+                                                         "durationSec":  4.5,
+                                                         "width":  1370
+                                                     }
+                                     },
+                  "goal_celebration":  {
+                                           "generic":  {
+                                                           "mp4":  "/cutscenes/goal_celebration/generic.mp4",
+                                                           "webm":  "/cutscenes/goal_celebration/generic.webm",
+                                                           "height":  748,
+                                                           "sizeBytes":  790537,
+                                                           "poster":  "/cutscenes/goal_celebration/generic.jpg",
+                                                           "durationSec":  4.5,
+                                                           "width":  1370
+                                                       }
+                                       },
+                  "player_signing":  {
+                                         "generic":  {
+                                                         "mp4":  "/cutscenes/player_signing/generic.mp4",
+                                                         "webm":  "/cutscenes/player_signing/generic.webm",
+                                                         "height":  748,
+                                                         "sizeBytes":  856376,
+                                                         "poster":  "/cutscenes/player_signing/generic.jpg",
+                                                         "durationSec":  5,
+                                                         "width":  1370
+                                                     }
+                                     },
+                  "pre_match_talk":  {
+                                         "generic":  {
+                                                         "mp4":  "/cutscenes/pre_match_talk/generic.mp4",
+                                                         "webm":  "/cutscenes/pre_match_talk/generic.webm",
+                                                         "height":  748,
+                                                         "sizeBytes":  856376,
+                                                         "poster":  "/cutscenes/pre_match_talk/generic.jpg",
+                                                         "durationSec":  5,
+                                                         "width":  1370
+                                                     }
+                                     }
+              }
 }
