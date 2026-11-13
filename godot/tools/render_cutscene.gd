@@ -27,68 +27,16 @@ func _initialize() -> void:
 		instance.configure(params)
 		return
 
-	# Fallback: render procedural 3D camera flyover inside MatchStadium3D.tscn
-	var stadium_path := "res://scenes/MatchStadium3D.tscn"
-	if not ResourceLoader.exists(stadium_path):
-		push_error("Neither cutscene nor stadium scene found: " + tscn_path)
+	# Fallback: render via AAA CinematicRig (Ultra quality, multi-camera, DoF, flashes, rigged characters)
+	var rig_script := ResourceLoader.load("res://scripts/cinematic/CinematicRig.gd") as GDScript
+	if rig_script == null:
+		push_error("CinematicRig.gd not found")
 		quit(1)
 		return
-
-	var stadium_packed := ResourceLoader.load(stadium_path) as PackedScene
-	var stadium := stadium_packed.instantiate()
-	root.add_child(stadium)
-
-	# Spawn rigged 3D characters (manager & player) with skeletal animations
-	var is_signing := scene_id in ["player_signing", "manager_intro", "pre_match_talk", "half_time_talk"]
-	var char_path := "res://assets/characters/player.glb" if scene_id in ["player_signing", "goal_celebration", "red_card_reaction", "missed_penalty", "career_milestone"] else "res://assets/characters/manager.glb"
-	if ResourceLoader.exists(char_path):
-		var char_packed := ResourceLoader.load(char_path) as PackedScene
-		var char_node := char_packed.instantiate()
-		char_node.position = Vector3(0.0, 0.0, 0.0)
-		char_node.scale = Vector3(1.15, 1.15, 1.15)
-		stadium.add_child(char_node)
-		var anim_player := char_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
-		if anim_player:
-			var anims := anim_player.get_animation_list()
-			var chosen := ""
-			for preferred in (["walk", "Walk", "idle", "Idle"] if is_signing else ["run", "Run", "walk", "Walk", "idle", "Idle"]):
-				if preferred in anims:
-					chosen = preferred
-					break
-			if chosen == "" and anims.size() > 0:
-				chosen = anims[0]
-			if chosen != "":
-				anim_player.play(chosen)
-
-	var cam := Camera3D.new()
-	cam.fov = 40.0
-	cam.current = true
-	stadium.add_child(cam)
-
-	var durations := {
-		"manager_intro": 6.0,
-		"stadium_entrance": 6.0,
-		"tunnel_walkout": 6.0,
-		"pre_match_talk": 5.0,
-		"goal_celebration": 4.5,
-		"half_time_talk": 5.0,
-		"red_card_reaction": 4.5,
-		"missed_penalty": 4.5,
-		"full_time": 6.0,
-		"player_signing": 5.0,
-		"trophy_presentation": 6.0,
-		"league_championship": 7.0,
-		"career_milestone": 5.0,
-	}
-	var dur: float = durations.get(scene_id, 5.0)
-	var start_pos := Vector3(-2.8, 1.65, 3.8)
-	var end_pos := Vector3(2.4, 1.55, 3.2)
-	cam.position = start_pos
-	cam.look_at(Vector3(0.0, 1.25, 0.0), Vector3.UP)
-
-	var tween := create_tween()
-	tween.tween_method(func(t: float) -> void:
-		cam.position = start_pos.lerp(end_pos, t)
-		cam.look_at(Vector3(0.0, 1.25, 0.0), Vector3.UP)
-	, 0.0, 1.0, dur)
-	tween.tween_callback(func() -> void: quit(0))
+	var rig: Node = rig_script.new()
+	var merged := params.duplicate()
+	merged["cutsceneId"] = scene_id
+	merged["quality"] = merged.get("quality", "ultra")
+	root.add_child(rig)
+	rig.sequence_completed.connect(func(): quit(0))
+	rig.configure(merged)

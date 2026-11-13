@@ -38,7 +38,15 @@ func _start_scene(id: String, params: Dictionary) -> void:
 				state = State.PLAYING
 				started.emit(id)
 				return
-	# Graceful fallback if .tscn not yet built
+	# Dynamic AAA CinematicRig fallback when a custom .tscn is not present
+	var rig := CinematicRig.new()
+	var merged := params.duplicate()
+	merged["cutsceneId"] = id
+	active_instance = rig
+	get_tree().root.add_child(active_instance)
+	active_instance.cue_triggered.connect(_on_cue)
+	active_instance.sequence_completed.connect(_on_sequence_completed)
+	active_instance.configure(merged)
 	state = State.PLAYING
 	started.emit(id)
 
