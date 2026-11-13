@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "maxClipSizeBytes": 12582912,
+  "resolution": "1920x1080",
+  "fps": 30,
+  "cutscenes": {
+    "manager_intro": { "durationSec": 13, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 6.0 }, { "name": "outro", "t": 11.0 }] },
+    "stadium_entrance": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.0 }, { "name": "outro", "t": 7.5 }] },
+    "tunnel_walkout": { "durationSec": 10.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 5.0 }, { "name": "outro", "t": 9.0 }] },
+    "pre_match_talk": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
+    "goal_celebration": { "durationSec": 5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.2 }, { "name": "outro", "t": 4.2 }] },
+    "half_time_talk": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
+    "red_card_reaction": { "durationSec": 4.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.0 }, { "name": "outro", "t": 3.8 }] },
+    "missed_penalty": { "durationSec": 4.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 2.0 }, { "name": "outro", "t": 3.8 }] },
+    "full_time": { "durationSec": 9, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 4.5 }, { "name": "outro", "t": 7.5 }] },
+    "player_signing": { "durationSec": 11, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 5.0 }, { "name": "outro", "t": 9.5 }] },
+    "trophy_presentation": { "durationSec": 13.5, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 6.0 }, { "name": "outro", "t": 11.5 }] },
+    "league_championship": { "durationSec": 16, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 7.5 }, { "name": "outro", "t": 14.0 }] },
+    "career_milestone": { "durationSec": 7, "variants": [], "cues": [{ "name": "intro", "t": 0.2 }, { "name": "climax", "t": 3.5 }, { "name": "outro", "t": 6.0 }] }
+  }
+}

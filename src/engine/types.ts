@@ -492,7 +492,23 @@ export interface TransferRecord {
   loanBuyOptionFee?: number;
 }
 
+export type CanonicalCutsceneId =
+  | 'manager_intro'
+  | 'stadium_entrance'
+  | 'tunnel_walkout'
+  | 'pre_match_talk'
+  | 'goal_celebration'
+  | 'half_time_talk'
+  | 'red_card_reaction'
+  | 'missed_penalty'
+  | 'full_time'
+  | 'player_signing'
+  | 'trophy_presentation'
+  | 'league_championship'
+  | 'career_milestone';
+
 export type CutsceneType =
+  | CanonicalCutsceneId
   | 'managerIntro'
   | 'tunnelWalkout'
   | 'preMatchTalk'

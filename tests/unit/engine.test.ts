@@ -9,6 +9,14 @@ import { calculateStandings } from '@/engine/standings';
 import { MAX_SEASON_ATTRIBUTE_GROWTH, MIN_SQUAD_SIZE } from '@/engine/transfers';
 import { migrateSaveEnvelope } from '@/engine/migrations';
 import { verifyGlobalDatabaseCompleteness } from '@/engine/completenessVerifier';
+import {
+  CutsceneTriggerService,
+  DEFAULT_CUTSCENE_SETTINGS,
+  mapMatchEventToCutscene,
+  normalizeCutsceneId,
+  resolveCutsceneRenderPath,
+} from '@/services/cutsceneTriggerService';
+import cutsceneManifest from '../../public/cutscenes/manifest.json';
 import { COMPETITIONS_REGISTRY, COUNTRIES_REGISTRY } from '@/data/competitionsRegistry';
 import { IndexedDBSaveRepository } from '@/services/saveRepository';
 
@@ -325,5 +333,48 @@ describe('Engine Determinism, Fixtures, Standings, Lineup, Persistence & Multi-S
     expect(riverState.clubs.length).toBe(20);
     expect(riverState.clubs.some((c) => c.id === 'arg-lpf-riv')).toBe(true);
     expect(riverState.players.filter((p) => !p.isYouth).length).toBe(500);
+  });
+
+  it('validates canonical cutscene manifest, trigger mapping, throttling, priority queue, and fallback resolver', () => {
+    expect(cutsceneManifest.maxClipSizeBytes).toBeLessThanOrEqual(12 * 1024 * 1024);
+    expect(Object.keys(cutsceneManifest.cutscenes).length).toBe(13);
+
+    expect(normalizeCutsceneId('goalCelebration')).toBe('goal_celebration');
+    expect(normalizeCutsceneId('trophyPresentation')).toBe('trophy_presentation');
+    expect(
+      mapMatchEventToCutscene({
+        id: 'e1',
+        minute: 12,
+        second: 0,
+        type: 'goal',
+        teamId: 'c1',
+        ballPosition: { x: 0, y: 0 },
+        outcome: 'success',
+      })
+    ).toBe('goal_celebration');
+    expect(
+      mapMatchEventToCutscene({
+        id: 'e2',
+        minute: 40,
+        second: 0,
+        type: 'redCard',
+        teamId: 'c2',
+        ballPosition: { x: 0, y: 0 },
+        outcome: 'fail',
+      })
+    ).toBe('red_card_reaction');
+
+    const svc = new CutsceneTriggerService();
+    expect(svc.shouldTrigger('goal_celebration', 10, DEFAULT_CUTSCENE_SETTINGS)).toBe(true);
+    expect(svc.shouldTrigger('goal_celebration', 11, DEFAULT_CUTSCENE_SETTINGS)).toBe(false); // 3-min throttle
+    expect(svc.shouldTrigger('goal_celebration', 20, DEFAULT_CUTSCENE_SETTINGS, { speedMultiplier: 4 })).toBe(false);
+    expect(svc.shouldTrigger('goal_celebration', 25, DEFAULT_CUTSCENE_SETTINGS, { isInstantResult: true })).toBe(false);
+
+    const ordered = svc.sortByPriority(['goal_celebration', 'red_card_reaction', 'stadium_entrance']);
+    expect(ordered[0]).toBe('red_card_reaction');
+
+    expect(resolveCutsceneRenderPath('cinematic', true, true)).toBe('video');
+    expect(resolveCutsceneRenderPath('cinematic', false, true)).toBe('godot_live');
+    expect(resolveCutsceneRenderPath('cinematic', false, false)).toBe('static_fallback');
   });
 });
