@@ -1,0 +1,428 @@
+'use client';
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useGLTF, useAnimations, Text } from '@react-three/drei';
+import * as THREE from 'three';
+import { CanonicalCutsceneId } from '@/engine/types';
+
+export interface UnityCutsceneParams {
+  primaryColor: string;
+  secondaryColor: string;
+  skinColor: string;
+  hairColor: string;
+  heightScale: number;
+  buildScale: number;
+  shirtNumber: number;
+  playerName: string;
+  clubName: string;
+}
+
+function cloneSkinnedScene(source: THREE.Object3D): THREE.Object3D {
+  const clone = source.clone(true);
+  const sourceSkinned: THREE.SkinnedMesh[] = [];
+  const cloneSkinned: THREE.SkinnedMesh[] = [];
+  const cloneBones: Record<string, THREE.Bone> = {};
+
+  source.traverse((node) => {
+    if ((node as THREE.SkinnedMesh).isSkinnedMesh) {
+      sourceSkinned.push(node as THREE.SkinnedMesh);
+    }
+  });
+
+  clone.traverse((node) => {
+    if ((node as THREE.Bone).isBone) {
+      cloneBones[node.name] = node as THREE.Bone;
+    }
+    if ((node as THREE.SkinnedMesh).isSkinnedMesh) {
+      cloneSkinned.push(node as THREE.SkinnedMesh);
+    }
+  });
+
+  for (let i = 0; i < sourceSkinned.length; i++) {
+    const srcMesh = sourceSkinned[i];
+    const dstMesh = cloneSkinned[i];
+    const orderedBones = srcMesh.skeleton.bones.map(
+      (b) => cloneBones[b.name] || b
+    );
+    dstMesh.bind(
+      new THREE.Skeleton(orderedBones, srcMesh.skeleton.boneInverses),
+      dstMesh.matrixWorld
+    );
+  }
+
+  return clone;
+}
+
+function ParametricFootballer({
+  params,
+  cutsceneId,
+}: {
+  params: UnityCutsceneParams;
+  cutsceneId: CanonicalCutsceneId;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const { scene, animations } = useGLTF('/cutscenes/footballer_unveiling.glb');
+
+  const clonedScene = useMemo(() => cloneSkinnedScene(scene), [scene]);
+  const { actions } = useAnimations(animations, clonedScene);
+
+  useEffect(() => {
+    const primary = new THREE.Color(params.primaryColor || '#dc2626');
+    const secondary = new THREE.Color(params.secondaryColor || '#ffffff');
+    const skin = new THREE.Color(params.skinColor || '#8c5332');
+    const hair = new THREE.Color(params.hairColor || '#0f0c0a');
+
+    clonedScene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh && mesh.material) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+        const mName = mat.name || '';
+        if (mName.includes('KitShirtMat') || mName.includes('SocksMat')) {
+          mat.color.copy(primary);
+          mat.roughness = 0.62;
+        } else if (mName.includes('KitSleeveMat')) {
+          mat.color.copy(secondary);
+          mat.roughness = 0.62;
+        } else if (mName.includes('SkinMat')) {
+          mat.color.copy(skin);
+          mat.roughness = 0.58;
+        } else if (mName.includes('HairMat')) {
+          mat.color.copy(hair);
+          mat.roughness = 0.82;
+        }
+        mesh.material = mat;
+      }
+    });
+  }, [clonedScene, params]);
+
+  useEffect(() => {
+    const firstAction =
+      actions['shirt_presentation'] || Object.values(actions)[0];
+    if (firstAction) {
+      firstAction.reset().fadeIn(0.2).play();
+    }
+  }, [actions]);
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const t = state.clock.getElapsedTime() % 6.0;
+    const isUnveiling =
+      cutsceneId === 'player_signing' || cutsceneId === 'manager_intro';
+    if (isUnveiling) {
+      const walkProgress = Math.min(1, t / 2.4);
+      const eased = 1 - Math.pow(1 - walkProgress, 2);
+      groupRef.current.position.z = THREE.MathUtils.lerp(-2.1, 0.0, eased);
+    }
+  });
+
+  const sx = (params.heightScale || 1.05) * (params.buildScale || 1.0);
+  const sy = params.heightScale || 1.05;
+  const numStr = String(params.shirtNumber || 9);
+  const surname =
+    (params.playerName || 'SIGNING').trim().split(' ').pop()?.toUpperCase() ||
+    'SIGNING';
+
+  return (
+    <group ref={groupRef} scale={[sx, sy, sx]}>
+      <primitive object={clonedScene} />
+      {/* Front Chest Squad Number */}
+      <Text
+        position={[0, 1.31, 0.19]}
+        fontSize={0.11}
+        color={params.secondaryColor || '#ffffff'}
+        outlineWidth={0.012}
+        outlineColor="#020617"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {numStr}
+      </Text>
+      {/* Back Jersey Number & Surname */}
+      <Text
+        position={[0, 1.28, -0.19]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.21}
+        color={params.secondaryColor || '#ffffff'}
+        outlineWidth={0.015}
+        outlineColor="#020617"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {numStr}
+      </Text>
+      <Text
+        position={[0, 1.44, -0.19]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.08}
+        color={params.secondaryColor || '#ffffff'}
+        outlineWidth={0.01}
+        outlineColor="#020617"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {surname}
+      </Text>
+    </group>
+  );
+}
+
+function UnityCinematicCameraDirector({
+  cutsceneId,
+}: {
+  cutsceneId: CanonicalCutsceneId;
+}) {
+  const { camera } = useThree();
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime() % 6.0;
+    const p = t / 6.0;
+
+    if (p < 0.45) {
+      const k = p / 0.45;
+      camera.position.set(
+        THREE.MathUtils.lerp(-3.6, 2.1, k),
+        THREE.MathUtils.lerp(1.85, 1.52, k),
+        THREE.MathUtils.lerp(4.6, 3.0, k)
+      );
+      camera.lookAt(0, 1.28, THREE.MathUtils.lerp(-1.2, 0, k));
+    } else if (p < 0.78) {
+      const k = (p - 0.45) / 0.33;
+      camera.position.set(
+        THREE.MathUtils.lerp(1.5, -1.1, k),
+        THREE.MathUtils.lerp(1.45, 1.5, k),
+        THREE.MathUtils.lerp(2.5, 2.2, k)
+      );
+      camera.lookAt(0, 1.38, 0);
+    } else {
+      const k = (p - 0.78) / 0.22;
+      camera.position.set(
+        THREE.MathUtils.lerp(-0.45, 0.42, k),
+        THREE.MathUtils.lerp(1.44, 1.48, k),
+        THREE.MathUtils.lerp(1.68, 1.58, k)
+      );
+      camera.lookAt(0, 1.42, 0);
+    }
+  });
+
+  return null;
+}
+
+function StadiumPBRStage({ params }: { params: UnityCutsceneParams }) {
+  const flashRef = useRef<THREE.PointLight>(null);
+
+  useFrame((state) => {
+    if (!flashRef.current) return;
+    const t = state.clock.getElapsedTime();
+    const pulse = Math.sin(t * 19.0) * Math.cos(t * 11.0);
+    flashRef.current.intensity = pulse > 0.68 ? 1.8 : 0.0;
+  });
+
+  const primary = params.primaryColor || '#dc2626';
+  const secondary = params.secondaryColor || '#ffffff';
+  const clubUpper = (params.clubName || 'FOOTBALL CLUB').toUpperCase();
+  const heroUpper = params.playerName
+    ? `#${params.shirtNumber || 9} ${params.playerName.toUpperCase()}`
+    : `#${params.shirtNumber || 9} NEW SIGNING`;
+
+  return (
+    <group>
+      {/* PBR Lighting & Stadium Floodlights */}
+      <ambientLight intensity={0.65} color="#e2e8f0" />
+      <directionalLight
+        position={[18, 32, 24]}
+        intensity={1.35}
+        color="#fffbeb"
+        castShadow
+      />
+      <directionalLight
+        position={[-22, 20, -24]}
+        intensity={0.55}
+        color="#bae6fd"
+      />
+      <pointLight
+        ref={flashRef}
+        position={[1.6, 1.9, 2.6]}
+        distance={12}
+        color="#f8fafc"
+        intensity={0}
+      />
+
+      {/* Alternating Mowed Pitch Stripes */}
+      {Array.from({ length: 10 }).map((_, i) => (
+        <mesh
+          key={i}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[-45 + i * 10, 0, 0]}
+          receiveShadow
+        >
+          <planeGeometry args={[10, 68]} />
+          <meshStandardMaterial
+            color={i % 2 === 0 ? '#047857' : '#065f46'}
+            roughness={0.88}
+          />
+        </mesh>
+      ))}
+
+      {/* Presentation Navy Carpet */}
+      <mesh position={[0, 0.02, -1.2]} receiveShadow>
+        <boxGeometry args={[4.8, 0.04, 5.4]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.75} />
+      </mesh>
+
+      {/* Club Unveiling Backdrop Arch + Gold Trim */}
+      <mesh position={[0, 1.42, -3.8]} castShadow receiveShadow>
+        <boxGeometry args={[4.9, 2.8, 0.18]} />
+        <meshStandardMaterial color={primary} roughness={0.35} metalness={0.15} />
+      </mesh>
+      <mesh position={[0, 2.84, -3.8]}>
+        <boxGeometry args={[5.0, 0.12, 0.22]} />
+        <meshStandardMaterial color="#fbbf24" roughness={0.2} metalness={0.85} />
+      </mesh>
+
+      {/* 3D Backdrop Club & Player Text */}
+      <Text
+        position={[0, 2.52, -3.68]}
+        fontSize={0.22}
+        color="#fbbf24"
+        outlineWidth={0.015}
+        outlineColor="#020617"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {clubUpper}
+      </Text>
+      <Text
+        position={[0, 2.2, -3.68]}
+        fontSize={0.17}
+        color={secondary}
+        outlineWidth={0.012}
+        outlineColor="#020617"
+        anchorX="center"
+        anchorY="middle"
+      >
+        {heroUpper}
+      </Text>
+
+      {/* Regulation Multi-Panel Match Football (0.115m radius) */}
+      <group position={[0.45, 0.115, 0.52]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.115, 24, 24]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.28} metalness={0.1} />
+        </mesh>
+        <mesh rotation={[0.4, 0.5, 0]}>
+          <torusGeometry args={[0.116, 0.014, 12, 32]} />
+          <meshStandardMaterial color={primary} roughness={0.35} />
+        </mesh>
+        <mesh rotation={[-0.7, -0.4, 0.5]}>
+          <torusGeometry args={[0.116, 0.014, 12, 32]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.35} />
+        </mesh>
+      </group>
+
+      {/* Tiered Stadium Stands, Crowd Rows, LED Boards & Roof Canopy */}
+      {[-1, 1].map((zDir) => (
+        <group key={zDir} position={[0, 0, zDir * 19]}>
+          {/* Pitchside LED Ad Board */}
+          <mesh position={[0, 0.52, -zDir * 2.2]}>
+            <boxGeometry args={[96, 1.05, 0.35]} />
+            <meshStandardMaterial
+              color="#0f172a"
+              emissive={primary}
+              emissiveIntensity={0.45}
+            />
+          </mesh>
+          {/* 6 Stepped Seating Tiers */}
+          {Array.from({ length: 6 }).map((_, t) => {
+            const ty = 0.9 + t * 1.65;
+            const tz = zDir * (t * 2.4);
+            const crowdPalette = [primary, '#f8fafc', '#fbbf24', '#1e293b', secondary];
+            return (
+              <group key={t}>
+                <mesh position={[0, ty, tz]}>
+                  <boxGeometry args={[96, 1.8, 2.6]} />
+                  <meshStandardMaterial
+                    color={t % 2 === 0 ? '#1e293b' : '#0f172a'}
+                    roughness={0.8}
+                  />
+                </mesh>
+                <mesh position={[0, ty + 1.15, tz - zDir * 0.4]}>
+                  <boxGeometry args={[92, 0.65, 1.1]} />
+                  <meshStandardMaterial
+                    color={crowdPalette[t % crowdPalette.length]}
+                    roughness={0.65}
+                  />
+                </mesh>
+              </group>
+            );
+          })}
+          {/* Roof Canopy & Floodlight Strip */}
+          <mesh position={[0, 12.8, zDir * 6.0]}>
+            <boxGeometry args={[100, 0.7, 16]} />
+            <meshStandardMaterial color="#334155" metalness={0.6} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, 12.35, -zDir * 1.2]}>
+            <boxGeometry args={[84, 0.25, 0.6]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              emissive="#fef08a"
+              emissiveIntensity={2.2}
+            />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function UnityCutsceneHost({
+  cutsceneId,
+  params,
+}: {
+  cutsceneId: CanonicalCutsceneId;
+  params: UnityCutsceneParams;
+}) {
+  const [hasUnityWasmBuild, setHasUnityWasmBuild] = useState(false);
+
+  useEffect(() => {
+    fetch('/unity/index.html', { method: 'HEAD' })
+      .then((res) => {
+        if (res.ok) setHasUnityWasmBuild(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  if (hasUnityWasmBuild) {
+    return (
+      <iframe
+        src="/unity/index.html"
+        title={`Unity 6 WebGL Cutscene: ${cutsceneId}`}
+        className="w-full h-full border-0"
+      />
+    );
+  }
+
+  return (
+    <div
+      data-testid="unity-pbr-cutscene-stage"
+      className="w-full h-full bg-[#070b19]"
+    >
+      <Canvas
+        shadows
+        camera={{ position: [-3.6, 1.85, 4.6], fov: 38 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      >
+        <color attach="background" args={['#070b19']} />
+        <StadiumPBRStage params={params} />
+        <React.Suspense fallback={null}>
+          <ParametricFootballer params={params} cutsceneId={cutsceneId} />
+        </React.Suspense>
+        <UnityCinematicCameraDirector cutsceneId={cutsceneId} />
+      </Canvas>
+    </div>
+  );
+}
+
+useGLTF.preload('/cutscenes/footballer_unveiling.glb');

@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FastForward, Sparkles, Trophy, X, Film, Cpu, User } from 'lucide-react';
-import { ActiveCutscene, CutsceneType } from '@/engine/types';
+import { FastForward, Sparkles, Trophy, X, Film, Cpu, User, Box } from 'lucide-react';
+import { ActiveCutscene } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { derivePlayerAppearance, normalizeCutsceneId } from '@/services/cutsceneTriggerService';
 import { GodotCutsceneHost } from './GodotCutsceneHost';
+import { UnityCutsceneHost } from './UnityCutsceneHost';
+
+type CutsceneEngineType = 'unity' | 'godot' | 'video';
 
 interface VideoClipMeta {
   mp4?: string;
@@ -33,7 +36,7 @@ function CinematicSceneStage({
 
   const canonicalId = normalizeCutsceneId(type);
   const [videoSrc, setVideoSrc] = useState<VideoClipMeta | null>(null);
-  const [useLive3D, setUseLive3D] = useState<boolean>(true);
+  const [engine, setEngine] = useState<CutsceneEngineType>('unity');
   const [photoBroken, setPhotoBroken] = useState<boolean>(false);
 
   const appearance = useMemo(
@@ -78,13 +81,15 @@ function CinematicSceneStage({
 
   return (
     <div className="relative w-full h-72 md:h-80 rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl">
-      {useLive3D ? (
+      {engine === 'unity' ? (
+        <UnityCutsceneHost cutsceneId={canonicalId} params={godotParams} />
+      ) : engine === 'godot' ? (
         <GodotCutsceneHost
           cutsceneId={canonicalId}
           params={godotParams}
           quality="high"
           onFinished={onComplete}
-          onSkip={() => setUseLive3D(false)}
+          onSkip={() => setEngine('unity')}
         />
       ) : videoSrc ? (
         <video
@@ -355,10 +360,12 @@ function CinematicSceneStage({
       </svg>
       )}
 
-      {/* Top Overlay Badge + Engine Toggle */}
-      <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+      {/* Top Overlay Badge + Engine Selector (Unity PBR / Godot 3D / HD Video) */}
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 flex-wrap">
         <div className="px-3 py-1 rounded-full bg-navy-950/90 border border-gold-400/50 text-[10px] font-black uppercase tracking-widest text-gold-400 flex items-center gap-1.5 backdrop-blur-sm shadow-md">
-          {useLive3D ? (
+          {engine === 'unity' ? (
+            <Box className="w-3.5 h-3.5 text-pitch-400" />
+          ) : engine === 'godot' ? (
             <Cpu className="w-3.5 h-3.5 text-pitch-400" />
           ) : videoSrc ? (
             <Film className="w-3.5 h-3.5 text-pitch-400" />
@@ -368,17 +375,39 @@ function CinematicSceneStage({
             <Sparkles className="w-3.5 h-3.5" />
           )}
           <span>
-            {useLive3D ? 'LIVE 3D PLAYER ENGINE' : videoSrc ? 'EA FC 3D CINEMATIC' : 'Live Broadcast Cutscene'} &bull; {type}
+            {engine === 'unity'
+              ? 'UNITY PBR 3D ENGINE'
+              : engine === 'godot'
+                ? 'GODOT 4 3D ENGINE'
+                : videoSrc
+                  ? 'EA FC 3D CINEMATIC'
+                  : 'Live Broadcast Cutscene'}{' '}
+            &bull; {type}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setUseLive3D((prev) => !prev)}
-          className="px-2.5 py-1 rounded-full bg-navy-900/90 hover:bg-navy-800 border border-slate-700 text-[10px] font-bold text-slate-200 backdrop-blur-sm transition"
-        >
-          {useLive3D ? 'Switch to HD Video' : 'Switch to Live 3D'}
-        </button>
+        <div className="flex items-center rounded-full bg-navy-950/90 border border-slate-700 p-0.5 backdrop-blur-sm">
+          {(
+            [
+              { id: 'unity', label: 'Unity 3D' },
+              { id: 'godot', label: 'Godot 3D' },
+              { id: 'video', label: 'HD Video' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setEngine(opt.id)}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold transition ${
+                engine === opt.id
+                  ? 'bg-pitch-600 text-white shadow'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Personalized Broadcast Player Identity Card Overlay */}
