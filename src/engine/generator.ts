@@ -1,3 +1,8 @@
+import { createInitialEconomyState } from './boosterEconomy';
+import {
+  deriveSpokenLanguagesForNationality,
+  resolvePlayerPersonality,
+} from './chemistryEngine';
 import { createRng, hashStringToSeed, SeededRng } from './rng';
 import {
   calculateMarketValue,
@@ -5,6 +10,7 @@ import {
   calculateWeeklyWage,
   FORMATION_SLOTS,
 } from './ratings';
+import { resolvePlayerTacticalRole } from './synergyEngine';
 import {
   Club,
   FinancialStatus,
@@ -702,6 +708,23 @@ export function generateInitialGameState(
   const targetLeaguePosition =
     manager.startingChallenge === 'titleOrBust' ? 1 : Math.max(1, Math.min(8, rankIdx + 2));
 
+  // Populate spokenLanguages, personality, and tacticalRole on all generated players without consuming rng
+  const enrichedPlayers = players.map((p) => ({
+    ...p,
+    spokenLanguages: p.spokenLanguages ?? deriveSpokenLanguagesForNationality(p.nationality),
+    personality: p.personality ?? resolvePlayerPersonality(p),
+    tacticalRole: p.tacticalRole ?? resolvePlayerTacticalRole(p, p.primaryPosition),
+  }));
+
+  const userClubPlayers = enrichedPlayers.filter((p) => p.clubId === userClub.id);
+  const initialEconomy = createInitialEconomyState(
+    userClub,
+    userClubPlayers,
+    worldSeed,
+    currentSeason,
+    1
+  );
+
   return {
     saveVersion: 2,
     worldSeed,
@@ -713,7 +736,7 @@ export function generateInitialGameState(
       clubId: userClub.id,
     },
     clubs,
-    players,
+    players: enrichedPlayers,
     fixtures,
     shortlistPlayerIds: [],
     scouts,
@@ -743,5 +766,6 @@ export function generateInitialGameState(
         category: 'board',
       },
     ],
+    economy: initialEconomy,
   };
 }

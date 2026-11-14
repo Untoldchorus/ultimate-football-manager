@@ -11,7 +11,11 @@ import {
   Zap,
   Sparkles,
 } from 'lucide-react';
+import { DEFAULT_BALANCE_CONFIG } from '@/engine/balanceConfig';
+import { ensureEconomyState } from '@/engine/boosterEconomy';
+import { evaluateTeamChemistry } from '@/engine/chemistryEngine';
 import { FORMATION_SLOTS, validateLineup } from '@/engine/ratings';
+import { evaluateTeamSynergy } from '@/engine/synergyEngine';
 import { FormationCode, Player } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
@@ -36,6 +40,7 @@ export function SquadScreen() {
     setUserFormation,
     updatePlayerRole,
     updateClubCaptains,
+    setActiveTab,
   } = useGameStore();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
@@ -69,19 +74,24 @@ export function SquadScreen() {
   const midStrength = avgOvr(midPlayers);
   const defStrength = avgOvr(defPlayers);
 
-  let inPositionCount = 0;
-  slots.forEach((slot, idx) => {
-    const p = playerMap.get(userClub.startingXI[idx]);
-    if (!p) return;
-    if (p.primaryPosition === slot.position) inPositionCount += 1;
-    else if (p.secondaryPositions.includes(slot.position)) inPositionCount += 0.7;
-  });
-  const avgMorale =
-    starters.reduce((s, p) => s + p.morale, 0) / Math.max(1, starters.length);
-  const chemistry = Math.min(
-    100,
-    Math.round((inPositionCount / 11) * 70 + (avgMorale / 100) * 30)
+  const economy = ensureEconomyState(gameState);
+  const balanceConfig = economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+  const teamChemistry = evaluateTeamChemistry(
+    userClub,
+    clubPlayers,
+    economy.pairChemistry,
+    gameState.currentSeason,
+    gameState.currentWeek,
+    economy.activeBoosters,
+    balanceConfig
   );
+  const teamSynergy = evaluateTeamSynergy(
+    userClub,
+    clubPlayers,
+    economy.activeBoosters,
+    balanceConfig
+  );
+  const chemistry = teamChemistry.overallChemistry;
 
   const handlePlayerTapOrClick = async (targetPlayerId: string) => {
     soundManager.playUiClick();
@@ -217,12 +227,24 @@ export function SquadScreen() {
             </span>
             <span className="text-base font-black text-sky-400">{defStrength}</span>
           </div>
-          <div className="p-2.5 rounded-xl bg-navy-950 border border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase text-slate-400">
-              Tactical Chemistry
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playUiClick();
+              setActiveTab('chemistry');
+            }}
+            className="p-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 border border-emerald-500/30 flex items-center justify-between transition text-left"
+          >
+            <div>
+              <span className="text-[10px] font-bold uppercase text-emerald-400 block">
+                Chemistry &bull; Synergy
+              </span>
+              <span className="text-[10px] text-slate-400">{teamChemistry.level}</span>
+            </div>
+            <span className="text-base font-black text-white">
+              {chemistry} <span className="text-sky-400">/ {teamSynergy.overallSynergy}</span>
             </span>
-            <span className="text-base font-black text-white">{chemistry}%</span>
-          </div>
+          </button>
         </div>
       </div>
 

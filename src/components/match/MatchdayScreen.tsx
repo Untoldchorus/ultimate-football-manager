@@ -21,7 +21,11 @@ import {
   Star,
   Cpu,
 } from 'lucide-react';
+import { computeNonlinearMatchModifiers, DEFAULT_BALANCE_CONFIG } from '@/engine/balanceConfig';
+import { ensureEconomyState } from '@/engine/boosterEconomy';
+import { evaluateTeamChemistry } from '@/engine/chemistryEngine';
 import { resimulateFromMinute, simulateMatch } from '@/engine/matchEngine';
+import { evaluateTeamSynergy } from '@/engine/synergyEngine';
 import { Club, MatchResult, Player, TacticalMentality } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
@@ -122,6 +126,41 @@ export function MatchdayScreen() {
 
     const homePlayers = gameState.players.filter((p) => p.clubId === hClub.id);
     const awayPlayers = gameState.players.filter((p) => p.clubId === aClub.id);
+    const economy = ensureEconomyState(gameState);
+    const config = economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+    const isHomeUser = hClub.id === gameState.manager.clubId;
+    const isAwayUser = aClub.id === gameState.manager.clubId;
+
+    const homeChem = evaluateTeamChemistry(
+      hClub,
+      homePlayers,
+      isHomeUser ? economy.pairChemistry : {},
+      gameState.currentSeason,
+      gameState.currentWeek,
+      isHomeUser ? economy.activeBoosters : [],
+      config
+    );
+    const awayChem = evaluateTeamChemistry(
+      aClub,
+      awayPlayers,
+      isAwayUser ? economy.pairChemistry : {},
+      gameState.currentSeason,
+      gameState.currentWeek,
+      isAwayUser ? economy.activeBoosters : [],
+      config
+    );
+    const homeSyn = evaluateTeamSynergy(
+      hClub,
+      homePlayers,
+      isHomeUser ? economy.activeBoosters : [],
+      config
+    );
+    const awaySyn = evaluateTeamSynergy(
+      aClub,
+      awayPlayers,
+      isAwayUser ? economy.activeBoosters : [],
+      config
+    );
 
     const simulated = simulateMatch(
       {
@@ -130,6 +169,13 @@ export function MatchdayScreen() {
         awayClub: aClub,
         homePlayers,
         awayPlayers,
+        homeChemistryScore: homeChem.overallChemistry,
+        awayChemistryScore: awayChem.overallChemistry,
+        homeSynergyScore: homeSyn.overallSynergy,
+        awaySynergyScore: awaySyn.overallSynergy,
+        homeActiveBoosters: isHomeUser ? economy.activeBoosters : [],
+        awayActiveBoosters: isAwayUser ? economy.activeBoosters : [],
+        balanceConfig: config,
       },
       matchSeed
     );
@@ -210,6 +256,53 @@ export function MatchdayScreen() {
 
   const isUserHome = liveHomeClub.id === userClubId;
   const userLiveClub = isUserHome ? liveHomeClub : liveAwayClub;
+  const economy = ensureEconomyState(gameState);
+  const balanceConfig = economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+
+  const liveHomePlayers = gameState.players.filter((p) => p.clubId === liveHomeClub.id);
+  const liveAwayPlayers = gameState.players.filter((p) => p.clubId === liveAwayClub.id);
+
+  const liveHomeChemistry = evaluateTeamChemistry(
+    liveHomeClub,
+    liveHomePlayers,
+    isUserHome ? economy.pairChemistry : {},
+    gameState.currentSeason,
+    gameState.currentWeek,
+    isUserHome ? economy.activeBoosters : [],
+    balanceConfig
+  );
+  const liveAwayChemistry = evaluateTeamChemistry(
+    liveAwayClub,
+    liveAwayPlayers,
+    !isUserHome ? economy.pairChemistry : {},
+    gameState.currentSeason,
+    gameState.currentWeek,
+    !isUserHome ? economy.activeBoosters : [],
+    balanceConfig
+  );
+  const liveHomeSynergy = evaluateTeamSynergy(
+    liveHomeClub,
+    liveHomePlayers,
+    isUserHome ? economy.activeBoosters : [],
+    balanceConfig
+  );
+  const liveAwaySynergy = evaluateTeamSynergy(
+    liveAwayClub,
+    liveAwayPlayers,
+    !isUserHome ? economy.activeBoosters : [],
+    balanceConfig
+  );
+
+  const homeMod = computeNonlinearMatchModifiers(
+    liveHomeChemistry.overallChemistry,
+    liveHomeSynergy.overallSynergy,
+    balanceConfig
+  );
+  const awayMod = computeNonlinearMatchModifiers(
+    liveAwayChemistry.overallChemistry,
+    liveAwaySynergy.overallSynergy,
+    balanceConfig
+  );
 
   const handleSkipToEnd = () => {
     soundManager.playWhistle(true);
@@ -236,6 +329,18 @@ export function MatchdayScreen() {
 
     const homePlayers = gameState.players.filter((p) => p.clubId === nextHome.id);
     const awayPlayers = gameState.players.filter((p) => p.clubId === nextAway.id);
+    const nextHomeSyn = evaluateTeamSynergy(
+      nextHome,
+      homePlayers,
+      isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
+    const nextAwaySyn = evaluateTeamSynergy(
+      nextAway,
+      awayPlayers,
+      !isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
 
     const resim = resimulateFromMinute(
       {
@@ -244,6 +349,13 @@ export function MatchdayScreen() {
         awayClub: nextAway,
         homePlayers,
         awayPlayers,
+        homeChemistryScore: liveHomeChemistry.overallChemistry,
+        awayChemistryScore: liveAwayChemistry.overallChemistry,
+        homeSynergyScore: nextHomeSyn.overallSynergy,
+        awaySynergyScore: nextAwaySyn.overallSynergy,
+        homeActiveBoosters: isUserHome ? economy.activeBoosters : [],
+        awayActiveBoosters: !isUserHome ? economy.activeBoosters : [],
+        balanceConfig,
       },
       matchResult.seed,
       matchResult,
@@ -272,6 +384,36 @@ export function MatchdayScreen() {
 
     const homePlayers = gameState.players.filter((p) => p.clubId === nextHome.id);
     const awayPlayers = gameState.players.filter((p) => p.clubId === nextAway.id);
+    const nextHomeChem = evaluateTeamChemistry(
+      nextHome,
+      homePlayers,
+      isUserHome ? economy.pairChemistry : {},
+      gameState.currentSeason,
+      gameState.currentWeek,
+      isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
+    const nextAwayChem = evaluateTeamChemistry(
+      nextAway,
+      awayPlayers,
+      !isUserHome ? economy.pairChemistry : {},
+      gameState.currentSeason,
+      gameState.currentWeek,
+      !isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
+    const nextHomeSyn = evaluateTeamSynergy(
+      nextHome,
+      homePlayers,
+      isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
+    const nextAwaySyn = evaluateTeamSynergy(
+      nextAway,
+      awayPlayers,
+      !isUserHome ? economy.activeBoosters : [],
+      balanceConfig
+    );
 
     const resim = resimulateFromMinute(
       {
@@ -280,6 +422,13 @@ export function MatchdayScreen() {
         awayClub: nextAway,
         homePlayers,
         awayPlayers,
+        homeChemistryScore: nextHomeChem.overallChemistry,
+        awayChemistryScore: nextAwayChem.overallChemistry,
+        homeSynergyScore: nextHomeSyn.overallSynergy,
+        awaySynergyScore: nextAwaySyn.overallSynergy,
+        homeActiveBoosters: isUserHome ? economy.activeBoosters : [],
+        awayActiveBoosters: !isUserHome ? economy.activeBoosters : [],
+        balanceConfig,
       },
       matchResult.seed,
       matchResult,
@@ -340,6 +489,15 @@ export function MatchdayScreen() {
                 {liveHomeClub.tactics.formation} &bull;{' '}
                 <span className="capitalize text-pitch-400">{liveHomeClub.tactics.mentality}</span>
               </div>
+              <div className="flex items-center justify-end gap-1.5 mt-1">
+                <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
+                  Chem {liveHomeChemistry.overallChemistry} ({liveHomeChemistry.level})
+                </span>
+                <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-300">
+                  Syn {liveHomeSynergy.overallSynergy} ({homeMod.combinedModPct >= 0 ? '+' : ''}
+                  {homeMod.combinedModPct}%)
+                </span>
+              </div>
             </div>
             <ClubCrest club={liveHomeClub} size={54} />
           </div>
@@ -372,6 +530,15 @@ export function MatchdayScreen() {
               <div className="text-xs text-slate-400">
                 {liveAwayClub.tactics.formation} &bull;{' '}
                 <span className="capitalize text-gold-400">{liveAwayClub.tactics.mentality}</span>
+              </div>
+              <div className="flex items-center justify-start gap-1.5 mt-1">
+                <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
+                  Chem {liveAwayChemistry.overallChemistry} ({liveAwayChemistry.level})
+                </span>
+                <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-300">
+                  Syn {liveAwaySynergy.overallSynergy} ({awayMod.combinedModPct >= 0 ? '+' : ''}
+                  {awayMod.combinedModPct}%)
+                </span>
               </div>
             </div>
           </div>

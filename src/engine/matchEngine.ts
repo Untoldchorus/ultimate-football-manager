@@ -1,7 +1,13 @@
+import {
+  computeNonlinearMatchModifiers,
+  DEFAULT_BALANCE_CONFIG,
+} from './balanceConfig';
 import { formatCommentary } from './commentary';
 import { FORMATION_SLOTS } from './ratings';
 import { createRng, SeededRng } from './rng';
 import {
+  ActiveBoosterInstance,
+  BalanceConfiguration,
   Club,
   MatchEvent,
   MatchResult,
@@ -26,14 +32,30 @@ interface TeamSimContext {
   defenseRating: number;
   gkPlayer: Player;
   aggressionFactor: number;
+  chemistryScore: number; // 0..100
+  synergyScore: number; // 0..100
+  chemistryModPct: number; // -3%..+3%
+  synergyModPct: number; // -4%..+4%
+  combinedModPct: number; // -7%..+7%
 }
 
-function computeTeamRatings(starters: Player[], tactics: TacticsConfig, sentOffIds: Set<string>): {
+function computeTeamRatings(
+  starters: Player[],
+  tactics: TacticsConfig,
+  sentOffIds: Set<string>,
+  chemistryScore = 58,
+  synergyScore = 58,
+  activeBoosters: ActiveBoosterInstance[] = [],
+  balanceConfig: BalanceConfiguration = DEFAULT_BALANCE_CONFIG
+): {
   attack: number;
   midfield: number;
   defense: number;
   gk: Player;
   aggression: number;
+  chemistryModPct: number;
+  synergyModPct: number;
+  combinedModPct: number;
 } {
   const active = starters.filter((p) => !sentOffIds.has(p.id));
   const gk = active.find((p) => p.primaryPosition === 'GK') ?? active[0] ?? starters[0];
@@ -94,7 +116,34 @@ function computeTeamRatings(starters: Player[], tactics: TacticsConfig, sentOffI
   midfield -= redPenalty;
   defense -= redPenalty;
 
-  return { attack, midfield, defense, gk, aggression };
+  // Controlled Nonlinear Chemistry (<= 3%) and Synergy (<= 4%) Match Integration (Combined <= 7%)
+  let effectiveChem = chemistryScore;
+  let effectiveSyn = synergyScore;
+  for (const b of activeBoosters) {
+    if (b.category === 'chemistry') {
+      effectiveChem += b.effectStrength * 0.5 * balanceConfig.boosterGlobalStrengthMultiplier;
+    } else if (b.category === 'synergy') {
+      effectiveSyn += b.effectStrength * 0.5 * balanceConfig.boosterGlobalStrengthMultiplier;
+    }
+  }
+
+  const nlMods = computeNonlinearMatchModifiers(effectiveChem, effectiveSyn, balanceConfig);
+  const mult = 1 + nlMods.combinedModPct / 100;
+
+  attack *= mult;
+  midfield *= mult;
+  defense *= mult;
+
+  return {
+    attack,
+    midfield,
+    defense,
+    gk,
+    aggression,
+    chemistryModPct: nlMods.chemistryModPct,
+    synergyModPct: nlMods.synergyModPct,
+    combinedModPct: nlMods.combinedModPct,
+  };
 }
 
 function buildPlayerPositionsSnapshot(
@@ -214,8 +263,32 @@ export function simulateMatch(
   const homeSentOff = new Set<string>();
   const awaySentOff = new Set<string>();
 
-  const homeRatings = computeTeamRatings(homeSquad.starters, input.homeClub.tactics, homeSentOff);
-  const awayRatings = computeTeamRatings(awaySquad.starters, input.awayClub.tactics, awaySentOff);
+  const balCfg = input.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+  const homeChem = input.homeChemistryScore ?? 58;
+  const awayChem = input.awayChemistryScore ?? 58;
+  const homeSyn = input.homeSynergyScore ?? 58;
+  const awaySyn = input.awaySynergyScore ?? 58;
+  const homeBoosters = input.homeActiveBoosters ?? [];
+  const awayBoosters = input.awayActiveBoosters ?? [];
+
+  const homeRatings = computeTeamRatings(
+    homeSquad.starters,
+    input.homeClub.tactics,
+    homeSentOff,
+    homeChem,
+    homeSyn,
+    homeBoosters,
+    balCfg
+  );
+  const awayRatings = computeTeamRatings(
+    awaySquad.starters,
+    input.awayClub.tactics,
+    awaySentOff,
+    awayChem,
+    awaySyn,
+    awayBoosters,
+    balCfg
+  );
 
   const homeCtx: TeamSimContext = {
     club: input.homeClub,
@@ -229,6 +302,11 @@ export function simulateMatch(
     defenseRating: homeRatings.defense,
     gkPlayer: homeRatings.gk,
     aggressionFactor: homeRatings.aggression,
+    chemistryScore: homeChem,
+    synergyScore: homeSyn,
+    chemistryModPct: homeRatings.chemistryModPct,
+    synergyModPct: homeRatings.synergyModPct,
+    combinedModPct: homeRatings.combinedModPct,
   };
 
   const awayCtx: TeamSimContext = {
@@ -243,11 +321,25 @@ export function simulateMatch(
     defenseRating: awayRatings.defense,
     gkPlayer: awayRatings.gk,
     aggressionFactor: awayRatings.aggression,
+    chemistryScore: awayChem,
+    synergyScore: awaySyn,
+    chemistryModPct: awayRatings.chemistryModPct,
+    synergyModPct: awayRatings.synergyModPct,
+    combinedModPct: awayRatings.combinedModPct,
   };
 
   const events: MatchEvent[] = options?.existingEvents ? [...options.existingEvents] : [];
   let homeScore = options?.initialHomeScore ?? 0;
   let awayScore = options?.initialAwayScore ?? 0;
+
+  const homePassAcc = Math.max(
+    68,
+    Math.min(94, Math.round(82 + homeRatings.chemistryModPct * 1.5 + homeRatings.synergyModPct * 0.8))
+  );
+  const awayPassAcc = Math.max(
+    68,
+    Math.min(94, Math.round(80 + awayRatings.chemistryModPct * 1.5 + awayRatings.synergyModPct * 0.8))
+  );
 
   const homeStats: MatchTeamStats = {
     possession: 50,
@@ -255,7 +347,7 @@ export function simulateMatch(
     shotsOnTarget: 0,
     xg: 0,
     passes: 0,
-    passAccuracy: 82,
+    passAccuracy: homePassAcc,
     tackles: 0,
     fouls: 0,
     yellowCards: 0,
@@ -269,7 +361,7 @@ export function simulateMatch(
     shotsOnTarget: 0,
     xg: 0,
     passes: 0,
-    passAccuracy: 80,
+    passAccuracy: awayPassAcc,
     tackles: 0,
     fouls: 0,
     yellowCards: 0,
@@ -341,8 +433,24 @@ export function simulateMatch(
 
   for (let minute = startMin; minute <= 90; minute++) {
     // Refresh ratings periodically
-    const hR = computeTeamRatings(homeCtx.starters, homeCtx.tactics, homeCtx.sentOffIds);
-    const aR = computeTeamRatings(awayCtx.starters, awayCtx.tactics, awayCtx.sentOffIds);
+    const hR = computeTeamRatings(
+      homeCtx.starters,
+      homeCtx.tactics,
+      homeCtx.sentOffIds,
+      homeChem,
+      homeSyn,
+      homeBoosters,
+      balCfg
+    );
+    const aR = computeTeamRatings(
+      awayCtx.starters,
+      awayCtx.tactics,
+      awayCtx.sentOffIds,
+      awayChem,
+      awaySyn,
+      awayBoosters,
+      balCfg
+    );
     homeCtx.attackRating = hR.attack + homeAdvBonus;
     homeCtx.midfieldRating = hR.midfield + homeAdvBonus * 0.85;
     homeCtx.defenseRating = hR.defense + homeAdvBonus * 0.65;

@@ -1,3 +1,7 @@
+import {
+  DEFAULT_BALANCE_CONFIG,
+  getAttributeTrainingEfficiency,
+} from './balanceConfig';
 import { createRng } from './rng';
 import {
   calculateMarketValue,
@@ -32,12 +36,16 @@ export const MAX_SEASON_ATTRIBUTE_GROWTH = 5;
  * Applies weekly training across all clubs.
  * - Young players below potential develop gradually.
  * - Growth per player per season is strictly capped at MAX_SEASON_ATTRIBUTE_GROWTH (+5 OVR/attr points).
- * - Intensity affects growth probability, fitness drain, and minor training injury risk.
+ * - High-rated players obey diminishing returns (`getAttributeTrainingEfficiency`) and attribute cap (`maxPrimaryAttributeCap = 100`).
+ * - Active player training boosters increase training development probability within anti-overbuff limits.
  */
 export function processWeeklyTraining(state: GameState, weekSeed: number): GameState {
   const rng = createRng(weekSeed ^ 0x4444);
   const clubMap = new Map(state.clubs.map((c) => [c.id, c]));
   const updatedNews = [...state.news];
+  const balCfg = state.economy?.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+  const activeBoosters = state.economy?.activeBoosters ?? [];
+  const attrCap = balCfg.maxPrimaryAttributeCap ?? 100;
 
   const updatedPlayers = state.players.map((p) => {
     const club = clubMap.get(p.clubId);
@@ -88,19 +96,41 @@ export function processWeeklyTraining(state: GameState, weekSeed: number): GameS
       return { ...p, fitness, injuryWeeks };
     }
 
+    // Active training booster multiplier for this player
+    const playerTrainingBoosts = activeBoosters.filter(
+      (b) => b.category === 'training' && b.targetPlayerId === p.id
+    );
+    const boosterMult =
+      playerTrainingBoosts.length > 0
+        ? 1 +
+          playerTrainingBoosts.reduce(
+            (s, b) => s + (b.effectStrength * balCfg.boosterGlobalStrengthMultiplier) / 100,
+            0
+          )
+        : 1.0;
+
+    const chosenFocus =
+      p.primaryPosition === 'GK' ? 'goalkeeping' : rng.pick(focuses);
+    const targetAttrs = FOCUS_ATTR_MAP[chosenFocus];
+    const attrToGrow = rng.pick(targetAttrs);
+    const currentAttrVal = p.attributes[attrToGrow];
+    const diminishingEfficiency = getAttributeTrainingEfficiency(currentAttrVal, balCfg);
+
     const ageDevFactor = p.age <= 20 ? 0.24 : p.age <= 24 ? 0.16 : p.age <= 27 ? 0.09 : 0.04;
-    if (rng.chance(ageDevFactor * intensityMult)) {
-      const chosenFocus =
-        p.primaryPosition === 'GK' ? 'goalkeeping' : rng.pick(focuses);
-      const targetAttrs = FOCUS_ATTR_MAP[chosenFocus];
-      const attrToGrow = rng.pick(targetAttrs);
+    if (
+      currentAttrVal < attrCap &&
+      rng.chance(ageDevFactor * intensityMult * diminishingEfficiency * boosterMult)
+    ) {
       const newAttrs: PlayerAttributes = {
         ...p.attributes,
-        [attrToGrow]: Math.min(99, p.attributes[attrToGrow] + 1),
+        [attrToGrow]: Math.min(attrCap, p.attributes[attrToGrow] + 1),
       };
       const newOverall = Math.min(
-        p.potential,
-        p.overall + (calculateOverallRating(newAttrs, p.primaryPosition) > p.overall ? 1 : 0)
+        attrCap,
+        Math.min(
+          p.potential,
+          p.overall + (calculateOverallRating(newAttrs, p.primaryPosition) > p.overall ? 1 : 0)
+        )
       );
       const seasonGrowth = Math.min(
         MAX_SEASON_ATTRIBUTE_GROWTH,
@@ -353,6 +383,8 @@ export function executePlayerTransfer(
       morale: Math.min(100, p.morale + 10),
       transferListed: false,
       transferRequested: false,
+      joinedClubSeason: state.currentSeason,
+      joinedClubWeek: state.currentWeek,
     };
   });
 

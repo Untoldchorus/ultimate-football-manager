@@ -5,6 +5,7 @@ extends Node3D
 
 var _pitch_root: Node3D
 var _players_root: Node3D
+var _synergy_links_root: Node3D
 var _ball_mesh: MeshInstance3D
 var _camera: Camera3D
 
@@ -96,6 +97,10 @@ func _build_stadium_and_pitch() -> void:
 	_players_root = Node3D.new()
 	_players_root.name = "PlayersRoot"
 	add_child(_players_root)
+
+	_synergy_links_root = Node3D.new()
+	_synergy_links_root.name = "SynergyLinksRoot"
+	add_child(_synergy_links_root)
 
 func _add_pitch_line(pos: Vector3, sz: Vector2) -> void:
 	var line := MeshInstance3D.new()
@@ -339,6 +344,49 @@ func _interpolate_and_apply() -> void:
 		var team_id := str(p.get("teamId", ""))
 		var p_node := _get_or_create_player_node(pid, team_id)
 		p_node.position = Vector3(_to_world_x(px), 0.95, _to_world_z(py))
+
+	_update_tactical_chemistry_synergy_links(prev_players)
+
+func _update_tactical_chemistry_synergy_links(players: Array) -> void:
+	if _synergy_links_root == null:
+		return
+	for child in _synergy_links_root.get_children():
+		child.queue_free()
+
+	# Render dynamic 3D Chemistry & Synergy tactical coordination links between nearby home teammates
+	var home_positions: Array[Vector3] = []
+	for p in players:
+		if str(p.get("teamId", "")) == _home_club_id:
+			var pid := str(p.get("playerId", ""))
+			if _player_nodes.has(pid):
+				home_positions.append(_player_nodes[pid].position)
+
+	var max_links := 8
+	var links_drawn := 0
+	for i in range(home_positions.size()):
+		if links_drawn >= max_links:
+			break
+		for j in range(i + 1, home_positions.size()):
+			var pos_a: Vector3 = home_positions[i]
+			var pos_b: Vector3 = home_positions[j]
+			var dist := pos_a.distance_to(pos_b)
+			if dist > 4.0 and dist < 21.0:
+				var beam := MeshInstance3D.new()
+				var box := BoxMesh.new()
+				box.size = Vector3(0.12, 0.04, dist)
+				beam.mesh = box
+				var mat := StandardMaterial3D.new()
+				mat.albedo_color = Color(0.06, 0.72, 0.5, 0.42) if dist < 14.0 else Color(0.22, 0.74, 0.97, 0.35)
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				beam.material_override = mat
+				var mid := (pos_a + pos_b) * 0.5
+				mid.y = 0.08
+				beam.look_at_from_position(mid, Vector3(pos_b.x, 0.08, pos_b.z), Vector3.UP)
+				_synergy_links_root.add_child(beam)
+				links_drawn += 1
+				if links_drawn >= max_links:
+					break
 
 func _get_or_create_player_node(pid: String, team_id: String) -> MeshInstance3D:
 	if _player_nodes.has(pid):

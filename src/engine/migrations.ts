@@ -1,3 +1,9 @@
+import { ensureEconomyState } from './boosterEconomy';
+import {
+  deriveSpokenLanguagesForNationality,
+  resolvePlayerPersonality,
+} from './chemistryEngine';
+import { resolvePlayerTacticalRole } from './synergyEngine';
 import { GameState, PlayerAttributes, SaveEnvelope } from './types';
 import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
 
@@ -139,6 +145,23 @@ export function migrateSaveEnvelope(raw: unknown): SaveEnvelope {
       players: migratedPlayers,
     };
   }
+
+  // Ensure all players have personality, spokenLanguages, and tacticalRole, and state has EconomyState
+  const enrichedPlayers = (state.players ?? []).map((p) => ({
+    ...p,
+    spokenLanguages: p.spokenLanguages ?? deriveSpokenLanguagesForNationality(p.nationality),
+    personality: p.personality ?? resolvePlayerPersonality(p),
+    tacticalRole: p.tacticalRole ?? resolvePlayerTacticalRole(p, p.primaryPosition),
+  }));
+
+  state = {
+    ...state,
+    players: enrichedPlayers,
+  };
+  state = {
+    ...state,
+    economy: ensureEconomyState(state),
+  };
 
   return {
     saveVersion: CURRENT_SAVE_VERSION,

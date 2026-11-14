@@ -1,5 +1,8 @@
 import React from 'react';
-import { Sliders, ShieldAlert, Zap } from 'lucide-react';
+import { Sliders, ShieldAlert, Zap, Compass } from 'lucide-react';
+import { DEFAULT_BALANCE_CONFIG } from '@/engine/balanceConfig';
+import { ensureEconomyState } from '@/engine/boosterEconomy';
+import { evaluateTeamSynergy } from '@/engine/synergyEngine';
 import {
   AttackingStyle,
   DefensiveLine,
@@ -10,10 +13,18 @@ import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 
 export function TacticsScreen() {
-  const { gameState, updateUserTactics } = useGameStore();
+  const { gameState, updateUserTactics, setActiveTab } = useGameStore();
   if (!gameState) return null;
 
   const userClub = gameState.clubs.find((c) => c.id === gameState.manager.clubId)!;
+  const clubPlayers = gameState.players.filter((p) => p.clubId === userClub.id && !p.isYouth);
+  const economy = ensureEconomyState(gameState);
+  const synergy = evaluateTeamSynergy(
+    userClub,
+    clubPlayers,
+    economy.activeBoosters,
+    economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG
+  );
   const t = userClub.tactics;
 
   return (
@@ -29,9 +40,24 @@ export function TacticsScreen() {
               </p>
             </div>
           </div>
-          <span className="px-3 py-1 rounded-full bg-pitch-500/20 text-pitch-400 text-xs font-bold">
-            Active Formation: {t.formation}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-pitch-500/20 text-pitch-400 text-xs font-bold">
+              Active Formation: {t.formation}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playUiClick();
+                setActiveTab('chemistry');
+              }}
+              className="px-3 py-1 rounded-full bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-xs font-extrabold flex items-center gap-1.5 transition"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>
+                Tactical Synergy: {synergy.overallSynergy}/100 ({synergy.level})
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

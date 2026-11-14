@@ -1,5 +1,18 @@
 import { create } from 'zustand';
 import {
+  DEFAULT_BALANCE_CONFIG,
+  validateAndApplyBalanceConfigUpdate,
+} from '@/engine/balanceConfig';
+import {
+  activateBoosterItem,
+  applyVerifiedRewardedAdGrant,
+  applyVerifiedStarterPackTransaction,
+  applyVerifiedStorePurchase,
+  claimDailyLoginReward,
+  claimObjectiveReward,
+  ensureEconomyState,
+} from '@/engine/boosterEconomy';
+import {
   autoPickLineupForClub,
   generateInitialGameState,
 } from '@/engine/generator';
@@ -7,12 +20,14 @@ import { applyMatchResultToState } from '@/engine/season';
 import { executePlayerTransfer } from '@/engine/transfers';
 import {
   ActiveCutscene,
+  BalanceConfiguration,
   FormationCode,
   GameState,
   ManagerProfile,
   MatchResult,
   PositionCode,
   SaveEnvelope,
+  TacticalPlayerRole,
   TacticsConfig,
   WeeklyTrainingSchedule,
 } from '@/engine/types';
@@ -24,6 +39,9 @@ export type NavTab =
   | 'myClub'
   | 'squad'
   | 'tactics'
+  | 'chemistry'
+  | 'inventory'
+  | 'store'
   | 'transfers'
   | 'scouting'
   | 'training'
@@ -32,6 +50,7 @@ export type NavTab =
   | 'finances'
   | 'youth'
   | 'history'
+  | 'admin'
   | 'settings'
   | 'matchday';
 
@@ -90,6 +109,30 @@ interface GameStore {
   // Match & Season progression
   recordUserMatchResult: (fixtureId: string, result: MatchResult) => Promise<void>;
   advanceWeek: () => Promise<void>;
+
+  // Chemistry, Synergy, Booster Economy, Monetization & Admin Balancing
+  updatePlayerTacticalRole: (playerId: string, role: TacticalPlayerRole) => Promise<void>;
+  activateBooster: (
+    itemId: string,
+    targetPlayerId?: string,
+    secondaryPlayerId?: string
+  ) => Promise<{ success: boolean; message: string }>;
+  claimDailyLogin: () => Promise<{ success: boolean; message: string }>;
+  claimObjective: (objectiveId: string) => Promise<{ success: boolean; message: string }>;
+  watchRewardedAd: (
+    rewardChoice: 'recovery' | 'training' | 'soft_coins'
+  ) => Promise<{ success: boolean; message: string }>;
+  purchaseStarterPack: (
+    simulateOutcome?: 'verified' | 'failed' | 'cancelled' | 'restored'
+  ) => Promise<{ success: boolean; message: string }>;
+  purchaseStoreOffer: (payload: {
+    offerId: string;
+    currencyType?: 'soft' | 'premium' | 'real_money';
+  }) => Promise<{ success: boolean; message: string }>;
+  updateAdminBalanceConfig: (
+    patch: Partial<BalanceConfiguration>,
+    adminPasscode: string
+  ) => Promise<{ success: boolean; message: string; warnings?: string[] }>;
 }
 
 async function persistAutosave(state: GameState): Promise<SaveEnvelope[]> {
@@ -631,4 +674,298 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeCutscene: cutscene,
     });
   },
+
+  updatePlayerTacticalRole: async (playerId, role) => {
+    const state = get().gameState;
+    if (!state) return;
+    const updatedPlayers = state.players.map((p) =>
+      p.id === playerId ? { ...p, tacticalRole: role } : p
+    );
+    const nextState: GameState = { ...state, players: updatedPlayers };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  activateBooster: async (itemId, targetPlayerId, secondaryPlayerId) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const result = activateBoosterItem(state, itemId, targetPlayerId, secondaryPlayerId);
+    if (result.success) {
+      set({ gameState: result.updatedState });
+      const slots = await persistAutosave(result.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: result.success, message: result.message };
+  },
+
+  claimDailyLogin: async () => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const result = claimDailyLoginReward(state);
+    if (result.success) {
+      set({ gameState: result.updatedState });
+      const slots = await persistAutosave(result.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: result.success, message: result.message };
+  },
+
+  claimObjective: async (objectiveId) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const result = claimObjectiveReward(state, objectiveId);
+    if (result.success) {
+      set({ gameState: result.updatedState });
+      const slots = await persistAutosave(result.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: result.success, message: result.message };
+  },
+
+  watchRewardedAd: async (rewardChoice) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    if (get().activeTab === 'matchday') {
+      return {
+        success: false,
+        message: 'Rewarded advertisements are never permitted during active matches.',
+      };
+    }
+
+    const economy = ensureEconomyState(state);
+    const config = economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const adsToday =
+      economy.rewardedAds.dateKey === todayKey ? economy.rewardedAds.adsWatchedToday : 0;
+
+    const adNonce = `ad-${economy.accountId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+    try {
+      const res = await fetch('/api/economy/reward-ad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: economy.accountId,
+          adNonce,
+          rewardChoice,
+          isMatchInProgress: get().activeTab === 'matchday',
+          adsWatchedToday: adsToday,
+          maxAdsPerDay: config.maxRewardedAdsPerDay,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.verified) {
+        return {
+          success: false,
+          message: data.error || 'Rewarded ad provider verification failed.',
+        };
+      }
+
+      const applied = applyVerifiedRewardedAdGrant(
+        state,
+        adNonce,
+        rewardChoice,
+        data.providerSignature
+      );
+      if (applied.success) {
+        set({ gameState: applied.updatedState });
+        const slots = await persistAutosave(applied.updatedState);
+        set({ saveSlots: slots });
+      }
+      return { success: applied.success, message: applied.message };
+    } catch (err) {
+      return {
+        success: false,
+        message:
+          err instanceof Error
+            ? `Ad provider network error: ${err.message}`
+            : 'Rewarded ad provider unavailable.',
+      };
+    }
+  },
+
+  purchaseStarterPack: async (simulateOutcome = 'verified') => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const economy = ensureEconomyState(state);
+    const transactionId = `tx-sp-${economy.accountId}-${Date.now()}`;
+
+    try {
+      const res = await fetch('/api/economy/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: economy.accountId,
+          offerId: 'offer-starter-pack-onetime',
+          transactionId,
+          currencyType: 'real_money',
+          simulateOutcome,
+          alreadyOwnedOnClient: economy.starterPack.owned,
+        }),
+      });
+      const data = await res.json();
+
+      if (simulateOutcome === 'failed' || simulateOutcome === 'cancelled') {
+        const appliedFail = applyVerifiedStarterPackTransaction(state, {
+          transactionId,
+          status: simulateOutcome,
+          verificationSignature: data.verificationSignature || 'unverified',
+        });
+        set({ gameState: appliedFail.updatedState });
+        const slots = await persistAutosave(appliedFail.updatedState);
+        set({ saveSlots: slots });
+        return { success: false, message: appliedFail.message };
+      }
+
+      if (!res.ok || !data.verified) {
+        return {
+          success: false,
+          message: data.error || 'Server payment verification declined.',
+        };
+      }
+
+      const applied = applyVerifiedStarterPackTransaction(state, {
+        transactionId,
+        status: data.status || 'verified',
+        verificationSignature: data.verificationSignature,
+      });
+
+      set({ gameState: applied.updatedState });
+      const slots = await persistAutosave(applied.updatedState);
+      set({ saveSlots: slots });
+      return { success: applied.success, message: applied.message };
+    } catch (err) {
+      return {
+        success: false,
+        message:
+          err instanceof Error
+            ? `Payment verification error: ${err.message}`
+            : 'Unable to reach payment verification server.',
+      };
+    }
+  },
+
+  purchaseStoreOffer: async ({ offerId, currencyType = 'soft' }) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const economy = ensureEconomyState(state);
+    const transactionId = `tx-store-${economy.accountId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    try {
+      const res = await fetch('/api/economy/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: economy.accountId,
+          offerId,
+          transactionId,
+          currencyType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.verified || !data.offer) {
+        return {
+          success: false,
+          message: data.error || 'Store purchase verification failed.',
+        };
+      }
+
+      const applied = applyVerifiedStorePurchase(state, {
+        transactionId,
+        offerId: data.offer.offerId,
+        offerName: data.offer.offerName,
+        currencyType: data.offer.currencyType,
+        costAmount: data.offer.costAmount,
+        priceDisplay: data.offer.priceDisplay,
+        verificationSignature: data.verificationSignature,
+        itemsGranted: data.offer.itemsGranted,
+        softCoinsGranted: data.offer.softCoinsGranted,
+        premiumCoinsGranted: data.offer.premiumCoinsGranted,
+      });
+
+      if (applied.success) {
+        set({ gameState: applied.updatedState });
+        const slots = await persistAutosave(applied.updatedState);
+        set({ saveSlots: slots });
+      }
+      return { success: applied.success, message: applied.message };
+    } catch (err) {
+      return {
+        success: false,
+        message:
+          err instanceof Error
+            ? `Store transaction error: ${err.message}`
+            : 'Unable to verify store transaction.',
+      };
+    }
+  },
+
+  updateAdminBalanceConfig: async (patch, adminPasscode) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career loaded.' };
+    const economy = ensureEconomyState(state);
+
+    try {
+      const res = await fetch('/api/economy/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPasscode,
+          adminId: state.manager.name,
+          currentConfig: economy.balanceConfig,
+          patch,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.authorized) {
+        return {
+          success: false,
+          message: data.error || 'Unauthorized administrator passcode.',
+        };
+      }
+
+      const nextEconomy = {
+        ...economy,
+        balanceConfig: data.updatedConfig,
+        adminAuditLog: [...(data.auditEntries ?? []), ...economy.adminAuditLog].slice(0, 100),
+      };
+      const nextState: GameState = { ...state, economy: nextEconomy };
+      set({ gameState: nextState });
+      const slots = await persistAutosave(nextState);
+      set({ saveSlots: slots });
+
+      return {
+        success: true,
+        message: resultMessage(data.auditEntry),
+      };
+    } catch {
+      // Fallback local validation if offline
+      if (adminPasscode !== 'ADMIN-FM27') {
+        return { success: false, message: 'Unauthorized administrator passcode.' };
+      }
+      const localRes = validateAndApplyBalanceConfigUpdate(
+        economy.balanceConfig,
+        patch,
+        state.manager.name
+      );
+      const nextEconomy = {
+        ...economy,
+        balanceConfig: localRes.updatedConfig,
+        adminAuditLog: [localRes.auditEntry, ...economy.adminAuditLog].slice(0, 100),
+      };
+      const nextState: GameState = { ...state, economy: nextEconomy };
+      set({ gameState: nextState });
+      const slots = await persistAutosave(nextState);
+      set({ saveSlots: slots });
+      return {
+        success: true,
+        message: localRes.auditEntry.summary,
+      };
+    }
+  },
 }));
+
+function resultMessage(entry?: { summary?: string }): string {
+  return entry?.summary || 'Updated central balance configuration and recorded in audit log.';
+}

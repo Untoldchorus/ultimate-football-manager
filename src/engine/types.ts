@@ -141,6 +141,32 @@ export interface PlayerSeasonStats {
   minutesPlayed: number;
 }
 
+export type PlayerPersonality =
+  | 'Leader'
+  | 'TeamPlayer'
+  | 'ModelProfessional'
+  | 'Ambitious'
+  | 'Maverick'
+  | 'Temperamental';
+
+export type TacticalPlayerRole =
+  | 'SweeperKeeper'
+  | 'ShotStopper'
+  | 'BallPlayingDefender'
+  | 'StopperCB'
+  | 'AttackingFullback'
+  | 'InvertedFullback'
+  | 'DefensiveFullback'
+  | 'AnchorMan'
+  | 'DeepLyingPlaymaker'
+  | 'BoxToBox'
+  | 'AdvancedPlaymaker'
+  | 'InsideForward'
+  | 'TraditionalWinger'
+  | 'Poacher'
+  | 'CompleteForward'
+  | 'FalseNine';
+
 export interface Player {
   id: string;
   firstName: string;
@@ -151,6 +177,11 @@ export interface Player {
   preferredFoot?: 'Right' | 'Left' | 'Both';
   shirtNumber?: number;
   nationality: string;
+  spokenLanguages?: string[];
+  personality?: PlayerPersonality;
+  tacticalRole?: TacticalPlayerRole;
+  joinedClubWeek?: number;
+  joinedClubSeason?: number;
   clubId: string;
   loanedFromClubId?: string | null;
   primaryPosition: PositionCode;
@@ -375,6 +406,13 @@ export interface MatchSimulationInput {
   homePlayers: Player[];
   awayPlayers: Player[];
   isNeutralVenue?: boolean;
+  homeChemistryScore?: number; // 0..100
+  awayChemistryScore?: number; // 0..100
+  homeSynergyScore?: number; // 0..100
+  awaySynergyScore?: number; // 0..100
+  homeActiveBoosters?: ActiveBoosterInstance[];
+  awayActiveBoosters?: ActiveBoosterInstance[];
+  balanceConfig?: BalanceConfiguration;
 }
 
 export type CompetitionType =
@@ -557,7 +595,392 @@ export interface NewsItem {
   season: number;
   title: string;
   body: string;
-  category: 'match' | 'transfer' | 'board' | 'injury' | 'youth' | 'cup';
+  category: 'match' | 'transfer' | 'board' | 'injury' | 'youth' | 'cup' | 'economy' | 'chemistry';
+}
+
+// ============================================================================
+// CHEMISTRY, SYNERGY, BOOSTER ECONOMY, MONETIZATION & BALANCING TYPES
+// ============================================================================
+
+export type ChemistryLevelLabel =
+  | 'Unfamiliar'
+  | 'Developing'
+  | 'Familiar'
+  | 'Strong Understanding'
+  | 'Excellent Understanding'
+  | 'Exceptional Understanding';
+
+export type SynergyLevelLabel =
+  | 'Poor Compatibility'
+  | 'Limited Compatibility'
+  | 'Average Compatibility'
+  | 'Good Compatibility'
+  | 'Excellent Compatibility'
+  | 'Exceptional Compatibility';
+
+export interface PlayerPairChemistryRecord {
+  pairKey: string; // sorted `${idA}__${idB}`
+  playerAId: string;
+  playerBId: string;
+  clubId: string;
+  matchesTogether: number;
+  minutesTogether: number;
+  trainingSessionsTogether: number;
+  weeksSinceLastPlayedTogether: number;
+  dynamicFamiliarityBonus: number; // -15..+35 earned from playing/training together
+  lastUpdatedSeason: number;
+  lastUpdatedWeek: number;
+}
+
+export interface ChemistryFactorBreakdown {
+  matchesPlayedScore: number;
+  minutesPlayedScore: number;
+  sharedNationalityScore: number;
+  sharedLanguageScore: number;
+  previousClubScore: number;
+  internationalTeammateScore: number;
+  positionalFamiliarityScore: number;
+  playingRelationshipScore: number;
+  personalityCompatibilityScore: number;
+  communicationLeadershipScore: number;
+  transferAdaptationPenalty: number;
+}
+
+export interface PartnershipChemistryEvaluation {
+  pairKey: string;
+  playerAId: string;
+  playerBId: string;
+  playerAName: string;
+  playerBName: string;
+  slotIndexA: number;
+  slotIndexB: number;
+  isTacticallyLinked: boolean;
+  score: number; // 0..100
+  level: ChemistryLevelLabel;
+  matchesTogether: number;
+  minutesTogether: number;
+  factors: ChemistryFactorBreakdown;
+  summaryReason: string;
+}
+
+export interface IndividualPlayerChemistryEvaluation {
+  playerId: string;
+  playerName: string;
+  positionSlot: PositionCode;
+  primaryPosition: PositionCode;
+  positionalFamiliarity: number; // 0..100
+  averageTeammateChemistry: number; // 0..100
+  individualChemistry: number; // 0..100
+  level: ChemistryLevelLabel;
+  adaptationWeeksRemaining: number;
+}
+
+export interface ChemistryHistorySnapshot {
+  season: number;
+  week: number;
+  teamChemistry: number;
+  teamSynergy: number;
+  note: string;
+}
+
+export interface TeamChemistryReport {
+  clubId: string;
+  overallChemistry: number; // 0..100
+  level: ChemistryLevelLabel;
+  individualPlayers: IndividualPlayerChemistryEvaluation[];
+  partnerships: PartnershipChemistryEvaluation[];
+  strongestPartnerships: PartnershipChemistryEvaluation[];
+  weakestPartnerships: PartnershipChemistryEvaluation[];
+  improvementOpportunities: string[];
+  matchPerformanceModifierPct: number; // e.g. -2.2% to +3.0%
+}
+
+export interface SynergyFactorBreakdown {
+  roleCompatibilityScore: number;
+  positionalRelationshipScore: number;
+  tacticalInstructionScore: number;
+  formationCompatibilityScore: number;
+  complementaryAttributesScore: number;
+  playingStyleCompatibilityScore: number;
+  defensiveAttackingBalanceScore: number;
+  playerPositioningScore: number;
+  tacticalFamiliarityScore: number;
+  teamStructureScore: number;
+}
+
+export interface PartnershipSynergyEvaluation {
+  playerAId: string;
+  playerBId: string;
+  playerAName: string;
+  playerBName: string;
+  roleA: TacticalPlayerRole;
+  roleB: TacticalPlayerRole;
+  positionA: PositionCode;
+  positionB: PositionCode;
+  score: number; // 0..100
+  level: SynergyLevelLabel;
+  archetypeLabel: string; // e.g. "Anchor Covering Attacking Fullback"
+  explanation: string;
+}
+
+export interface TeamSynergyReport {
+  clubId: string;
+  formation: FormationCode;
+  overallSynergy: number; // 0..100
+  level: SynergyLevelLabel;
+  defensiveSynergy: number; // 0..100
+  midfieldSynergy: number; // 0..100
+  attackingSynergy: number; // 0..100
+  positionalUnitSynergy: {
+    backline: number;
+    engineRoom: number;
+    frontline: number;
+    leftFlank: number;
+    rightFlank: number;
+  };
+  partnerships: PartnershipSynergyEvaluation[];
+  factors: SynergyFactorBreakdown;
+  tacticalInsights: string[];
+  matchPerformanceModifierPct: number; // e.g. -2.8% to +4.0%
+}
+
+export type BoosterCategory =
+  | 'training'
+  | 'chemistry'
+  | 'synergy'
+  | 'recovery'
+  | 'morale'
+  | 'cosmetic';
+
+export type ItemRarity = 'Common' | 'Rare' | 'Epic' | 'Legendary';
+
+export type AcquisitionSource =
+  | 'daily_login'
+  | 'daily_objective'
+  | 'weekly_objective'
+  | 'achievement'
+  | 'tournament_reward'
+  | 'rewarded_ad'
+  | 'store_soft'
+  | 'store_premium'
+  | 'starter_pack'
+  | 'special_event'
+  | 'seasonal_reward';
+
+export interface BoosterItemDefinition {
+  itemId: string;
+  name: string;
+  description: string;
+  category: BoosterCategory;
+  subType:
+    | 'training_xp'
+    | 'technical_dev'
+    | 'physical_dev'
+    | 'tactical_dev'
+    | 'chemistry_training'
+    | 'partnership_training'
+    | 'team_bonding'
+    | 'tactical_preparation'
+    | 'positional_training'
+    | 'unit_coordination'
+    | 'recovery_pack'
+    | 'condition_pack'
+    | 'fatigue_recovery'
+    | 'team_morale'
+    | 'individual_morale'
+    | 'leadership_motivation'
+    | 'founders_cosmetic';
+  rarity: ItemRarity;
+  durationWeeks: number; // 0 = instant consumable, >0 = active for N weeks/matches
+  effectStrength: number; // e.g. +8 fitness, +15% training XP, +4 chemistry points
+  priority: number; // higher priority wins if conflicting
+  conflictGroup: string; // prevents conflicting simultaneous effects
+  targetScope: 'player' | 'pair' | 'team' | 'club_cosmetic';
+  cooldownWeeks: number;
+  maxActivePerPlayer: number;
+  expirationWeeks?: number; // inventory shelf life if applicable (undefined = never expires)
+  softCurrencyPrice?: number;
+  premiumCurrencyPrice?: number;
+  usageRestrictionsText: string;
+}
+
+export interface InventoryItemRecord {
+  instanceId: string;
+  itemId: string;
+  quantity: number;
+  acquiredAtIso: string;
+  acquiredWeek: number;
+  acquiredSeason: number;
+  source: AcquisitionSource;
+  expiresAtWeek?: number;
+  expiresAtSeason?: number;
+}
+
+export interface ActiveBoosterInstance {
+  activeId: string;
+  itemId: string;
+  name: string;
+  category: BoosterCategory;
+  subType: BoosterItemDefinition['subType'];
+  rarity: ItemRarity;
+  effectStrength: number;
+  priority: number;
+  conflictGroup: string;
+  targetPlayerId?: string;
+  secondaryPlayerId?: string;
+  clubId: string;
+  activatedWeek: number;
+  activatedSeason: number;
+  remainingWeeks: number;
+}
+
+export interface BoosterUsageHistoryEntry {
+  id: string;
+  itemId: string;
+  itemName: string;
+  rarity: ItemRarity;
+  category: BoosterCategory;
+  usedAtIso: string;
+  season: number;
+  week: number;
+  targetDescription: string;
+  effectSummary: string;
+}
+
+export interface AcquisitionHistoryEntry {
+  id: string;
+  itemId: string;
+  itemName: string;
+  rarity: ItemRarity;
+  quantity: number;
+  source: AcquisitionSource;
+  acquiredAtIso: string;
+  season: number;
+  week: number;
+}
+
+export interface ProgressionObjective {
+  id: string;
+  title: string;
+  description: string;
+  cadence: 'daily' | 'weekly' | 'seasonal' | 'achievement';
+  targetProgress: number;
+  currentProgress: number;
+  completed: boolean;
+  claimed: boolean;
+  rewardSoftCoins: number;
+  rewardPremiumCoins: number;
+  rewardItemId?: string;
+  rewardItemQty?: number;
+}
+
+export interface PurchaseTransactionRecord {
+  transactionId: string;
+  accountId: string;
+  offerId: string;
+  offerName: string;
+  currencyType: 'soft' | 'premium' | 'real_money';
+  amountPaid: number;
+  priceDisplay: string;
+  status: 'verified' | 'failed' | 'cancelled' | 'restored';
+  verificationHash: string;
+  createdAtIso: string;
+  season: number;
+  week: number;
+  itemsGranted: { itemId: string; quantity: number }[];
+  softCoinsGranted: number;
+  premiumCoinsGranted: number;
+}
+
+export interface StarterPackEntitlement {
+  accountId: string;
+  owned: boolean;
+  purchasedAtIso?: string;
+  transactionId?: string;
+  verificationSignature?: string;
+  onboardingOfferUnlockedWeek: number;
+  failedAttemptsCount: number;
+  cosmeticUnlocked: boolean;
+}
+
+export interface RewardedAdState {
+  dateKey: string; // YYYY-MM-DD
+  adsWatchedToday: number;
+  claimedNonces: string[];
+  lastAdWatchedAtIso?: string;
+  providerStatus: 'ready' | 'cooldown' | 'unavailable';
+}
+
+export interface BalanceConfiguration {
+  version: number;
+  updatedAtIso: string;
+  updatedBy: string;
+  // Chemistry & Synergy Match Influence Caps (Nonlinear)
+  maxChemistryMatchBonusPct: number; // default 3.0 (%)
+  maxSynergyMatchBonusPct: number; // default 4.0 (%)
+  maxCombinedChemSynergyBonusPct: number; // default 7.0 (%)
+  // Chemistry Progression
+  chemistryGainPerMatchTogether: number; // default 1.25
+  chemistryGainPerTrainingWeek: number; // default 0.55
+  chemistryDecayPerInactiveWeek: number; // default 0.35
+  transferAdaptationWeeks: number; // default 5
+  // Synergy Weights
+  synergyRoleWeight: number; // default 1.0
+  synergyTacticsWeight: number; // default 1.0
+  synergyFormationWeight: number; // default 1.0
+  // Player Attribute & Training Diminishing Returns
+  maxPrimaryAttributeCap: number; // default 100
+  efficiencyTier40_59: number; // default 1.00 (100%)
+  efficiencyTier60_69: number; // default 0.85 (85%)
+  efficiencyTier70_79: number; // default 0.65 (65%)
+  efficiencyTier80_89: number; // default 0.40 (40%)
+  efficiencyTier90_94: number; // default 0.20 (20%)
+  efficiencyTier95_99: number; // default 0.10 (10%)
+  // Anti-Overbuff Booster Restrictions
+  maxActiveBoostersPerPlayer: number; // default 2
+  boosterGlobalStrengthMultiplier: number; // default 1.0
+  boosterDefaultCooldownWeeks: number; // default 2
+  // Rewarded Ads & Daily Economy
+  maxRewardedAdsPerDay: number; // default 5
+  dailyLoginSoftCoins: number; // default 250
+  starterPackPriceUsd: number; // default 4.99
+  starterPackPremiumCoins: number; // default 300
+  starterPackTrainingBoostersQty: number; // default 5
+  starterPackRecoveryPacksQty: number; // default 3
+  starterPackMoraleBoostersQty: number; // default 2
+  starterPackRareChemistryQty: number; // default 1
+  starterPackRareSynergyQty: number; // default 1
+  starterPackOnboardingWeeksLimit: number; // default 22
+  storePurchasesEnabled: boolean; // default true
+}
+
+export interface AdminAuditLogEntry {
+  id: string;
+  timestampIso: string;
+  adminUser: string;
+  summary: string;
+  changes: Record<string, { from: unknown; to: unknown }>;
+}
+
+export interface EconomyState {
+  accountId: string;
+  softCurrency: number; // Club Coins earned via matches/objectives
+  premiumCurrency: number; // Pro Diamonds / Premium Coins
+  inventory: InventoryItemRecord[];
+  activeBoosters: ActiveBoosterInstance[];
+  cooldownsByTarget: Record<string, number>; // `${targetId}_${conflictGroup}` -> expiresAtTotalWeek
+  usageHistory: BoosterUsageHistoryEntry[];
+  acquisitionHistory: AcquisitionHistoryEntry[];
+  dailyLoginStreak: number;
+  lastDailyLoginClaimWeek: number; // season * 100 + week
+  objectives: ProgressionObjective[];
+  rewardedAds: RewardedAdState;
+  starterPack: StarterPackEntitlement;
+  transactions: PurchaseTransactionRecord[];
+  pairChemistry: Record<string, PlayerPairChemistryRecord>;
+  chemistryHistory: ChemistryHistorySnapshot[];
+  balanceConfig: BalanceConfiguration;
+  adminAuditLog: AdminAuditLogEntry[];
 }
 
 export interface GameState {
@@ -578,6 +1001,7 @@ export interface GameState {
   trophies: TrophyRecord[];
   seasonHistory: SeasonHistorySummary[];
   news: NewsItem[];
+  economy?: EconomyState;
 }
 
 export interface SaveEnvelope {

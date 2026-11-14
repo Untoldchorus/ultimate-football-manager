@@ -1,4 +1,16 @@
 import {
+  DEFAULT_BALANCE_CONFIG,
+} from './balanceConfig';
+import {
+  ensureEconomyState,
+  tickWeeklyBoostersAndExpirations,
+} from './boosterEconomy';
+import {
+  evaluateTeamChemistry,
+  processWeeklyChemistryDevelopmentAndDecay,
+  updatePairChemistryAfterMatch,
+} from './chemistryEngine';
+import {
   autoPickLineupForClub,
   generatePlayer,
 } from './generator';
@@ -11,6 +23,7 @@ import {
 } from './ratings';
 import { createRng } from './rng';
 import { calculateStandings } from './standings';
+import { evaluateTeamSynergy } from './synergyEngine';
 import {
   MIN_SQUAD_SIZE,
   processWeeklyAiTransfers,
@@ -155,11 +168,72 @@ export function applyMatchResultToState(
     };
   });
 
+  // Update interpersonal pair chemistry, Soft Currency rewards & progression objectives if user's club played
+  let nextEconomy = ensureEconomyState(state);
+  const userClubId = state.manager.clubId;
+  const userPlayedHome = result.homeClubId === userClubId;
+  const userPlayedAway = result.awayClubId === userClubId;
+
+  if ((userPlayedHome || userPlayedAway) && (homeClub || awayClub)) {
+    const uClub = (userPlayedHome ? homeClub : awayClub)!;
+    const goalAssistPairs: [string, string][] = [];
+    for (const ev of result.events) {
+      if (ev.type === 'goal' && ev.teamId === userClubId && ev.playerId && ev.secondaryPlayerId) {
+        goalAssistPairs.push([ev.playerId, ev.secondaryPlayerId]);
+      }
+    }
+
+    const updatedPairChem = updatePairChemistryAfterMatch(
+      nextEconomy.pairChemistry,
+      uClub,
+      uClub.startingXI,
+      goalAssistPairs,
+      state.currentSeason,
+      state.currentWeek,
+      nextEconomy.balanceConfig ?? DEFAULT_BALANCE_CONFIG
+    );
+
+    const userGoals = userPlayedHome ? result.homeScore : result.awayScore;
+    const oppGoals = userPlayedHome ? result.awayScore : result.homeScore;
+    const userWon = userGoals > oppGoals;
+    const userDrew = userGoals === oppGoals;
+    const userCleanSheet = oppGoals === 0;
+    const matchSoftCoins = userWon ? 240 : userDrew ? 140 : 80;
+
+    const updatedObjectives = nextEconomy.objectives.map((obj) => {
+      if (obj.id === 'obj-daily-match') {
+        const prog = Math.min(obj.targetProgress, obj.currentProgress + 1);
+        return { ...obj, currentProgress: prog, completed: prog >= obj.targetProgress };
+      }
+      if (obj.id === 'obj-weekly-goals') {
+        const prog = Math.min(obj.targetProgress, obj.currentProgress + userGoals);
+        return { ...obj, currentProgress: prog, completed: prog >= obj.targetProgress };
+      }
+      if (obj.id === 'obj-weekly-cleansheet' && userCleanSheet) {
+        const prog = Math.min(obj.targetProgress, obj.currentProgress + 1);
+        return { ...obj, currentProgress: prog, completed: prog >= obj.targetProgress };
+      }
+      if (obj.id === 'obj-ach-silverware' && userWon) {
+        const prog = Math.min(obj.targetProgress, obj.currentProgress + 1);
+        return { ...obj, currentProgress: prog, completed: prog >= obj.targetProgress };
+      }
+      return obj;
+    });
+
+    nextEconomy = {
+      ...nextEconomy,
+      softCurrency: nextEconomy.softCurrency + matchSoftCoins,
+      pairChemistry: updatedPairChem,
+      objectives: updatedObjectives,
+    };
+  }
+
   return {
     ...state,
     fixtures: updatedFixtures,
     players: updatedPlayers,
     clubs: updatedClubs,
+    economy: nextEconomy,
   };
 }
 
@@ -181,6 +255,42 @@ export function simulateWeekMatches(state: GameState, weekSeed: number): GameSta
     const homePlayers = nextState.players.filter((p) => p.clubId === homeClub.id);
     const awayPlayers = nextState.players.filter((p) => p.clubId === awayClub.id);
 
+    const econ = ensureEconomyState(nextState);
+    const balCfg = econ.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+    const isHomeUser = homeClub.id === nextState.manager.clubId;
+    const isAwayUser = awayClub.id === nextState.manager.clubId;
+
+    const homeChemReport = evaluateTeamChemistry(
+      homeClub,
+      homePlayers,
+      isHomeUser ? econ.pairChemistry : {},
+      nextState.currentSeason,
+      nextState.currentWeek,
+      isHomeUser ? econ.activeBoosters : [],
+      balCfg
+    );
+    const awayChemReport = evaluateTeamChemistry(
+      awayClub,
+      awayPlayers,
+      isAwayUser ? econ.pairChemistry : {},
+      nextState.currentSeason,
+      nextState.currentWeek,
+      isAwayUser ? econ.activeBoosters : [],
+      balCfg
+    );
+    const homeSynReport = evaluateTeamSynergy(
+      homeClub,
+      homePlayers,
+      isHomeUser ? econ.activeBoosters : [],
+      balCfg
+    );
+    const awaySynReport = evaluateTeamSynergy(
+      awayClub,
+      awayPlayers,
+      isAwayUser ? econ.activeBoosters : [],
+      balCfg
+    );
+
     const res = simulateMatch(
       {
         fixtureId: fix.id,
@@ -188,6 +298,13 @@ export function simulateWeekMatches(state: GameState, weekSeed: number): GameSta
         awayClub,
         homePlayers,
         awayPlayers,
+        homeChemistryScore: homeChemReport.overallChemistry,
+        awayChemistryScore: awayChemReport.overallChemistry,
+        homeSynergyScore: homeSynReport.overallSynergy,
+        awaySynergyScore: awaySynReport.overallSynergy,
+        homeActiveBoosters: isHomeUser ? econ.activeBoosters : [],
+        awayActiveBoosters: isAwayUser ? econ.activeBoosters : [],
+        balanceConfig: balCfg,
       },
       (weekSeed ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0
     );
@@ -643,6 +760,68 @@ export function advanceGameWeek(state: GameState): GameState {
   next = processWeeklyScouting(next, weekSeed);
   next = processWeeklyAiTransfers(next, weekSeed);
   next = processWeeklyFinancesAndBoard(next);
+
+  // Process weekly interpersonal chemistry development/decay, active booster countdowns, and history snapshots
+  next = tickWeeklyBoostersAndExpirations(next);
+  const econ = ensureEconomyState(next);
+  const userClub = next.clubs.find((c) => c.id === next.manager.clubId) ?? next.clubs[0];
+  const userPlayers = next.players.filter((p) => p.clubId === userClub.id);
+  const balCfg = econ.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
+
+  const updatedPairChem = processWeeklyChemistryDevelopmentAndDecay(
+    econ.pairChemistry,
+    userClub,
+    userPlayers,
+    next.currentSeason,
+    next.currentWeek,
+    balCfg
+  );
+
+  const chemReport = evaluateTeamChemistry(
+    userClub,
+    userPlayers,
+    updatedPairChem,
+    next.currentSeason,
+    next.currentWeek,
+    econ.activeBoosters,
+    balCfg
+  );
+  const synReport = evaluateTeamSynergy(
+    userClub,
+    userPlayers,
+    econ.activeBoosters,
+    balCfg
+  );
+
+  const nextObjectives = econ.objectives.map((obj) => {
+    if (obj.id === 'obj-daily-training') {
+      return { ...obj, currentProgress: 1, completed: true };
+    }
+    if (obj.id === 'obj-season-cohesion') {
+      const prog = Math.max(obj.currentProgress, chemReport.overallChemistry);
+      return { ...obj, currentProgress: prog, completed: prog >= obj.targetProgress };
+    }
+    return obj;
+  });
+
+  next = {
+    ...next,
+    economy: {
+      ...econ,
+      pairChemistry: updatedPairChem,
+      objectives: nextObjectives,
+      chemistryHistory: [
+        {
+          season: next.currentSeason,
+          week: next.currentWeek,
+          teamChemistry: chemReport.overallChemistry,
+          teamSynergy: synReport.overallSynergy,
+          note: `W${next.currentWeek} (${userClub.tactics.formation}): Chem ${chemReport.overallChemistry} / Syn ${synReport.overallSynergy}`,
+        },
+        ...econ.chemistryHistory,
+      ].slice(0, 44),
+    },
+  };
 
   if (next.currentWeek >= next.maxWeeksPerSeason) {
     return performSeasonRollover(next);

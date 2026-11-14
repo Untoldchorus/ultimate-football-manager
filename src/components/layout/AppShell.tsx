@@ -18,11 +18,23 @@ import {
   Play,
   Menu,
   X,
+  GitBranch,
+  Backpack,
+  ShoppingBag,
+  Shield,
+  Coins,
+  Sparkles,
+  Crown,
 } from 'lucide-react';
+import { ensureEconomyState } from '@/engine/boosterEconomy';
 import { soundManager } from '@/lib/audio';
 import { NavTab, useGameStore } from '@/store/useGameStore';
+import { AdminBalanceDashboard } from '../economy/AdminBalanceDashboard';
+import { BoosterInventoryScreen } from '../economy/BoosterInventoryScreen';
+import { PremiumStoreScreen } from '../economy/PremiumStoreScreen';
 import { CutsceneModal } from './CutsceneModal';
 import { HomeDashboard } from './HomeDashboard';
+import { ChemistrySynergyScreen } from '../squad/ChemistrySynergyScreen';
 import { SquadScreen } from '../squad/SquadScreen';
 import { TacticsScreen } from '../squad/TacticsScreen';
 import { TransfersScreen } from '../management/TransfersScreen';
@@ -47,6 +59,9 @@ const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ classN
   { id: 'myClub', label: 'My Club', icon: Building2 },
   { id: 'squad', label: 'Squad', icon: Users },
   { id: 'tactics', label: 'Tactics', icon: Sliders },
+  { id: 'chemistry', label: 'Chemistry & Synergy', icon: GitBranch },
+  { id: 'inventory', label: 'Booster Inventory', icon: Backpack },
+  { id: 'store', label: 'Store & Starter Pack', icon: ShoppingBag },
   { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
   { id: 'scouting', label: 'Scouting', icon: Compass },
   { id: 'training', label: 'Training', icon: Dumbbell },
@@ -55,6 +70,7 @@ const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ classN
   { id: 'finances', label: 'Finances', icon: Landmark },
   { id: 'youth', label: 'Youth Academy', icon: GraduationCap },
   { id: 'history', label: 'Club History', icon: History },
+  { id: 'admin', label: 'Admin Balancing', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -65,6 +81,7 @@ export function AppShell() {
   if (!gameState) return null;
 
   const userClub = gameState.clubs.find((c) => c.id === gameState.manager.clubId)!;
+  const economy = ensureEconomyState(gameState);
 
   const handleNav = (tab: NavTab) => {
     soundManager.playUiClick();
@@ -178,6 +195,30 @@ export function AppShell() {
           </div>
 
           <div className="flex items-center gap-3">
+            {economy.starterPack.cosmeticUnlocked && (
+              <span
+                title="Founder's Golden Crest & Touchline Badge Unlocked"
+                className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-[10px] font-black uppercase text-amber-300"
+              >
+                <Crown className="w-3 h-3 text-amber-400" />
+                <span>Founder VIP</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => handleNav('store')}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-950 hover:bg-navy-800 border border-slate-800 text-xs transition"
+            >
+              <Coins className="w-3.5 h-3.5 text-pitch-400" />
+              <span className="font-black text-white" data-testid="header-soft-coins">
+                {economy.softCurrency.toLocaleString()}
+              </span>
+              <span className="text-slate-600">|</span>
+              <Sparkles className="w-3.5 h-3.5 text-gold-400" />
+              <span className="font-black text-gold-300" data-testid="header-premium-coins">
+                {economy.premiumCurrency.toLocaleString()}
+              </span>
+            </button>
             <div className="hidden sm:block text-right text-xs">
               <div className="text-slate-400">Transfer Budget</div>
               <div className="font-extrabold text-pitch-400">
@@ -200,6 +241,9 @@ export function AppShell() {
           {activeTab === 'myClub' && <MyClubScreen />}
           {activeTab === 'squad' && <SquadScreen />}
           {activeTab === 'tactics' && <TacticsScreen />}
+          {activeTab === 'chemistry' && <ChemistrySynergyScreen />}
+          {activeTab === 'inventory' && <BoosterInventoryScreen />}
+          {activeTab === 'store' && <PremiumStoreScreen />}
           {activeTab === 'transfers' && <TransfersScreen />}
           {activeTab === 'scouting' && <ScoutingScreen />}
           {activeTab === 'training' && <TrainingScreen />}
@@ -208,6 +252,7 @@ export function AppShell() {
           {activeTab === 'finances' && <FinancesScreen />}
           {activeTab === 'youth' && <YouthAcademyScreen />}
           {activeTab === 'history' && <ClubHistoryScreen />}
+          {activeTab === 'admin' && <AdminBalanceDashboard />}
           {activeTab === 'settings' && <SettingsScreen />}
           {activeTab === 'matchday' && <MatchdayScreen />}
         </main>
