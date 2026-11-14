@@ -33,6 +33,12 @@ export function CareerCreationScreen() {
   const [tacticalStyle, setTacticalStyle] = useState<AttackingStyle>('possession');
   const [difficulty, setDifficulty] = useState<ManagerProfile['difficulty']>('standard');
   const [startingChallenge, setStartingChallenge] = useState<ManagerProfile['startingChallenge']>('none');
+  const [careerType, setCareerType] = useState<'real_club' | 'original_team'>('real_club');
+  const [originalClubName, setOriginalClubName] = useState('FC Nova');
+  const [originalShortName, setOriginalShortName] = useState('NOV');
+  const [originalStadiumName, setOriginalStadiumName] = useState('Nova Arena');
+  const [originalPrimaryColor, setOriginalPrimaryColor] = useState('#10b981');
+  const [originalSecondaryColor, setOriginalSecondaryColor] = useState('#0f172a');
 
   // Multi-Dimensional Real Club Filters across all 20 Nations & 40 Divisions
   const [selectedTier, setSelectedTier] = useState<'ALL' | 1 | 2>('ALL');
@@ -106,6 +112,17 @@ export function CareerCreationScreen() {
       difficulty,
       startingChallenge,
       clubId: activeClub.id,
+      careerType,
+      originalClubConfig:
+        careerType === 'original_team'
+          ? {
+              name: originalClubName.trim() || 'FC Nova',
+              shortName: (originalShortName.trim() || 'NOV').slice(0, 4).toUpperCase(),
+              stadiumName: originalStadiumName.trim() || 'Nova Arena',
+              primaryColor: originalPrimaryColor,
+              secondaryColor: originalSecondaryColor,
+            }
+          : undefined,
     });
   };
 
@@ -235,6 +252,87 @@ export function CareerCreationScreen() {
         )}
 
         <form onSubmit={handleStart} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Career Mode Selection: Real Club vs Original Team (Club Empire) */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider">Career Mode</h2>
+                <p className="text-xs text-slate-400">
+                  Permanently bound to this save. Club Empire is exclusive to Original Team Career.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCareerType('real_club')}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                    careerType === 'real_club'
+                      ? 'bg-pitch-600 text-white'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Real Club Career
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCareerType('original_team')}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                    careerType === 'original_team'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Original Team Career (Club Empire)
+                </button>
+              </div>
+            </div>
+
+            {careerType === 'original_team' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-800">
+                <input
+                  type="text"
+                  value={originalClubName}
+                  onChange={(e) => setOriginalClubName(e.target.value)}
+                  placeholder="Club Name"
+                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
+                />
+                <input
+                  type="text"
+                  value={originalShortName}
+                  maxLength={4}
+                  onChange={(e) => setOriginalShortName(e.target.value)}
+                  placeholder="Short (e.g. NOV)"
+                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white uppercase"
+                />
+                <input
+                  type="text"
+                  value={originalStadiumName}
+                  onChange={(e) => setOriginalStadiumName(e.target.value)}
+                  placeholder="Stadium Name"
+                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
+                />
+                <label className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+                  Primary
+                  <input
+                    type="color"
+                    value={originalPrimaryColor}
+                    onChange={(e) => setOriginalPrimaryColor(e.target.value)}
+                    className="h-6 w-8 bg-transparent border-0 cursor-pointer"
+                  />
+                </label>
+                <label className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+                  Secondary
+                  <input
+                    type="color"
+                    value={originalSecondaryColor}
+                    onChange={(e) => setOriginalSecondaryColor(e.target.value)}
+                    className="h-6 w-8 bg-transparent border-0 cursor-pointer"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
           {/* Left column: Manager Profile & Detailed Selected Club Dossier */}
           <div className="lg:col-span-5 bg-navy-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-xl">
             <div className="flex items-center gap-2 text-pitch-400 font-bold uppercase tracking-wider text-xs">

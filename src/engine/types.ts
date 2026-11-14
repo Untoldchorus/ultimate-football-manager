@@ -692,6 +692,16 @@ export interface ManagerAttributes {
   tacticalFlexibility: number; // 0..100
 }
 
+export type CareerType = 'original_team' | 'real_club';
+
+export interface OriginalClubIdentityConfig {
+  name: string;
+  shortName: string;
+  primaryColor: string;
+  secondaryColor: string;
+  stadiumName: string;
+}
+
 export interface ManagerProfile {
   name: string;
   nationality: string;
@@ -699,6 +709,8 @@ export interface ManagerProfile {
   difficulty: 'relaxed' | 'standard' | 'hardcore';
   startingChallenge: 'none' | 'financialCrisis' | 'youthOnly' | 'titleOrBust';
   clubId: string;
+  careerType?: CareerType;
+  originalClubConfig?: OriginalClubIdentityConfig;
   attributes?: ManagerAttributes;
   savedPresets?: TacticalPreset[];
 }
@@ -1133,6 +1145,7 @@ export interface EconomyState {
 export interface GameState {
   saveVersion: number;
   worldSeed: number;
+  careerType?: CareerType;
   currentSeason: number; // e.g. 2026
   currentWeek: number; // 1..22
   maxWeeksPerSeason: number;
@@ -1149,6 +1162,7 @@ export interface GameState {
   seasonHistory: SeasonHistorySummary[];
   news: NewsItem[];
   economy?: EconomyState;
+  clubEmpire?: ClubEmpireState;
 }
 
 export interface SaveEnvelope {
@@ -1160,4 +1174,267 @@ export interface SaveEnvelope {
   seasonYear: number;
   currentWeek: number;
   state: GameState;
+}
+
+
+// ============================================================================
+// CLUB EMPIRE — COMPLETE CLUB OWNERSHIP, INFRASTRUCTURE & DEVELOPMENT TYPES
+// ============================================================================
+
+export type ClubEmpireBuildingCategory =
+  | 'stadium'
+  | 'training'
+  | 'medical'
+  | 'commercial'
+  | 'management'
+  | 'community';
+
+export type ClubEmpireBuildingId =
+  // Category A: Stadium & Matchday Infrastructure (7)
+  | 'football_pitch'
+  | 'stadium_stands'
+  | 'vip_hospitality'
+  | 'parking_transport'
+  | 'stadium_roof'
+  | 'lighting_scoreboard'
+  | 'fan_plaza'
+  // Category B: Training & Player Development (4)
+  | 'training_complex'
+  | 'fitness_gym'
+  | 'youth_academy'
+  | 'youth_residence'
+  // Category C: Medical & Recovery (3)
+  | 'club_hospital'
+  | 'rehabilitation_centre'
+  | 'sports_science_lab'
+  // Category D: Commercial Infrastructure (4)
+  | 'club_merchandise_store'
+  | 'club_museum'
+  | 'media_broadcast_centre'
+  | 'sponsorship_centre'
+  // Category E: Management & Recruitment (2)
+  | 'club_headquarters'
+  | 'scouting_centre'
+  // Category F: Community & Supporter Infrastructure (3)
+  | 'supporters_club'
+  | 'community_centre'
+  | 'security_operations';
+
+export type ClubDevelopmentTier =
+  | 'Local Club'
+  | 'Developing Club'
+  | 'Professional Club'
+  | 'Elite Club'
+  | 'World-Class Club';
+
+export type LandPlotCategory = 'standard' | 'premium';
+export type LandPlotSize = 'small' | 'medium' | 'large' | 'stadium';
+
+export interface LandPlot {
+  plotId: string;
+  name: string;
+  category: LandPlotCategory;
+  size: LandPlotSize;
+  zone: ClubEmpireBuildingCategory | 'expansion';
+  owned: boolean;
+  purchaseCost: number;
+  requiredTier: ClubDevelopmentTier;
+  expansionOrder: number; // 0 = starting campus, 1..5 = expansions
+  gridX: number;
+  gridZ: number;
+  assignedBuildingId?: ClubEmpireBuildingId;
+}
+
+export type ConstructionLifecycleState =
+  | 'locked'
+  | 'available'
+  | 'planning'
+  | 'construction'
+  | 'inspection'
+  | 'completed'
+  | 'operational';
+
+export type BuildingVisualStage =
+  | 'Basic'
+  | 'Developing'
+  | 'Professional'
+  | 'Elite'
+  | 'World-Class';
+
+export interface BuildingPrerequisiteRule {
+  requiredBuildings?: { buildingId: ClubEmpireBuildingId; minLevel: number }[];
+  minClubTier?: ClubDevelopmentTier;
+  minReputation?: number;
+  minOfficialTrophies?: number;
+  requiresOwnedPlot?: boolean;
+}
+
+export interface BuildingLevelConfig {
+  level: number;
+  upgradeCost: number;
+  durationMinutes: number;
+  maintenanceWeekly: number;
+  benefitValue: number;
+  benefitLabel: string;
+  prerequisites?: BuildingPrerequisiteRule;
+}
+
+export interface ClubEmpireBuildingDefinition {
+  id: ClubEmpireBuildingId;
+  name: string;
+  category: ClubEmpireBuildingCategory;
+  description: string;
+  plotSizeRequired: LandPlotSize;
+  maxLevel: number; // 10
+  startsBuiltAtLevel1?: boolean;
+  isPassiveIncomeGenerator?: boolean;
+  levels: BuildingLevelConfig[];
+}
+
+export interface ClubBuildingState {
+  buildingId: ClubEmpireBuildingId;
+  level: number; // 0 = not yet constructed, 1..10 = operational level
+  plotId?: string;
+  condition: number; // 0..100
+  operationalStatus: 'locked' | 'unbuilt' | 'under_construction' | 'operational';
+  visualStage: BuildingVisualStage;
+  totalInvested: number;
+}
+
+export interface ConstructionProject {
+  projectId: string;
+  careerId: string;
+  buildingId: ClubEmpireBuildingId;
+  plotId: string;
+  previousLevel: number;
+  targetLevel: number;
+  startTimestampMs: number;
+  expectedCompletionMs: number;
+  originalDurationMs: number;
+  appliedReductionMs: number;
+  state: ConstructionLifecycleState;
+  costPaid: number;
+  adReductionsAppliedToday: number;
+  completedAtMs?: number;
+}
+
+export type ConstructionBoosterGrade = 'common' | 'rare' | 'elite';
+
+export interface ConstructionBoosterInventory {
+  common: number; // 5% remaining time reduction
+  rare: number;   // 10% remaining time reduction
+  elite: number;  // 20% remaining time reduction
+}
+
+export interface HospitalProductionState {
+  individualBoostersStored: number;
+  individualStorageCap: number;
+  individualLastTickMs: number;
+  individualIntervalMs: number;
+  teamBoostersStored: number;
+  teamStorageCap: number;
+  teamLastTickMs: number;
+  teamIntervalMs: number;
+  totalIndividualClaimed: number;
+  totalTeamClaimed: number;
+}
+
+export interface TicketPricingConfig {
+  generalPrice: number;
+  premiumPrice: number;
+  vipPrice: number;
+}
+
+export interface MatchAttendanceRecord {
+  fixtureId: string;
+  opponentName: string;
+  week: number;
+  season: number;
+  stadiumCapacity: number;
+  generalAttendance: number;
+  premiumAttendance: number;
+  vipAttendance: number;
+  totalAttendance: number;
+  demandFactor: number;
+  grossTicketRevenue: number;
+  operatingExpenses: number;
+  netMatchdayRevenue: number;
+  revenueEfficiencyScore: number; // 0..100
+  pricingFeedback: 'Optimal' | 'Overpriced' | 'Underpriced';
+}
+
+export type SponsorshipCategory =
+  | 'main_shirt'
+  | 'sleeve'
+  | 'training_kit'
+  | 'stadium_naming'
+  | 'official_equipment'
+  | 'academy';
+
+export interface SponsorshipContract {
+  contractId: string;
+  sponsorName: string;
+  category: SponsorshipCategory;
+  weeklyIncome: number;
+  durationWeeks: number;
+  remainingWeeks: number;
+  minReputationRequired: number;
+  minSponsorshipCentreLevel: number;
+  performanceBonus: number;
+  status: 'available' | 'active' | 'expired';
+}
+
+export type ClubEmpireMissionCadence = 'tutorial' | 'daily' | 'weekly' | 'long_term';
+
+export interface ClubEmpireMission {
+  missionId: string;
+  title: string;
+  description: string;
+  cadence: ClubEmpireMissionCadence;
+  targetValue: number;
+  currentValue: number;
+  completed: boolean;
+  claimed: boolean;
+  rewardTreasury: number;
+  rewardConstructionBoosters?: Partial<ConstructionBoosterInventory>;
+  rewardReputation?: number;
+}
+
+export interface ClubEmpireTransaction {
+  txId: string;
+  idempotencyKey: string;
+  timestampMs: number;
+  category:
+    | 'land_purchase'
+    | 'construction_cost'
+    | 'ticket_revenue'
+    | 'commercial_revenue'
+    | 'museum_tourism'
+    | 'sponsorship'
+    | 'maintenance'
+    | 'mission_reward';
+  amount: number; // positive = income, negative = expense
+  description: string;
+}
+
+export interface ClubEmpireState {
+  careerId: string;
+  developmentTier: ClubDevelopmentTier;
+  infrastructureScore: number; // 0..1000
+  maxSimultaneousConstructions: number; // starts at 2
+  landPlots: LandPlot[];
+  buildings: Record<ClubEmpireBuildingId, ClubBuildingState>;
+  activeConstructions: ConstructionProject[];
+  constructionBoosters: ConstructionBoosterInventory;
+  adReductionsUsedToday: number;
+  adReductionDateKey: string;
+  hospitalProduction: HospitalProductionState;
+  ticketPricing: TicketPricingConfig;
+  attendanceHistory: MatchAttendanceRecord[];
+  sponsorships: SponsorshipContract[];
+  missions: ClubEmpireMission[];
+  transactions: ClubEmpireTransaction[];
+  settledMatchRewardIds: string[];
+  supporterLoyalty: number; // 0..100
+  lastPassiveTickMs: number;
 }

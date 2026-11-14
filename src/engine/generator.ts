@@ -1,4 +1,5 @@
 import { createInitialEconomyState } from './boosterEconomy';
+import { createInitialClubEmpireState } from './clubEmpireEngine';
 import {
   deriveSpokenLanguagesForNationality,
   resolvePlayerPersonality,
@@ -725,17 +726,39 @@ export function generateInitialGameState(
     1
   );
 
+  const careerType = manager.careerType ?? 'real_club';
+  const origCfg = careerType === 'original_team' ? manager.originalClubConfig : undefined;
+  const finalClubs = origCfg
+    ? clubs.map((c) =>
+        c.id === userClub.id
+          ? {
+              ...c,
+              name: origCfg.name || c.name,
+              shortName: origCfg.shortName || c.shortName,
+              primaryColor: origCfg.primaryColor || c.primaryColor,
+              secondaryColor: origCfg.secondaryColor || c.secondaryColor,
+              stadiumName: origCfg.stadiumName || c.stadiumName,
+              stadiumCapacity: 2000,
+              reputation: 48,
+            }
+          : c
+      )
+    : clubs;
+  const finalUserClub = finalClubs.find((c) => c.id === userClub.id) ?? userClub;
+
   return {
     saveVersion: 2,
     worldSeed,
+    careerType,
     currentSeason,
     currentWeek: 1,
     maxWeeksPerSeason: 22,
     manager: {
       ...manager,
-      clubId: userClub.id,
+      careerType,
+      clubId: finalUserClub.id,
     },
-    clubs,
+    clubs: finalClubs,
     players: enrichedPlayers,
     fixtures,
     shortlistPlayerIds: [],
@@ -749,7 +772,7 @@ export function generateInitialGameState(
       expectationsText:
         manager.startingChallenge === 'titleOrBust'
           ? 'Win the league title this season at all costs.'
-          : `Finish inside the Top ${targetLeaguePosition} of ${userClub.division === 1 ? 'Tier 1' : 'Tier 2'} and compete deep into the Cup.`,
+          : `Finish inside the Top ${targetLeaguePosition} of ${finalUserClub.division === 1 ? 'Tier 1' : 'Tier 2'} and compete deep into the Cup.`,
       warningsCount: 0,
       isSacked: false,
     },
@@ -761,11 +784,15 @@ export function generateInitialGameState(
         id: 'news-welcome',
         week: 1,
         season: currentSeason,
-        title: `${manager.name} appointed manager of ${userClub.name}`,
-        body: `Supporters at ${userClub.stadiumName} (${userClub.city}) welcome ${manager.name} ahead of the ${currentSeason}/${currentSeason + 1} campaign. The board expects a Top ${targetLeaguePosition} finish.`,
+        title: `${manager.name} appointed manager of ${finalUserClub.name}`,
+        body: `Supporters at ${finalUserClub.stadiumName} (${finalUserClub.city}) welcome ${manager.name} ahead of the ${currentSeason}/${currentSeason + 1} campaign. The board expects a Top ${targetLeaguePosition} finish.`,
         category: 'board',
       },
     ],
     economy: initialEconomy,
+    clubEmpire:
+      careerType === 'original_team'
+        ? createInitialClubEmpireState(`career-${worldSeed}-${finalUserClub.id}`)
+        : undefined,
   };
 }

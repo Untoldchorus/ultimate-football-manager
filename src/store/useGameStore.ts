@@ -19,8 +19,20 @@ import {
 import { applyMatchResultToState } from '@/engine/season';
 import { executePlayerTransfer } from '@/engine/transfers';
 import {
+  applyAdConstructionReduction,
+  applyConstructionSpeedBooster,
+  claimHospitalBooster,
+  purchaseLandPlot,
+  setTicketPricing,
+  startBuildingConstruction,
+  syncAndCompleteConstructions,
+  syncHospitalProduction,
+} from '@/engine/clubEmpireEngine';
+import {
   ActiveCutscene,
   BalanceConfiguration,
+  ClubEmpireBuildingId,
+  ConstructionBoosterGrade,
   FormationCode,
   GameState,
   ManagerProfile,
@@ -29,6 +41,7 @@ import {
   SaveEnvelope,
   TacticalPlayerRole,
   TacticsConfig,
+  TicketPricingConfig,
   WeeklyTrainingSchedule,
 } from '@/engine/types';
 import { defaultSaveRepository, SaveSlotId } from '@/services/saveRepository';
@@ -36,6 +49,7 @@ import { runAdvanceWeekInWorker } from '@/services/workerClient';
 
 export type NavTab =
   | 'home'
+  | 'clubEmpire'
   | 'myClub'
   | 'squad'
   | 'tactics'
@@ -137,6 +151,15 @@ interface GameStore {
     patch: Partial<BalanceConfiguration>,
     adminPasscode: string
   ) => Promise<{ success: boolean; message: string; warnings?: string[] }>;
+
+  // Club Empire actions (Original Team Career only)
+  syncClubEmpireTimers: () => Promise<void>;
+  buyEmpireLandPlot: (plotId: string) => Promise<{ success: boolean; message: string }>;
+  startEmpireConstruction: (buildingId: ClubEmpireBuildingId, plotId?: string) => Promise<{ success: boolean; message: string }>;
+  useEmpireConstructionBooster: (projectId: string, grade: ConstructionBoosterGrade) => Promise<{ success: boolean; message: string }>;
+  useEmpireAdReduction: (projectId: string) => Promise<{ success: boolean; message: string }>;
+  claimEmpireHospitalBooster: (type: 'individual' | 'team') => Promise<{ success: boolean; message: string }>;
+  updateEmpireTicketPricing: (pricing: TicketPricingConfig) => Promise<void>;
 }
 
 async function persistAutosave(state: GameState): Promise<SaveEnvelope[]> {
@@ -1026,6 +1049,89 @@ export const useGameStore = create<GameStore>((set, get) => ({
         success: true,
         message: localRes.auditEntry.summary,
       };
+    }
+  },
+  syncClubEmpireTimers: async () => {
+    const state = get().gameState;
+    if (!state) return;
+    const nowMs = Date.now();
+    let nextState = syncAndCompleteConstructions(state, nowMs);
+    nextState = syncHospitalProduction(nextState, nowMs);
+    if (nextState !== state) {
+      set({ gameState: nextState });
+      const slots = await persistAutosave(nextState);
+      set({ saveSlots: slots });
+    }
+  },
+
+  buyEmpireLandPlot: async (plotId) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = purchaseLandPlot(state, plotId);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  startEmpireConstruction: async (buildingId, plotId) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = startBuildingConstruction(state, buildingId, plotId);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  useEmpireConstructionBooster: async (projectId, grade) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = applyConstructionSpeedBooster(state, projectId, grade);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  useEmpireAdReduction: async (projectId) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = applyAdConstructionReduction(state, projectId, true);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  claimEmpireHospitalBooster: async (type) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = claimHospitalBooster(state, type);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  updateEmpireTicketPricing: async (pricing) => {
+    const state = get().gameState;
+    if (!state) return;
+    const res = setTicketPricing(state, pricing);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
     }
   },
 }));

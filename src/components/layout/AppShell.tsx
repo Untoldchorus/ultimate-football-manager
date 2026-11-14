@@ -26,6 +26,7 @@ import {
   Sparkles,
   Crown,
 } from 'lucide-react';
+import { ClubEmpireScreen } from '@/components/empire/ClubEmpireScreen';
 import { ensureEconomyState } from '@/engine/boosterEconomy';
 import { soundManager } from '@/lib/audio';
 import { NavTab, useGameStore } from '@/store/useGameStore';
@@ -142,7 +143,10 @@ export function AppShell() {
 
           {/* 13 Standard Navigation Links */}
           <nav className="space-y-1" aria-label="Main Navigation">
-            {NAV_ITEMS.map((item) => {
+            {(gameState.careerType === 'original_team'
+              ? [...NAV_ITEMS.slice(0, 2), { id: 'clubEmpire' as NavTab, label: 'Club Empire', icon: Crown }, ...NAV_ITEMS.slice(2)]
+              : NAV_ITEMS
+            ).map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
@@ -239,6 +243,7 @@ export function AppShell() {
         <main className="p-4 md:p-8 max-w-7xl w-full mx-auto flex-1">
           {activeTab === 'home' && <HomeDashboard />}
           {activeTab === 'myClub' && <MyClubScreen />}
+          {activeTab === 'clubEmpire' && gameState.careerType === 'original_team' && <ClubEmpireScreen />}
           {activeTab === 'squad' && <SquadScreen />}
           {activeTab === 'tactics' && <TacticsScreen />}
           {activeTab === 'chemistry' && <ChemistrySynergyScreen />}
