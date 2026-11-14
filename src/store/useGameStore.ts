@@ -112,10 +112,14 @@ interface GameStore {
 
   // Chemistry, Synergy, Booster Economy, Monetization & Admin Balancing
   updatePlayerTacticalRole: (playerId: string, role: TacticalPlayerRole) => Promise<void>;
+  saveTacticalPreset: (presetName: string) => Promise<void>;
+  loadTacticalPreset: (presetId: string) => Promise<void>;
+  deleteTacticalPreset: (presetId: string) => Promise<void>;
   activateBooster: (
     itemId: string,
     targetPlayerId?: string,
-    secondaryPlayerId?: string
+    secondaryPlayerId?: string,
+    unlockedPosition?: PositionCode
   ) => Promise<{ success: boolean; message: string }>;
   claimDailyLogin: () => Promise<{ success: boolean; message: string }>;
   claimObjective: (objectiveId: string) => Promise<{ success: boolean; message: string }>;
@@ -687,10 +691,70 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ saveSlots: slots });
   },
 
-  activateBooster: async (itemId, targetPlayerId, secondaryPlayerId) => {
+  saveTacticalPreset: async (presetName) => {
+    const state = get().gameState;
+    if (!state || !presetName.trim()) return;
+    const userClub = state.clubs.find((c) => c.id === state.manager.clubId) ?? state.clubs[0];
+    const existing = state.manager.savedPresets ?? [];
+    const newPreset = {
+      id: `preset-${Date.now()}`,
+      name: presetName.trim(),
+      createdAtIso: new Date().toISOString(),
+      tactics: { ...userClub.tactics },
+    };
+    const nextState: GameState = {
+      ...state,
+      manager: {
+        ...state.manager,
+        savedPresets: [newPreset, ...existing].slice(0, 12),
+      },
+    };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  loadTacticalPreset: async (presetId) => {
+    const state = get().gameState;
+    if (!state) return;
+    const preset = (state.manager.savedPresets ?? []).find((p) => p.id === presetId);
+    if (!preset) return;
+    const userClubId = state.manager.clubId;
+    const updatedClubs = state.clubs.map((c) =>
+      c.id === userClubId ? { ...c, tactics: { ...preset.tactics } } : c
+    );
+    const nextState: GameState = { ...state, clubs: updatedClubs };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  deleteTacticalPreset: async (presetId) => {
+    const state = get().gameState;
+    if (!state) return;
+    const nextState: GameState = {
+      ...state,
+      manager: {
+        ...state.manager,
+        savedPresets: (state.manager.savedPresets ?? []).filter((p) => p.id !== presetId),
+      },
+    };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  activateBooster: async (itemId, targetPlayerId, secondaryPlayerId, unlockedPosition) => {
     const state = get().gameState;
     if (!state) return { success: false, message: 'No active career loaded.' };
-    const result = activateBoosterItem(state, itemId, targetPlayerId, secondaryPlayerId);
+    const result = activateBoosterItem(
+      state,
+      itemId,
+      targetPlayerId,
+      secondaryPlayerId,
+      new Date().toISOString(),
+      unlockedPosition
+    );
     if (result.success) {
       set({ gameState: result.updatedState });
       const slots = await persistAutosave(result.updatedState);

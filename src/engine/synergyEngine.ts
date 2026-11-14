@@ -6,7 +6,12 @@ import {
 import { evaluatePositionalFamiliarity } from './chemistryEngine';
 import { FORMATION_SLOTS } from './ratings';
 import {
+  evaluateFormationStyleCompatibility,
+  resolveTacticalPlayingStyle,
+} from './tacticalMatrixEngine';
+import {
   ActiveBoosterInstance,
+  ActivePositionBooster,
   BalanceConfiguration,
   Club,
   PartnershipSynergyEvaluation,
@@ -33,24 +38,32 @@ export function resolvePlayerTacticalRole(
     case 'GK':
       return a.distribution >= 68 && a.passing >= 55 ? 'SweeperKeeper' : 'ShotStopper';
     case 'CB':
-      return a.passing >= 68 && a.ballControl >= 64 ? 'BallPlayingDefender' : 'StopperCB';
+      return a.passing >= 68 && a.ballControl >= 64 ? 'BallPlayingDefender' : 'CentralDefender';
     case 'LB':
     case 'RB':
-      if (a.crossing >= 72 && a.pace >= 74) return 'AttackingFullback';
+      if (a.crossing >= 72 && a.pace >= 74) return 'Wingback';
       if (a.passing >= 72 && a.decisions >= 70) return 'InvertedFullback';
-      return 'DefensiveFullback';
+      return 'Fullback';
     case 'CDM':
-      return a.passing >= 75 && a.vision >= 73 ? 'DeepLyingPlaymaker' : 'AnchorMan';
+      if (a.passing >= 75 && a.vision >= 73) return 'DeepLyingPlaymaker';
+      if (a.tackling >= 74 && a.aggression >= 72) return 'BallWinningMidfielder';
+      return 'DefensiveMidfielder';
     case 'CM':
-      return a.vision >= 76 && a.passing >= 76 ? 'DeepLyingPlaymaker' : 'BoxToBox';
+      if (a.vision >= 76 && a.passing >= 76) return 'DeepLyingPlaymaker';
+      if (a.tackling >= 75 && a.workRate >= 76) return 'BallWinningMidfielder';
+      return 'BoxToBox';
     case 'CAM':
       return 'AdvancedPlaymaker';
     case 'LW':
     case 'RW':
-      return a.finishing >= 72 && a.shooting >= 70 ? 'InsideForward' : 'TraditionalWinger';
+      if (a.finishing >= 72 && a.shooting >= 70) return 'InsideForward';
+      if (a.passing >= 72 && a.vision >= 70) return 'InvertedWinger';
+      return 'Winger';
     case 'ST':
       if (a.passing >= 74 && a.vision >= 72) return 'FalseNine';
+      if (a.strength >= 78 && a.heading >= 75) return 'TargetForward';
       if (a.strength >= 75 && a.dribbling >= 72) return 'CompleteForward';
+      if (a.pace >= 76 && a.finishing >= 72) return 'AdvancedForward';
       return 'Poacher';
     default:
       return 'BoxToBox';
@@ -58,23 +71,55 @@ export function resolvePlayerTacticalRole(
 }
 
 export const TACTICAL_ROLE_LABELS: Record<TacticalPlayerRole, string> = {
-  SweeperKeeper: 'Sweeper Keeper',
-  ShotStopper: 'Shot-Stopping GK',
-  BallPlayingDefender: 'Ball-Playing CB',
-  StopperCB: 'No-Nonsense Stopper',
-  AttackingFullback: 'Overlapping Fullback',
-  InvertedFullback: 'Inverted Fullback',
-  DefensiveFullback: 'Defensive Fullback',
-  AnchorMan: 'Defensive Anchor CDM',
+  AdvancedForward: 'Advanced Forward',
+  CompleteForward: 'Complete Forward',
+  Poacher: 'Poacher',
+  FalseNine: 'False Nine',
+  TargetForward: 'Target Forward',
+  InsideForward: 'Inside Forward',
+  Winger: 'Winger',
+  InvertedWinger: 'Inverted Winger',
   DeepLyingPlaymaker: 'Deep-Lying Playmaker',
   BoxToBox: 'Box-to-Box Midfielder',
+  BallWinningMidfielder: 'Ball-Winning Midfielder',
   AdvancedPlaymaker: 'Advanced Playmaker',
-  InsideForward: 'Inside Forward',
-  TraditionalWinger: 'Touchline Winger',
-  Poacher: 'Goal Poacher',
-  CompleteForward: 'Complete Forward',
-  FalseNine: 'False Nine',
+  DefensiveMidfielder: 'Defensive Midfielder',
+  BallPlayingDefender: 'Ball-Playing Defender',
+  CentralDefender: 'Central Defender',
+  Fullback: 'Fullback',
+  Wingback: 'Wingback',
+  InvertedFullback: 'Inverted Fullback',
+  SweeperKeeper: 'Sweeper Keeper',
+  // Legacy aliases
+  ShotStopper: 'Shot-Stopping GK',
+  StopperCB: 'Central Defender',
+  AttackingFullback: 'Wingback',
+  DefensiveFullback: 'Fullback',
+  AnchorMan: 'Defensive Midfielder',
+  TraditionalWinger: 'Winger',
 };
+
+export const CANONICAL_19_TACTICAL_ROLES: TacticalPlayerRole[] = [
+  'AdvancedForward',
+  'CompleteForward',
+  'Poacher',
+  'FalseNine',
+  'TargetForward',
+  'InsideForward',
+  'Winger',
+  'InvertedWinger',
+  'DeepLyingPlaymaker',
+  'BoxToBox',
+  'BallWinningMidfielder',
+  'AdvancedPlaymaker',
+  'DefensiveMidfielder',
+  'BallPlayingDefender',
+  'CentralDefender',
+  'Fullback',
+  'Wingback',
+  'InvertedFullback',
+  'SweeperKeeper',
+];
 
 /**
  * Evaluates tactical complementarity between two players' roles, positions, attributes, and club tactics.
@@ -102,24 +147,30 @@ export function evaluatePartnershipSynergy(
   let archetypeLabel = 'Balanced Tactical Link';
   let explanation = `${TACTICAL_ROLE_LABELS[roleA]} and ${TACTICAL_ROLE_LABELS[roleB]} share standard positional coverage.`;
 
-  // Archetype 1: Defensive Midfielder protecting Attacking Fullbacks
-  if (
-    (roleA === 'AnchorMan' && roleB === 'AttackingFullback') ||
-    (roleB === 'AnchorMan' && roleA === 'AttackingFullback')
-  ) {
-    const dm = roleA === 'AnchorMan' ? playerA : playerB;
-    const fb = roleA === 'AttackingFullback' ? playerA : playerB;
+  const isDmRole = (r: TacticalPlayerRole) =>
+    r === 'AnchorMan' || r === 'DefensiveMidfielder' || r === 'BallWinningMidfielder';
+  const isOverlappingFb = (r: TacticalPlayerRole) =>
+    r === 'AttackingFullback' || r === 'Wingback';
+
+  // Archetype 1: Defensive Midfielder protecting Attacking Fullbacks / Wingbacks
+  if ((isDmRole(roleA) && isOverlappingFb(roleB)) || (isDmRole(roleB) && isOverlappingFb(roleA))) {
+    const dm = isDmRole(roleA) ? playerA : playerB;
+    const fb = isDmRole(roleA) ? playerB : playerA;
     const attrFit =
       (dm.attributes.positioning + dm.attributes.tackling + fb.attributes.pace + fb.attributes.crossing) /
       4;
     roleComplementScore = Math.min(99, Math.round(74 + (attrFit - 65) * 0.85));
     archetypeLabel = 'CDM Protecting Overlapping Fullback';
-    explanation = `${dm.lastName} (Anchor CDM) drops into the half-space to cover ${fb.lastName}'s overlapping runs down the flank.`;
+    explanation = `${dm.lastName} (Holding CDM) drops into the half-space to cover ${fb.lastName}'s overlapping runs down the flank.`;
   }
   // Archetype 2: Creative Midfielder supplying a Striker with excellent movement
   else if (
     (roles.has('AdvancedPlaymaker') || roles.has('DeepLyingPlaymaker')) &&
-    (positions.has('ST') || roles.has('Poacher') || roles.has('CompleteForward'))
+    (positions.has('ST') ||
+      roles.has('Poacher') ||
+      roles.has('CompleteForward') ||
+      roles.has('AdvancedForward') ||
+      roles.has('TargetForward'))
   ) {
     const creator =
       roleA === 'AdvancedPlaymaker' || roleA === 'DeepLyingPlaymaker' ? playerA : playerB;
@@ -148,8 +199,8 @@ export function evaluatePartnershipSynergy(
     const fbRole = resolvePlayerTacticalRole(fullback, slotPosA === 'LB' || slotPosA === 'RB' ? slotPosA : slotPosB);
 
     const dualCorridorBonus =
-      (wingerRole === 'InsideForward' && fbRole === 'AttackingFullback') ||
-      (wingerRole === 'TraditionalWinger' && fbRole === 'InvertedFullback')
+      ((wingerRole === 'InsideForward' || wingerRole === 'InvertedWinger') && isOverlappingFb(fbRole)) ||
+      ((wingerRole === 'TraditionalWinger' || wingerRole === 'Winger') && fbRole === 'InvertedFullback')
         ? 14
         : 6;
     const attrFit =
@@ -170,12 +221,14 @@ export function evaluatePartnershipSynergy(
     const bpd = roleA === 'BallPlayingDefender' ? playerA : playerB;
     const partner = bpd.id === playerA.id ? playerB : playerA;
     const partnerRole = bpd.id === playerA.id ? roleB : roleA;
+    const style = resolveTacticalPlayingStyle(tactics);
     const possessionFit =
-      tactics.attackingStyle === 'possession' || tactics.attackingStyle === 'tikiTaka' ? 12 : 4;
+      style === 'possession' || style === 'tikiTaka' || style === 'totalFootball' ? 12 : 4;
     const stopperBalance =
       partnerRole === 'StopperCB' ||
+      partnerRole === 'CentralDefender' ||
       partnerRole === 'SweeperKeeper' ||
-      partnerRole === 'AnchorMan' ||
+      isDmRole(partnerRole) ||
       partnerRole === 'DeepLyingPlaymaker'
         ? 10
         : 3;
@@ -190,10 +243,10 @@ export function evaluatePartnershipSynergy(
   }
   // Archetype 5: Defensive Midfielder covering for an Advanced Playmaker / Box-to-Box
   else if (
-    roles.has('AnchorMan') &&
+    (isDmRole(roleA) || isDmRole(roleB)) &&
     (roles.has('AdvancedPlaymaker') || roles.has('BoxToBox') || roles.has('DeepLyingPlaymaker'))
   ) {
-    const anchor = roleA === 'AnchorMan' ? playerA : playerB;
+    const anchor = isDmRole(roleA) ? playerA : playerB;
     const mid = anchor.id === playerA.id ? playerB : playerA;
     const attrFit =
       (anchor.attributes.tackling +
@@ -259,11 +312,14 @@ export function evaluateTeamSynergy(
   club: Club,
   clubPlayers: Player[],
   activeBoosters: ActiveBoosterInstance[] = [],
-  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG
+  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG,
+  activePositionBoosters: ActivePositionBooster[] = [],
+  currentSeason?: number
 ): TeamSynergyReport {
   const playerMap = new Map(clubPlayers.map((p) => [p.id, p]));
   const tactics = club.tactics;
   const formation = tactics.formation;
+  const playingStyle = resolveTacticalPlayingStyle(tactics);
   const slots = FORMATION_SLOTS[formation] ?? FORMATION_SLOTS['4-3-3'];
 
   const lineup: { player: Player; slotPos: PositionCode; role: TacticalPlayerRole; idx: number }[] =
@@ -272,10 +328,11 @@ export function evaluateTeamSynergy(
     const p = playerMap.get(pid);
     if (!p) return;
     const slotPos = slots[idx]?.position ?? p.primaryPosition;
+    const explicitRole = tactics.roleOverrides?.[idx] ?? p.tacticalRole;
     lineup.push({
-      player: p,
+      player: explicitRole ? { ...p, tacticalRole: explicitRole } : p,
       slotPos,
-      role: resolvePlayerTacticalRole(p, slotPos),
+      role: explicitRole ?? resolvePlayerTacticalRole(p, slotPos),
       idx,
     });
   });
@@ -316,7 +373,14 @@ export function evaluateTeamSynergy(
     lineup.length > 0
       ? Math.round(
           lineup.reduce(
-            (s, l) => s + evaluatePositionalFamiliarity(l.player, l.slotPos),
+            (s, l) =>
+              s +
+              evaluatePositionalFamiliarity(
+                l.player,
+                l.slotPos,
+                activePositionBoosters,
+                currentSeason
+              ),
             0
           ) / lineup.length
         )
@@ -326,7 +390,7 @@ export function evaluateTeamSynergy(
   let instructionCoherence = 74;
   const insights: string[] = [];
 
-  if (tactics.pressing === 'gegenpress' || tactics.pressing === 'high') {
+  if (tactics.pressing === 'gegenpress' || tactics.pressing === 'high' || playingStyle === 'gegenpress' || playingStyle === 'highPress') {
     if (tactics.defensiveLine === 'high') {
       instructionCoherence += 14;
       insights.push('High defensive line compacts the pitch for your high pressing system.');
@@ -342,37 +406,25 @@ export function evaluateTeamSynergy(
   }
 
   if (
-    (tactics.attackingStyle === 'tikiTaka' || tactics.attackingStyle === 'possession') &&
+    (playingStyle === 'tikiTaka' || playingStyle === 'possession' || playingStyle === 'totalFootball') &&
     tactics.directness <= 55
   ) {
     instructionCoherence += 10;
-  } else if (tactics.attackingStyle === 'tikiTaka' && tactics.directness > 75) {
+  } else if (playingStyle === 'tikiTaka' && tactics.directness > 75) {
     instructionCoherence -= 15;
     insights.push(
       'Tactical Warning: High Passing Directness conflicts with Tiki-Taka short-passing identity.'
     );
-  } else if (tactics.attackingStyle === 'wingPlay' && tactics.width >= 60) {
+  } else if (playingStyle === 'wingPlay' && tactics.width >= 60) {
     instructionCoherence += 10;
-  } else if (tactics.attackingStyle === 'directCounter' && tactics.tempo >= 65) {
+  } else if ((playingStyle === 'directCounter' || playingStyle === 'longBall') && tactics.tempo >= 65) {
     instructionCoherence += 10;
   }
   const tacticalInstructionScore = Math.max(20, Math.min(100, instructionCoherence));
 
-  // 4. Formation compatibility with squad positions & attacking style
-  let formationFit = positionalRelationshipScore * 0.7 + 22;
-  if (
-    (formation === '4-3-3' || formation === '4-2-3-1') &&
-    (tactics.attackingStyle === 'tikiTaka' ||
-      tactics.attackingStyle === 'possession' ||
-      tactics.attackingStyle === 'wingPlay')
-  ) {
-    formationFit += 8;
-  } else if (
-    (formation === '5-3-2' || formation === '4-4-2') &&
-    tactics.attackingStyle === 'directCounter'
-  ) {
-    formationFit += 9;
-  }
+  // 4. Formation compatibility with squad positions & playing style
+  const matrixFormCompat = evaluateFormationStyleCompatibility(formation, playingStyle);
+  const formationFit = positionalRelationshipScore * 0.55 + matrixFormCompat * 0.45;
   const formationCompatibilityScore = Math.max(
     25,
     Math.min(100, Math.round(formationFit * config.synergyFormationWeight))
@@ -392,16 +444,20 @@ export function evaluateTeamSynergy(
     Math.min(100, Math.round((midCreativity + attThreat + defSolidity) / 3 + 4))
   );
 
-  // 6. Playing style compatibility (do players' attributes match the chosen attackingStyle & pressing?)
+  // 6. Playing style compatibility (do players' attributes match the chosen playingStyle & pressing?)
   let styleFit = 68;
-  if (tactics.attackingStyle === 'tikiTaka' || tactics.attackingStyle === 'possession') {
+  if (playingStyle === 'tikiTaka' || playingStyle === 'possession' || playingStyle === 'totalFootball') {
     styleFit = Math.round((avgAttr(lineup, 'passing') + avgAttr(lineup, 'firstTouch')) / 2 + 6);
-  } else if (tactics.attackingStyle === 'wingPlay') {
+  } else if (playingStyle === 'wingPlay') {
     styleFit = Math.round((avgAttr(attUnit, 'crossing') + avgAttr(attUnit, 'heading')) / 2 + 8);
-  } else if (tactics.attackingStyle === 'directCounter') {
+  } else if (playingStyle === 'directCounter') {
     styleFit = Math.round((avgAttr(attUnit, 'pace') + avgAttr(midUnit, 'passing')) / 2 + 6);
+  } else if (playingStyle === 'longBall') {
+    styleFit = Math.round((avgAttr(attUnit, 'strength') + avgAttr(attUnit, 'heading')) / 2 + 7);
+  } else if (playingStyle === 'parkTheBus' || playingStyle === 'catenaccio' || playingStyle === 'midBlock') {
+    styleFit = Math.round((avgAttr(defUnit, 'positioning') + avgAttr(defUnit, 'marking')) / 2 + 7);
   }
-  if (tactics.pressing === 'gegenpress') {
+  if (tactics.pressing === 'gegenpress' || playingStyle === 'gegenpress' || playingStyle === 'highPress') {
     const staminaAvg = avgAttr(lineup, 'stamina');
     styleFit = Math.round(styleFit * 0.7 + staminaAvg * 0.3);
   }
@@ -409,18 +465,27 @@ export function evaluateTeamSynergy(
 
   // 7. Defensive & attacking balance (checks that the lineup has holding protection as well as attacking outlets)
   const hasHoldingMid = lineup.some(
-    (l) => l.role === 'AnchorMan' || l.slotPos === 'CDM' || l.role === 'DefensiveFullback'
+    (l) =>
+      l.role === 'AnchorMan' ||
+      l.role === 'DefensiveMidfielder' ||
+      l.role === 'BallWinningMidfielder' ||
+      l.slotPos === 'CDM' ||
+      l.role === 'DefensiveFullback' ||
+      l.role === 'Fullback'
   );
   const hasPlaymaker = lineup.some(
     (l) =>
       l.role === 'AdvancedPlaymaker' ||
       l.role === 'DeepLyingPlaymaker' ||
-      l.role === 'FalseNine'
+      l.role === 'FalseNine' ||
+      l.role === 'InvertedWinger'
   );
   const hasGoalThreat = lineup.some(
     (l) =>
       l.role === 'Poacher' ||
       l.role === 'CompleteForward' ||
+      l.role === 'AdvancedForward' ||
+      l.role === 'TargetForward' ||
       l.role === 'InsideForward'
   );
   let balanceScore = 60;

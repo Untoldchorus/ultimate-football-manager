@@ -343,7 +343,11 @@ func _interpolate_and_apply() -> void:
 		var py := lerpf(float(p.get("y", 50.0)), float(np.get("y", 50.0)), alpha)
 		var team_id := str(p.get("teamId", ""))
 		var p_node := _get_or_create_player_node(pid, team_id)
-		p_node.position = Vector3(_to_world_x(px), 0.95, _to_world_z(py))
+
+		# Apply subtle late-match stamina stride dampening after minute 70 (Section 18)
+		var minute_frac := clampf(_clock_seconds / 5400.0, 0.0, 1.0)
+		var stamina_bob := sin(_clock_seconds * 4.2 + float(pid.hash() % 17)) * (0.045 * (1.0 - minute_frac * 0.35))
+		p_node.position = Vector3(_to_world_x(px), 0.95 + stamina_bob, _to_world_z(py))
 
 	_update_tactical_chemistry_synergy_links(prev_players)
 

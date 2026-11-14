@@ -28,10 +28,12 @@ import {
   ensureEconomyState,
   getBoosterDefinition,
 } from '@/engine/boosterEconomy';
-import { BoosterCategory, ItemRarity, Player } from '@/engine/types';
+import { BoosterCategory, ItemRarity, Player, PositionCode } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { ClubCrest, PlayerAvatar } from '../ui/FootballVisuals';
+
+const ALL_POSITIONS: PositionCode[] = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
 
 const RARITY_ORDER: Record<ItemRarity, number> = {
   Legendary: 4,
@@ -86,6 +88,7 @@ export function BoosterInventoryScreen() {
   const [sortBy, setSortBy] = useState<'rarity_desc' | 'rarity_asc' | 'quantity'>('rarity_desc');
   const [selectedTargetPlayerId, setSelectedTargetPlayerId] = useState<string>('');
   const [selectedPartnerPlayerId, setSelectedPartnerPlayerId] = useState<string>('');
+  const [selectedUnlockedPosition, setSelectedUnlockedPosition] = useState<PositionCode>('CM');
   const [statusBanner, setStatusBanner] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -116,6 +119,10 @@ export function BoosterInventoryScreen() {
     '';
 
   const targetPlayer: Player | undefined = seniorPlayers.find((p) => p.id === effectiveTargetId);
+  const effectiveUnlockedPosition: PositionCode =
+    targetPlayer && selectedUnlockedPosition === targetPlayer.primaryPosition
+      ? (ALL_POSITIONS.find((pos) => pos !== targetPlayer.primaryPosition) ?? 'CM')
+      : selectedUnlockedPosition;
   const currentWeekStamp = gameState.currentSeason * 100 + gameState.currentWeek;
   const dailyLoginClaimedThisWeek = economy.lastDailyLoginClaimWeek === currentWeekStamp;
 
@@ -141,7 +148,12 @@ export function BoosterInventoryScreen() {
 
   const handleActivate = async (itemId: string) => {
     soundManager.playUiClick();
-    const res = await activateBooster(itemId, effectiveTargetId, effectivePartnerId);
+    const res = await activateBooster(
+      itemId,
+      effectiveTargetId,
+      effectivePartnerId,
+      effectiveUnlockedPosition
+    );
     setStatusBanner({
       type: res.success ? 'success' : 'error',
       text: res.message,
@@ -303,7 +315,7 @@ export function BoosterInventoryScreen() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
                 Primary Target Player (for Player / Pair Boosters)
@@ -316,7 +328,7 @@ export function BoosterInventoryScreen() {
               >
                 {seniorPlayers.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} ({p.primaryPosition} • OVR {p.overall} • Fit {p.fitness}% • Mor {p.morale})
+                    {p.firstName} {p.lastName} ({p.primaryPosition} • OVR {p.overall} • Fit {p.fitness}% • Fat {Math.round(p.fatigue ?? 0)}%)
                   </option>
                 ))}
               </select>
@@ -340,6 +352,24 @@ export function BoosterInventoryScreen() {
                   ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-amber-400 mb-1">
+                Additional Position (for Season / 3-Match Position Boosters)
+              </label>
+              <select
+                data-testid="booster-unlocked-position-select"
+                value={effectiveUnlockedPosition}
+                onChange={(e) => setSelectedUnlockedPosition(e.target.value as PositionCode)}
+                className="w-full bg-navy-950 border border-amber-500/40 rounded-xl px-3 py-2 text-xs font-bold text-amber-300"
+              >
+                {ALL_POSITIONS.filter((pos) => pos !== targetPlayer?.primaryPosition).map((pos) => (
+                  <option key={pos} value={pos}>
+                    Unlock {pos} (Natural: {targetPlayer?.primaryPosition ?? 'N/A'})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {targetPlayer && (
@@ -351,16 +381,32 @@ export function BoosterInventoryScreen() {
                     {targetPlayer.firstName} {targetPlayer.lastName}{' '}
                     <span className="text-gold-400">({targetPlayer.overall} OVR)</span>
                   </div>
-                  <div className="text-[10px] text-slate-400">
-                    Active Player Boosters:{' '}
-                    <strong className="text-white">
-                      {
-                        economy.activeBoosters.filter(
-                          (b) => b.targetPlayerId === targetPlayer.id
-                        ).length
-                      }{' '}
-                      / {balanceConfig.maxActiveBoostersPerPlayer}
-                    </strong>
+                  <div className="text-[10px] text-slate-400 flex flex-wrap items-center gap-2">
+                    <span>
+                      Active Boosters:{' '}
+                      <strong className="text-white">
+                        {
+                          economy.activeBoosters.filter(
+                            (b) => b.targetPlayerId === targetPlayer.id
+                          ).length
+                        }{' '}
+                        / {balanceConfig.maxActiveBoostersPerPlayer}
+                      </strong>
+                    </span>
+                    <span>&bull;</span>
+                    <span>
+                      Stamina:{' '}
+                      <strong className="text-emerald-400">
+                        {Math.round(targetPlayer.stamina ?? targetPlayer.fitness)}%
+                      </strong>
+                    </span>
+                    <span>&bull;</span>
+                    <span>
+                      Accumulated Fatigue:{' '}
+                      <strong className="text-amber-400">
+                        {Math.round(targetPlayer.fatigue ?? 0)}%
+                      </strong>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -435,6 +481,99 @@ export function BoosterInventoryScreen() {
         )}
       </div>
 
+      {/* Position Booster Assignment & Tracking Table (Section 11) */}
+      <div
+        data-testid="position-booster-tracking-section"
+        className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <Flame className="w-4 h-4" />
+              <span>
+                Position Booster Assignment &amp; Duration Tracker (
+                {(economy.activePositionBoosters ?? []).filter((b) => b.status === 'active').length} Active)
+              </span>
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Season Position Boosters unlock 1 additional position for the current season; Temporary Position Boosters last 3 completed official matches.
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-slate-400">
+            Natural positions remain preserved &bull; Auto-expires at season rollover or 0 matches
+          </span>
+        </div>
+
+        {(economy.activePositionBoosters ?? []).length === 0 ? (
+          <div className="p-4 rounded-xl bg-navy-950 border border-slate-800/80 text-xs text-slate-400 text-center">
+            No Season or 3-Match Position Boosters assigned yet. Select a target player and additional position above, then activate a Position Booster below!
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-400">
+                  <th className="py-2 pr-3">Player</th>
+                  <th className="py-2 px-3">Natural Position</th>
+                  <th className="py-2 px-3">Unlocked Position</th>
+                  <th className="py-2 px-3">Positional Familiarity</th>
+                  <th className="py-2 px-3">Booster Type</th>
+                  <th className="py-2 px-3">Remaining Duration</th>
+                  <th className="py-2 pl-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {(economy.activePositionBoosters ?? []).map((pb) => {
+                  const p = gameState.players.find((pl) => pl.id === pb.playerId);
+                  const isExpired = pb.status === 'expired';
+                  return (
+                    <tr key={pb.boosterId} className="hover:bg-navy-950/60">
+                      <td className="py-2.5 pr-3 font-bold text-white">
+                        {p ? `${p.firstName} ${p.lastName}` : pb.playerName}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 font-bold text-[10px]">
+                          {pb.naturalPosition}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-[10px]">
+                          +{pb.unlockedPosition}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-400">
+                        {pb.familiarityGranted}% (Zero Off-Pos Penalty)
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-300">
+                        {pb.boosterType === 'season_position'
+                          ? 'Season Position Booster (1-Season)'
+                          : 'Temporary Position Booster (3-Match)'}
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-gold-300">
+                        {pb.boosterType === 'season_position'
+                          ? `Season ${pb.expiresAtEndOfSeason ?? gameState.currentSeason}`
+                          : `${pb.remainingMatches ?? 0} / 3 Matches`}
+                      </td>
+                      <td className="py-2.5 pl-3 text-right">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                            isExpired
+                              ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                          }`}
+                        >
+                          {isExpired ? 'Expired' : 'Active'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Owned Inventory Grid with Category Filter & Rarity Sort */}
       <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -447,14 +586,16 @@ export function BoosterInventoryScreen() {
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Category Filter Pills */}
-            <div className="flex items-center gap-1 bg-navy-950 p-1 rounded-xl border border-slate-800">
+            <div className="flex flex-wrap items-center gap-1 bg-navy-950 p-1 rounded-xl border border-slate-800">
               {(
                 [
                   ['ALL', 'All'],
                   ['training', 'Training'],
                   ['chemistry', 'Chemistry'],
                   ['synergy', 'Synergy'],
+                  ['fitness', 'Fitness'],
                   ['recovery', 'Recovery'],
+                  ['position', 'Position'],
                   ['morale', 'Morale'],
                   ['cosmetic', 'Cosmetic'],
                 ] as const

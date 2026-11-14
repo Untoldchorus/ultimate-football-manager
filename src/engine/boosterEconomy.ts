@@ -13,6 +13,7 @@ import {
 import {
   AcquisitionSource,
   ActiveBoosterInstance,
+  ActivePositionBooster,
   BalanceConfiguration,
   BoosterCategory,
   BoosterItemDefinition,
@@ -23,6 +24,7 @@ import {
   ItemRarity,
   Player,
   PlayerAttributes,
+  PositionCode,
   ProgressionObjective,
   PurchaseTransactionRecord,
 } from './types';
@@ -384,6 +386,138 @@ export const BOOSTER_CATALOG: BoosterItemDefinition[] = [
     maxActivePerPlayer: 1,
     usageRestrictionsText: 'Cosmetic customization only (0% competitive stat advantage).',
   },
+
+  // =========================================================================
+  // G. FC27 FITNESS BOOSTERS (PRE-MATCH PHYSICAL READINESS & STAMINA CAP)
+  // =========================================================================
+  {
+    itemId: 'bst-fitness-ind-common',
+    name: 'Individual Fitness Booster',
+    description:
+      'Improves pre-match physical readiness for one selected player (+16% Stamina & Fitness readiness and reduces a portion of accumulated fatigue).',
+    category: 'fitness',
+    subType: 'individual_fitness',
+    rarity: 'Common',
+    durationWeeks: 0,
+    effectStrength: 16,
+    priority: 15,
+    conflictGroup: 'fitness_ind',
+    targetScope: 'player',
+    cooldownWeeks: 1,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 320,
+    premiumCurrencyPrice: 32,
+    usageRestrictionsText:
+      'Does not permanently increase player attributes, cure injuries, or grant infinite stamina.',
+  },
+  {
+    itemId: 'bst-fitness-team-epic',
+    name: 'Team Fitness Booster',
+    description:
+      'Improves matchday physical readiness across the entire squad (+12% Stamina & Fitness readiness and trims accumulated fatigue before kickoff).',
+    category: 'fitness',
+    subType: 'team_fitness',
+    rarity: 'Epic',
+    durationWeeks: 0,
+    effectStrength: 12,
+    priority: 30,
+    conflictGroup: 'fitness_team',
+    targetScope: 'team',
+    cooldownWeeks: 2,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 1650,
+    premiumCurrencyPrice: 155,
+    usageRestrictionsText:
+      'Team-wide physical conditioning. Respects natural stamina caps and 2-week cooldown.',
+  },
+
+  // =========================================================================
+  // H. FC27 RECOVERY BOOSTERS (ACCELERATED FATIGUE RECOVERY BETWEEN MATCHES)
+  // =========================================================================
+  {
+    itemId: 'bst-recovery-ind-rare',
+    name: 'Individual Recovery Booster',
+    description:
+      'Accelerates between-match fatigue clearance for a single player (-24 Accumulated Fatigue points and +10% physical readiness).',
+    category: 'recovery',
+    subType: 'individual_recovery',
+    rarity: 'Rare',
+    durationWeeks: 0,
+    effectStrength: 24,
+    priority: 22,
+    conflictGroup: 'recovery_ind',
+    targetScope: 'player',
+    cooldownWeeks: 1,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 680,
+    premiumCurrencyPrice: 65,
+    usageRestrictionsText:
+      'Separate from Fitness Boosters: targets accumulated post-match exhaustion. Does not cure serious injuries.',
+  },
+  {
+    itemId: 'bst-recovery-team-epic',
+    name: 'Team Recovery Booster',
+    description:
+      'Accelerates squad-wide recovery during congested league and cup schedules (-18 Accumulated Fatigue across all senior players).',
+    category: 'recovery',
+    subType: 'team_recovery',
+    rarity: 'Epic',
+    durationWeeks: 0,
+    effectStrength: 18,
+    priority: 32,
+    conflictGroup: 'recovery_team',
+    targetScope: 'team',
+    cooldownWeeks: 2,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 1800,
+    premiumCurrencyPrice: 170,
+    usageRestrictionsText:
+      'Separate from Team Fitness Booster. Clears accumulated fixture congestion fatigue.',
+  },
+
+  // =========================================================================
+  // I. FC27 POSITIONAL FAMILIARITY BOOSTERS (1-SEASON & 3-MATCH TEMPORARY)
+  // =========================================================================
+  {
+    itemId: 'bst-pos-season-epic',
+    name: 'Season Position Booster (1-Season)',
+    description:
+      'Unlocks full positional suitability (94% familiarity, 0 off-position chemistry penalty) in one selected additional position for a player for the entire current season.',
+    category: 'position',
+    subType: 'season_position',
+    rarity: 'Epic',
+    durationWeeks: 0,
+    effectStrength: 94,
+    priority: 40,
+    conflictGroup: 'pos_season_slot',
+    targetScope: 'player',
+    cooldownWeeks: 1,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 2200,
+    premiumCurrencyPrice: 200,
+    usageRestrictionsText:
+      'Valid for 1 full in-game season. Expires automatically at season end without mutating natural position.',
+  },
+  {
+    itemId: 'bst-pos-temp-rare',
+    name: 'Temporary Position Booster (3-Match)',
+    description:
+      'Temporarily grants high positional familiarity (90% familiarity, 0 off-position chemistry penalty) in one selected additional position for 3 completed official matches.',
+    category: 'position',
+    subType: 'temporary_position',
+    rarity: 'Rare',
+    durationWeeks: 0,
+    effectStrength: 90,
+    priority: 25,
+    conflictGroup: 'pos_temp_slot',
+    targetScope: 'player',
+    cooldownWeeks: 0,
+    maxActivePerPlayer: 2,
+    softCurrencyPrice: 750,
+    premiumCurrencyPrice: 70,
+    usageRestrictionsText:
+      'Lasts 3 completed official match appearances for that player. Auto-deactivates after 3 matches.',
+  },
 ];
 
 export function getBoosterDefinition(itemId: string): BoosterItemDefinition | undefined {
@@ -632,6 +766,42 @@ export function createInitialEconomyState(
       acquiredSeason: season,
       source: 'daily_login',
     },
+    {
+      instanceId: `inv-init-fit-ind`,
+      itemId: 'bst-fitness-ind-common',
+      quantity: 2,
+      acquiredAtIso: nowIso,
+      acquiredWeek: week,
+      acquiredSeason: season,
+      source: 'daily_login',
+    },
+    {
+      instanceId: `inv-init-rec-ind`,
+      itemId: 'bst-recovery-ind-rare',
+      quantity: 1,
+      acquiredAtIso: nowIso,
+      acquiredWeek: week,
+      acquiredSeason: season,
+      source: 'daily_login',
+    },
+    {
+      instanceId: `inv-init-pos-temp`,
+      itemId: 'bst-pos-temp-rare',
+      quantity: 1,
+      acquiredAtIso: nowIso,
+      acquiredWeek: week,
+      acquiredSeason: season,
+      source: 'daily_login',
+    },
+    {
+      instanceId: `inv-init-pos-season`,
+      itemId: 'bst-pos-season-epic',
+      quantity: 1,
+      acquiredAtIso: nowIso,
+      acquiredWeek: week,
+      acquiredSeason: season,
+      source: 'daily_login',
+    },
   ];
 
   return {
@@ -640,6 +810,7 @@ export function createInitialEconomyState(
     premiumCurrency: 100,
     inventory: starterInventory,
     activeBoosters: [],
+    activePositionBoosters: [],
     cooldownsByTarget: {},
     usageHistory: [],
     acquisitionHistory: starterInventory.map((inv, idx) => {
@@ -790,7 +961,8 @@ export function activateBoosterItem(
   itemId: string,
   targetPlayerId?: string,
   secondaryPlayerId?: string,
-  nowIso = new Date().toISOString()
+  nowIso = new Date().toISOString(),
+  unlockedPosition?: PositionCode
 ): BoosterActivationResult {
   const economy = ensureEconomyState(state);
   const config = economy.balanceConfig ?? DEFAULT_BALANCE_CONFIG;
@@ -888,36 +1060,131 @@ export function activateBoosterItem(
     }
   }
 
-  // Apply immediate effects (Recovery, Morale, Technical/Physical instant progress, Chemistry pair bonus)
+  // Apply immediate effects (Fitness, Recovery, Position, Morale, Technical/Physical instant progress, Chemistry pair bonus)
   let updatedPlayers = [...state.players];
   let updatedPairChemistry = { ...economy.pairChemistry };
+  let nextPositionBoosters = [...(economy.activePositionBoosters ?? [])];
   let effectSummary = '';
   const strength = Math.round(def.effectStrength * config.boosterGlobalStrengthMultiplier);
   const attrCap = config.maxPrimaryAttributeCap ?? 100;
 
-  if (def.category === 'recovery') {
-    if (def.subType === 'fatigue_recovery') {
-      updatedPlayers = updatedPlayers.map((p) =>
-        p.clubId === userClubId && !p.isYouth
-          ? { ...p, fitness: Math.min(100, p.fitness + strength) }
-          : p
-      );
-      effectSummary = `Restored +${strength}% fitness across all senior squad players.`;
+  if (def.category === 'fitness') {
+    if (def.subType === 'team_fitness') {
+      updatedPlayers = updatedPlayers.map((p) => {
+        if (p.clubId !== userClubId || p.isYouth) return p;
+        const currFatigue = p.fatigue ?? Math.max(0, 100 - p.fitness);
+        return {
+          ...p,
+          fitness: Math.min(100, p.fitness + strength),
+          stamina: Math.min(100, (p.stamina ?? p.fitness) + strength),
+          fatigue: Math.max(0, currFatigue - Math.round(strength * 0.6)),
+        };
+      });
+      effectSummary = `Team Fitness Booster activated: +${strength}% physical & stamina readiness across all senior squad players.`;
     } else if (targetPlayer) {
       updatedPlayers = updatedPlayers.map((p) => {
         if (p.id !== targetPlayer.id) return p;
+        const currFatigue = p.fatigue ?? Math.max(0, 100 - p.fitness);
+        return {
+          ...p,
+          fitness: Math.min(100, p.fitness + strength),
+          stamina: Math.min(100, (p.stamina ?? p.fitness) + strength),
+          fatigue: Math.max(0, currFatigue - Math.round(strength * 0.65)),
+        };
+      });
+      effectSummary = `Individual Fitness Booster applied to ${targetPlayer.firstName} ${targetPlayer.lastName} (+${strength}% pre-match stamina readiness).`;
+    }
+  } else if (def.category === 'recovery') {
+    if (def.subType === 'fatigue_recovery' || def.subType === 'team_recovery') {
+      updatedPlayers = updatedPlayers.map((p) => {
+        if (p.clubId !== userClubId || p.isYouth) return p;
+        const currFatigue = p.fatigue ?? Math.max(0, 100 - p.fitness);
+        const nextFatigue = Math.max(0, currFatigue - strength);
+        return {
+          ...p,
+          fitness: Math.min(100, p.fitness + Math.round(strength * 0.75)),
+          stamina: Math.min(100, (p.stamina ?? p.fitness) + Math.round(strength * 0.65)),
+          fatigue: nextFatigue,
+        };
+      });
+      effectSummary = `Squad Recovery treatment complete: cleared -${strength} Accumulated Fatigue and restored physical readiness across all senior players.`;
+    } else if (targetPlayer) {
+      updatedPlayers = updatedPlayers.map((p) => {
+        if (p.id !== targetPlayer.id) return p;
+        const currFatigue = p.fatigue ?? Math.max(0, 100 - p.fitness);
+        const nextFatigue = Math.max(0, currFatigue - strength);
         const nextInjury =
           def.subType === 'condition_pack' && p.injuryWeeks > 0
             ? Math.max(0, p.injuryWeeks - 1)
             : p.injuryWeeks;
         return {
           ...p,
-          fitness: Math.min(100, p.fitness + strength),
+          fitness: Math.min(100, p.fitness + Math.round(strength * 0.85)),
+          stamina: Math.min(100, (p.stamina ?? p.fitness) + Math.round(strength * 0.75)),
+          fatigue: nextFatigue,
           injuryWeeks: nextInjury,
         };
       });
-      effectSummary = `Restored +${strength}% fitness to ${targetPlayer.firstName} ${targetPlayer.lastName}.`;
+      effectSummary = `Recovery treatment applied to ${targetPlayer.firstName} ${targetPlayer.lastName}: cleared -${strength} Accumulated Fatigue and restored condition.`;
     }
+  } else if (def.category === 'position' && targetPlayer) {
+    const allPositions: PositionCode[] = ['ST', 'RW', 'LW', 'CAM', 'CM', 'CDM', 'RB', 'LB', 'CB', 'GK'];
+    const chosenPosition: PositionCode =
+      unlockedPosition && unlockedPosition !== targetPlayer.primaryPosition
+        ? unlockedPosition
+        : (secondaryPlayerId as PositionCode) &&
+          allPositions.includes(secondaryPlayerId as PositionCode) &&
+          secondaryPlayerId !== targetPlayer.primaryPosition
+        ? (secondaryPlayerId as PositionCode)
+        : allPositions.find(
+            (pos) =>
+              pos !== targetPlayer.primaryPosition && !targetPlayer.secondaryPositions.includes(pos)
+          ) ?? 'CM';
+
+    if (chosenPosition === targetPlayer.primaryPosition) {
+      return {
+        success: false,
+        message: `${targetPlayer.firstName} ${targetPlayer.lastName} already has ${chosenPosition} as their natural position.`,
+        updatedState: state,
+      };
+    }
+
+    // Check if an active position booster already exists for this player + position
+    const existingActivePosBooster = nextPositionBoosters.find(
+      (b) =>
+        b.playerId === targetPlayer.id &&
+        b.unlockedPosition === chosenPosition &&
+        b.status === 'active'
+    );
+    if (existingActivePosBooster) {
+      return {
+        success: false,
+        message: `${targetPlayer.firstName} ${targetPlayer.lastName} already has an active Position Booster for ${chosenPosition}.`,
+        updatedState: state,
+      };
+    }
+
+    const isSeason = def.subType === 'season_position';
+    const newPosBooster: ActivePositionBooster = {
+      boosterId: `posbst-${targetPlayer.id}-${chosenPosition}-${Date.now()}`,
+      itemId: def.itemId,
+      playerId: targetPlayer.id,
+      playerName: `${targetPlayer.firstName} ${targetPlayer.lastName}`,
+      clubId: userClubId,
+      naturalPosition: targetPlayer.primaryPosition,
+      unlockedPosition: chosenPosition,
+      boosterType: isSeason ? 'season_position' : 'temporary_position',
+      familiarityGranted: def.effectStrength,
+      activatedSeason: state.currentSeason,
+      activatedWeek: state.currentWeek,
+      expiresAtEndOfSeason: isSeason ? state.currentSeason : undefined,
+      remainingMatches: isSeason ? undefined : 3,
+      status: 'active',
+    };
+    nextPositionBoosters.unshift(newPosBooster);
+    effectSummary = isSeason
+      ? `Season Position Booster assigned: ${targetPlayer.firstName} ${targetPlayer.lastName} (${targetPlayer.primaryPosition}) unlocked ${chosenPosition} at ${def.effectStrength}% familiarity for the entire ${state.currentSeason} season.`
+      : `Temporary Position Booster assigned: ${targetPlayer.firstName} ${targetPlayer.lastName} (${targetPlayer.primaryPosition}) unlocked ${chosenPosition} at ${def.effectStrength}% familiarity for 3 completed official matches.`;
   } else if (def.category === 'morale') {
     if (def.subType === 'individual_morale' && targetPlayer) {
       updatedPlayers = updatedPlayers.map((p) =>
@@ -1064,6 +1331,7 @@ export function activateBoosterItem(
     ...economy,
     inventory: nextInventory,
     activeBoosters: nextActiveBoosters,
+    activePositionBoosters: nextPositionBoosters,
     cooldownsByTarget: nextCooldowns,
     pairChemistry: updatedPairChemistry,
     objectives: nextObjectives,
@@ -1123,6 +1391,49 @@ export function tickWeeklyBoostersAndExpirations(state: GameState): GameState {
       inventory: nextInventory,
     },
   };
+}
+
+/**
+ * Decrements Temporary Position Boosters (`3-match duration`) by 1 for each player
+ * who participated in a completed official match (`participatingPlayerIds` is a Set/Array of unique player IDs).
+ * Substituting a player in or out during a match still counts as 1 match appearance and never consumes an extra charge.
+ * Automatically marks the booster as `'expired'` once `remainingMatches` reaches 0.
+ */
+export function tickTemporaryPositionBoostersAfterMatch(
+  activePositionBoosters: ActivePositionBooster[] = [],
+  participatingPlayerIds: Iterable<string>
+): ActivePositionBooster[] {
+  const playedSet = new Set(participatingPlayerIds);
+  return activePositionBoosters.map((b) => {
+    if (b.status !== 'active' || b.boosterType !== 'temporary_position') return b;
+    if (!playedSet.has(b.playerId)) return b;
+    const nextRemaining = Math.max(0, (b.remainingMatches ?? 3) - 1);
+    return {
+      ...b,
+      remainingMatches: nextRemaining,
+      status: nextRemaining <= 0 ? 'expired' : 'active',
+    };
+  });
+}
+
+/**
+ * Expires all Season Position Boosters (`1-season duration`) whose `expiresAtEndOfSeason <= completedSeason`.
+ * Does NOT permanently alter any player's natural `primaryPosition`.
+ */
+export function expireSeasonPositionBoostersAtSeasonEnd(
+  activePositionBoosters: ActivePositionBooster[] = [],
+  completedSeason: number
+): ActivePositionBooster[] {
+  return activePositionBoosters.map((b) => {
+    if (b.status !== 'active' || b.boosterType !== 'season_position') return b;
+    if ((b.expiresAtEndOfSeason ?? b.activatedSeason) <= completedSeason) {
+      return {
+        ...b,
+        status: 'expired',
+      };
+    }
+    return b;
+  });
 }
 
 /**

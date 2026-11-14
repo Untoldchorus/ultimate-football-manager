@@ -26,7 +26,21 @@ import { ensureEconomyState } from '@/engine/boosterEconomy';
 import { evaluateTeamChemistry } from '@/engine/chemistryEngine';
 import { resimulateFromMinute, simulateMatch } from '@/engine/matchEngine';
 import { evaluateTeamSynergy } from '@/engine/synergyEngine';
-import { Club, MatchResult, Player, TacticalMentality } from '@/engine/types';
+import {
+  ALL_12_PLAYING_STYLES,
+  evaluatePlayerInMatchPhysicalState,
+  evaluateTacticalMatchup,
+  getRecommendedSubstitutions,
+  resolvePlayingStyle,
+  TACTICAL_STYLES_CATALOG,
+} from '@/engine/tacticalMatrixEngine';
+import {
+  Club,
+  MatchResult,
+  Player,
+  TacticalMentality,
+  TacticalPlayingStyle,
+} from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { Pitch2DViewer } from './Pitch2DViewer';
@@ -138,7 +152,8 @@ export function MatchdayScreen() {
       gameState.currentSeason,
       gameState.currentWeek,
       isHomeUser ? economy.activeBoosters : [],
-      config
+      config,
+      isHomeUser ? (economy.activePositionBoosters ?? []) : []
     );
     const awayChem = evaluateTeamChemistry(
       aClub,
@@ -147,19 +162,22 @@ export function MatchdayScreen() {
       gameState.currentSeason,
       gameState.currentWeek,
       isAwayUser ? economy.activeBoosters : [],
-      config
+      config,
+      isAwayUser ? (economy.activePositionBoosters ?? []) : []
     );
     const homeSyn = evaluateTeamSynergy(
       hClub,
       homePlayers,
       isHomeUser ? economy.activeBoosters : [],
-      config
+      config,
+      isHomeUser ? (economy.activePositionBoosters ?? []) : []
     );
     const awaySyn = evaluateTeamSynergy(
       aClub,
       awayPlayers,
       isAwayUser ? economy.activeBoosters : [],
-      config
+      config,
+      isAwayUser ? (economy.activePositionBoosters ?? []) : []
     );
 
     const simulated = simulateMatch(
@@ -175,6 +193,8 @@ export function MatchdayScreen() {
         awaySynergyScore: awaySyn.overallSynergy,
         homeActiveBoosters: isHomeUser ? economy.activeBoosters : [],
         awayActiveBoosters: isAwayUser ? economy.activeBoosters : [],
+        homePositionBoosters: isHomeUser ? (economy.activePositionBoosters ?? []) : [],
+        awayPositionBoosters: isAwayUser ? (economy.activePositionBoosters ?? []) : [],
         balanceConfig: config,
       },
       matchSeed
@@ -269,7 +289,8 @@ export function MatchdayScreen() {
     gameState.currentSeason,
     gameState.currentWeek,
     isUserHome ? economy.activeBoosters : [],
-    balanceConfig
+    balanceConfig,
+    isUserHome ? (economy.activePositionBoosters ?? []) : []
   );
   const liveAwayChemistry = evaluateTeamChemistry(
     liveAwayClub,
@@ -278,19 +299,49 @@ export function MatchdayScreen() {
     gameState.currentSeason,
     gameState.currentWeek,
     !isUserHome ? economy.activeBoosters : [],
-    balanceConfig
+    balanceConfig,
+    !isUserHome ? (economy.activePositionBoosters ?? []) : []
   );
   const liveHomeSynergy = evaluateTeamSynergy(
     liveHomeClub,
     liveHomePlayers,
     isUserHome ? economy.activeBoosters : [],
-    balanceConfig
+    balanceConfig,
+    isUserHome ? (economy.activePositionBoosters ?? []) : []
   );
   const liveAwaySynergy = evaluateTeamSynergy(
     liveAwayClub,
     liveAwayPlayers,
     !isUserHome ? economy.activeBoosters : [],
-    balanceConfig
+    balanceConfig,
+    !isUserHome ? (economy.activePositionBoosters ?? []) : []
+  );
+
+  const liveTacticalMatchup = evaluateTacticalMatchup({
+    homeClub: liveHomeClub,
+    awayClub: liveAwayClub,
+    homePlayers: liveHomePlayers,
+    awayPlayers: liveAwayPlayers,
+    homeChemistryScore: liveHomeChemistry.overallChemistry,
+    awayChemistryScore: liveAwayChemistry.overallChemistry,
+    homeSynergyScore: liveHomeSynergy.overallSynergy,
+    awaySynergyScore: liveAwaySynergy.overallSynergy,
+    config: balanceConfig,
+  });
+
+  const userPlayersList = isUserHome ? liveHomePlayers : liveAwayPlayers;
+  const userStartersList = userLiveClub.startingXI
+    .map((id) => userPlayersList.find((p) => p.id === id))
+    .filter((p): p is Player => !!p);
+  const userBenchList = userLiveClub.substitutes
+    .map((id) => userPlayersList.find((p) => p.id === id))
+    .filter((p): p is Player => !!p);
+
+  const recommendedSubs = getRecommendedSubstitutions(
+    userStartersList,
+    userBenchList,
+    userLiveClub.tactics.formation,
+    currentMinute
   );
 
   const homeMod = computeNonlinearMatchModifiers(
@@ -315,6 +366,72 @@ export function MatchdayScreen() {
     setClockSeconds((prev) => Math.max(0, prev - 600));
   };
 
+  const handleLivePlayingStyleChange = (playingStyle: TacticalPlayingStyle) => {
+    if (isFinished) return;
+    soundManager.playUiClick();
+    const styleDef = TACTICAL_STYLES_CATALOG[playingStyle];
+    const updatedUserClub: Club = {
+      ...userLiveClub,
+      tactics: {
+        ...userLiveClub.tactics,
+        playingStyle,
+        attackingStyle: playingStyle,
+        pressing: styleDef.defaultPressing,
+        defensiveLine: styleDef.defaultDefensiveLine,
+        width: styleDef.defaultWidth,
+        tempo: styleDef.defaultTempo,
+        directness: styleDef.defaultDirectness,
+        counterPressing: styleDef.defaultCounterPressing,
+        transitionSpeed: styleDef.defaultTransitionSpeed,
+        defensiveCompactness: styleDef.defaultCompactness,
+      },
+    };
+    const nextHome = isUserHome ? updatedUserClub : liveHomeClub;
+    const nextAway = isUserHome ? liveAwayClub : updatedUserClub;
+    setLiveHomeClub(nextHome);
+    setLiveAwayClub(nextAway);
+
+    const homePlayers = gameState.players.filter((p) => p.clubId === nextHome.id);
+    const awayPlayers = gameState.players.filter((p) => p.clubId === nextAway.id);
+    const nextHomeSyn = evaluateTeamSynergy(
+      nextHome,
+      homePlayers,
+      isUserHome ? economy.activeBoosters : [],
+      balanceConfig,
+      isUserHome ? (economy.activePositionBoosters ?? []) : []
+    );
+    const nextAwaySyn = evaluateTeamSynergy(
+      nextAway,
+      awayPlayers,
+      !isUserHome ? economy.activeBoosters : [],
+      balanceConfig,
+      !isUserHome ? (economy.activePositionBoosters ?? []) : []
+    );
+
+    const resim = resimulateFromMinute(
+      {
+        fixtureId: currentFixture.id,
+        homeClub: nextHome,
+        awayClub: nextAway,
+        homePlayers,
+        awayPlayers,
+        homeChemistryScore: liveHomeChemistry.overallChemistry,
+        awayChemistryScore: liveAwayChemistry.overallChemistry,
+        homeSynergyScore: nextHomeSyn.overallSynergy,
+        awaySynergyScore: nextAwaySyn.overallSynergy,
+        homeActiveBoosters: isUserHome ? economy.activeBoosters : [],
+        awayActiveBoosters: !isUserHome ? economy.activeBoosters : [],
+        homePositionBoosters: isUserHome ? (economy.activePositionBoosters ?? []) : [],
+        awayPositionBoosters: !isUserHome ? (economy.activePositionBoosters ?? []) : [],
+        balanceConfig,
+      },
+      matchResult.seed,
+      matchResult,
+      currentMinute
+    );
+    setMatchResult(resim);
+  };
+
   const handleLiveMentalityChange = (mentality: TacticalMentality) => {
     if (isFinished) return;
     soundManager.playUiClick();
@@ -333,13 +450,15 @@ export function MatchdayScreen() {
       nextHome,
       homePlayers,
       isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
     const nextAwaySyn = evaluateTeamSynergy(
       nextAway,
       awayPlayers,
       !isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      !isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
 
     const resim = resimulateFromMinute(
@@ -355,6 +474,8 @@ export function MatchdayScreen() {
         awaySynergyScore: nextAwaySyn.overallSynergy,
         homeActiveBoosters: isUserHome ? economy.activeBoosters : [],
         awayActiveBoosters: !isUserHome ? economy.activeBoosters : [],
+        homePositionBoosters: isUserHome ? (economy.activePositionBoosters ?? []) : [],
+        awayPositionBoosters: !isUserHome ? (economy.activePositionBoosters ?? []) : [],
         balanceConfig,
       },
       matchResult.seed,
@@ -391,7 +512,8 @@ export function MatchdayScreen() {
       gameState.currentSeason,
       gameState.currentWeek,
       isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
     const nextAwayChem = evaluateTeamChemistry(
       nextAway,
@@ -400,19 +522,22 @@ export function MatchdayScreen() {
       gameState.currentSeason,
       gameState.currentWeek,
       !isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      !isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
     const nextHomeSyn = evaluateTeamSynergy(
       nextHome,
       homePlayers,
       isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
     const nextAwaySyn = evaluateTeamSynergy(
       nextAway,
       awayPlayers,
       !isUserHome ? economy.activeBoosters : [],
-      balanceConfig
+      balanceConfig,
+      !isUserHome ? (economy.activePositionBoosters ?? []) : []
     );
 
     const resim = resimulateFromMinute(
@@ -428,6 +553,8 @@ export function MatchdayScreen() {
         awaySynergyScore: nextAwaySyn.overallSynergy,
         homeActiveBoosters: isUserHome ? economy.activeBoosters : [],
         awayActiveBoosters: !isUserHome ? economy.activeBoosters : [],
+        homePositionBoosters: isUserHome ? (economy.activePositionBoosters ?? []) : [],
+        awayPositionBoosters: !isUserHome ? (economy.activePositionBoosters ?? []) : [],
         balanceConfig,
       },
       matchResult.seed,
@@ -487,15 +614,29 @@ export function MatchdayScreen() {
               <div className="text-lg md:text-xl font-black text-white">{liveHomeClub.name}</div>
               <div className="text-xs text-slate-400">
                 {liveHomeClub.tactics.formation} &bull;{' '}
-                <span className="capitalize text-pitch-400">{liveHomeClub.tactics.mentality}</span>
+                <span className="text-pitch-400 font-bold">
+                  {TACTICAL_STYLES_CATALOG[resolvePlayingStyle(liveHomeClub.tactics)].name}
+                </span>
               </div>
-              <div className="flex items-center justify-end gap-1.5 mt-1">
+              <div className="flex flex-wrap items-center justify-end gap-1.5 mt-1">
                 <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
                   Chem {liveHomeChemistry.overallChemistry} ({liveHomeChemistry.level})
                 </span>
                 <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] font-bold text-sky-300">
                   Syn {liveHomeSynergy.overallSynergy} ({homeMod.combinedModPct >= 0 ? '+' : ''}
                   {homeMod.combinedModPct}%)
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                    liveTacticalMatchup.teamAOutcome === 'Strong'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : liveTacticalMatchup.teamAOutcome === 'Weak'
+                        ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {liveTacticalMatchup.teamAOutcome} ({liveTacticalMatchup.teamASituationalModifierPct >= 0 ? '+' : ''}
+                  {liveTacticalMatchup.teamASituationalModifierPct}%)
                 </span>
               </div>
             </div>
@@ -529,9 +670,11 @@ export function MatchdayScreen() {
               <div className="text-lg md:text-xl font-black text-white">{liveAwayClub.name}</div>
               <div className="text-xs text-slate-400">
                 {liveAwayClub.tactics.formation} &bull;{' '}
-                <span className="capitalize text-gold-400">{liveAwayClub.tactics.mentality}</span>
+                <span className="text-gold-400 font-bold">
+                  {TACTICAL_STYLES_CATALOG[resolvePlayingStyle(liveAwayClub.tactics)].name}
+                </span>
               </div>
-              <div className="flex items-center justify-start gap-1.5 mt-1">
+              <div className="flex flex-wrap items-center justify-start gap-1.5 mt-1">
                 <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
                   Chem {liveAwayChemistry.overallChemistry} ({liveAwayChemistry.level})
                 </span>
@@ -539,8 +682,41 @@ export function MatchdayScreen() {
                   Syn {liveAwaySynergy.overallSynergy} ({awayMod.combinedModPct >= 0 ? '+' : ''}
                   {awayMod.combinedModPct}%)
                 </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                    liveTacticalMatchup.teamBOutcome === 'Strong'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : liveTacticalMatchup.teamBOutcome === 'Weak'
+                        ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {liveTacticalMatchup.teamBOutcome} ({liveTacticalMatchup.teamBSituationalModifierPct >= 0 ? '+' : ''}
+                  {liveTacticalMatchup.teamBSituationalModifierPct}%)
+                </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Live 12x12 Tactical Matchup & Adaptation Summary Strip */}
+        <div
+          data-testid="live-tactical-matchup-strip"
+          className="px-3.5 py-2 rounded-xl bg-navy-950 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px]"
+        >
+          <span className="text-slate-300 font-semibold">
+            {liveTacticalMatchup.keyBattleNotes[0] ?? liveTacticalMatchup.matchupHeadline}
+          </span>
+          <div className="flex items-center gap-3 text-slate-400">
+            <span>
+              {liveHomeClub.shortName} Adaptation:{' '}
+              <strong className="text-pitch-400">{liveTacticalMatchup.teamAAdaptationScore}</strong>
+            </span>
+            <span>&bull;</span>
+            <span>
+              {liveAwayClub.shortName} Adaptation:{' '}
+              <strong className="text-gold-400">{liveTacticalMatchup.teamBAdaptationScore}</strong>
+            </span>
           </div>
         </div>
 
@@ -1000,26 +1176,32 @@ export function MatchdayScreen() {
             ))}
           </div>
 
-          {/* Live Player Match Ratings */}
+          {/* Live Player Match Ratings & Physical State */}
           <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Star className="w-3.5 h-3.5 text-gold-400" />
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-white">
-                  Player Match Ratings
+                  Player Ratings, Stamina &amp; Fatigue
                 </h3>
               </div>
-              <span className="text-[10px] text-slate-400">{userLiveClub.shortName} Squad</span>
+              <span className="text-[10px] text-slate-400">{userLiveClub.shortName} XI</span>
             </div>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
               {userLiveClub.startingXI.map((pid) => {
                 const p = playerMap.get(pid);
                 if (!p) return null;
                 const rating = matchResult.playerRatings[pid] ?? 6.5;
+                const phys = evaluatePlayerInMatchPhysicalState(
+                  p,
+                  resolvePlayingStyle(userLiveClub.tactics),
+                  currentMinute,
+                  balanceConfig
+                );
                 return (
                   <div
                     key={pid}
-                    className="px-2.5 py-1.5 rounded-lg bg-navy-950 border border-slate-800 flex items-center justify-between text-xs"
+                    className="px-2.5 py-1.5 rounded-lg bg-navy-950 border border-slate-800 flex items-center justify-between text-xs gap-2"
                   >
                     <div className="flex items-center gap-2 truncate">
                       <PlayerAvatar player={p} club={userLiveClub} size={22} />
@@ -1028,17 +1210,31 @@ export function MatchdayScreen() {
                         {p.firstName[0]}. {p.lastName}
                       </span>
                     </div>
-                    <span
-                      className={`px-1.5 py-0.5 rounded font-black text-[11px] ${
-                        rating >= 7.5
-                          ? 'bg-pitch-500/20 text-pitch-400'
-                          : rating >= 6.5
-                            ? 'bg-gold-500/20 text-gold-400'
-                            : 'bg-red-500/20 text-red-400'
-                      }`}
-                    >
-                      {rating.toFixed(1)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        title={`In-Match Stamina: ${phys.staminaRemaining}% | Accumulated Fatigue: ${phys.fatigueAccumulated}%`}
+                        className={`text-[10px] font-bold ${
+                          phys.staminaRemaining < 45
+                            ? 'text-rose-400'
+                            : phys.staminaRemaining < 68
+                              ? 'text-amber-400'
+                              : 'text-emerald-400'
+                        }`}
+                      >
+                        Sta {Math.round(phys.staminaRemaining)}%
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded font-black text-[11px] ${
+                          rating >= 7.5
+                            ? 'bg-pitch-500/20 text-pitch-400'
+                            : rating >= 6.5
+                              ? 'bg-gold-500/20 text-gold-400'
+                              : 'bg-red-500/20 text-red-400'
+                        }`}
+                      >
+                        {rating.toFixed(1)}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -1057,23 +1253,80 @@ export function MatchdayScreen() {
               Changes made during playback preserve events up to minute {currentMinute}&apos; and re-simulate only the remaining minutes.
             </p>
 
-            <div>
-              <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1">
-                Live Team Mentality
-              </label>
-              <select
-                disabled={isFinished}
-                value={userLiveClub.tactics.mentality}
-                onChange={(e) => handleLiveMentalityChange(e.target.value as TacticalMentality)}
-                className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-slate-700 text-xs font-bold text-white disabled:opacity-50"
-              >
-                <option value="ultraDefensive">Ultra Defensive</option>
-                <option value="defensive">Defensive</option>
-                <option value="balanced">Balanced</option>
-                <option value="attacking">Attacking</option>
-                <option value="allOutAttack">All-Out Attack</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-pitch-400 mb-1">
+                  Live Playing Style (12 Core)
+                </label>
+                <select
+                  data-testid="live-playing-style-select"
+                  disabled={isFinished}
+                  value={resolvePlayingStyle(userLiveClub.tactics)}
+                  onChange={(e) =>
+                    handleLivePlayingStyleChange(e.target.value as TacticalPlayingStyle)
+                  }
+                  className="w-full px-2.5 py-2 rounded-xl bg-navy-950 border border-slate-700 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {ALL_12_PLAYING_STYLES.map((styleId) => (
+                    <option key={styleId} value={styleId}>
+                      {TACTICAL_STYLES_CATALOG[styleId].name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Live Team Mentality
+                </label>
+                <select
+                  disabled={isFinished}
+                  value={userLiveClub.tactics.mentality}
+                  onChange={(e) => handleLiveMentalityChange(e.target.value as TacticalMentality)}
+                  className="w-full px-2.5 py-2 rounded-xl bg-navy-950 border border-slate-700 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  <option value="ultraDefensive">Ultra Defensive</option>
+                  <option value="defensive">Defensive</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="attacking">Attacking</option>
+                  <option value="allOutAttack">All-Out Attack</option>
+                </select>
+              </div>
             </div>
+
+            {recommendedSubs.length > 0 && !isFinished && (
+              <div className="p-2.5 rounded-xl bg-navy-950 border border-amber-500/30 space-y-1.5">
+                <div className="text-[10px] font-extrabold uppercase text-amber-400">
+                  Assistant Manager Substitution Advice
+                </div>
+                {recommendedSubs.slice(0, 2).map((rec) => {
+                  const outP = rec.subOut;
+                  const inP = rec.subIn;
+                  return (
+                    <div
+                      key={`${outP.id}-${inP.id}`}
+                      className="flex items-center justify-between gap-2 text-[11px]"
+                    >
+                      <div className="truncate text-slate-300">
+                        <strong className="text-rose-300">{outP.lastName}</strong> &rarr;{' '}
+                        <strong className="text-emerald-300">{inP.lastName}</strong>{' '}
+                        <span className="text-[10px] text-slate-400">({rec.reason})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubOutId(outP.id);
+                          setSubInId(inP.id);
+                        }}
+                        className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[10px] font-bold shrink-0"
+                      >
+                        Select
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <div className="text-[11px] font-bold uppercase text-slate-400">

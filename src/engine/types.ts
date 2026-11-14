@@ -7,7 +7,58 @@ export type FormationCode =
   | '3-5-2'
   | '3-4-3'
   | '4-1-4-1'
-  | '5-3-2';
+  | '5-3-2'
+  | '4-3-1-2'
+  | '4-2-2-2'
+  | '5-4-1';
+
+export type TacticalPlayingStyle =
+  | 'gegenpress'
+  | 'tikiTaka'
+  | 'directCounter'
+  | 'wingPlay'
+  | 'parkTheBus'
+  | 'highPress'
+  | 'longBall'
+  | 'possession'
+  | 'catenaccio'
+  | 'totalFootball'
+  | 'midBlock'
+  | 'balanced';
+
+export type TacticalMatchupOutcome = 'Strong' | 'Neutral' | 'Weak';
+
+export interface ExtendedPlayerAttributes extends PlayerAttributes {
+  // Additional Technical
+  shortPassing: number;
+  longPassing: number;
+  throughBalls: number;
+  setPieces: number;
+  technique: number;
+  curve: number;
+  // Additional Physical
+  sprintSpeed: number;
+  naturalFitness: number;
+  recovery: number;
+  // Additional Mental
+  concentration: number;
+  determination: number;
+  teamwork: number;
+  offTheBall: number;
+  bravery: number;
+  tacticalIntelligence: number;
+  consistency: number;
+  // Additional Defensive
+  interceptions: number;
+  defensivePositioning: number;
+  defensiveAwareness: number;
+  slidingTackles: number;
+  // Additional Goalkeeping
+  oneOnOnes: number;
+  commandOfArea: number;
+  communication: number;
+  kicking: number;
+}
 
 export interface PlayerAttributes {
   // Technical (11)
@@ -150,22 +201,32 @@ export type PlayerPersonality =
   | 'Temperamental';
 
 export type TacticalPlayerRole =
-  | 'SweeperKeeper'
-  | 'ShotStopper'
-  | 'BallPlayingDefender'
-  | 'StopperCB'
-  | 'AttackingFullback'
-  | 'InvertedFullback'
-  | 'DefensiveFullback'
-  | 'AnchorMan'
+  | 'AdvancedForward'
+  | 'CompleteForward'
+  | 'Poacher'
+  | 'FalseNine'
+  | 'TargetForward'
+  | 'InsideForward'
+  | 'Winger'
+  | 'InvertedWinger'
   | 'DeepLyingPlaymaker'
   | 'BoxToBox'
+  | 'BallWinningMidfielder'
   | 'AdvancedPlaymaker'
-  | 'InsideForward'
-  | 'TraditionalWinger'
-  | 'Poacher'
-  | 'CompleteForward'
-  | 'FalseNine';
+  | 'DefensiveMidfielder'
+  | 'BallPlayingDefender'
+  | 'CentralDefender'
+  | 'Fullback'
+  | 'Wingback'
+  | 'InvertedFullback'
+  | 'SweeperKeeper'
+  // Legacy aliases preserved for save compatibility
+  | 'ShotStopper'
+  | 'StopperCB'
+  | 'AttackingFullback'
+  | 'DefensiveFullback'
+  | 'AnchorMan'
+  | 'TraditionalWinger';
 
 export interface Player {
   id: string;
@@ -186,6 +247,7 @@ export interface Player {
   loanedFromClubId?: string | null;
   primaryPosition: PositionCode;
   secondaryPositions: PositionCode[];
+  positionalFamiliarity?: Partial<Record<PositionCode, number>>; // 0..100 learned familiarity per position
   attributes: PlayerAttributes;
   overall: number;
   potential: number;
@@ -199,7 +261,10 @@ export interface Player {
   photoUrl?: string;
   photoAssetId?: string;
   careerHistory?: PlayerCareerHistoryEntry[];
-  fitness: number; // 0..100
+  fitness: number; // 0..100 overall pre-match physical readiness
+  stamina?: number; // 0..100 immediately available in-match stamina
+  fatigue?: number; // 0..100 accumulated exhaustion across matches & training
+  consecutiveMatches?: number; // consecutive match appearances without rest
   morale: number; // 0..100
   form: number; // 1..10
   injuryWeeks: number; // 0 = healthy
@@ -212,7 +277,7 @@ export interface Player {
   stats: PlayerSeasonStats;
 }
 
-export type AttackingStyle = 'possession' | 'wingPlay' | 'directCounter' | 'tikiTaka' | 'balanced';
+export type AttackingStyle = TacticalPlayingStyle;
 export type PressingIntensity = 'low' | 'medium' | 'high' | 'gegenpress';
 export type DefensiveLine = 'deep' | 'standard' | 'high';
 export type TacticalMentality = 'ultraDefensive' | 'defensive' | 'balanced' | 'attacking' | 'allOutAttack';
@@ -220,14 +285,32 @@ export type TacticalMentality = 'ultraDefensive' | 'defensive' | 'balanced' | 'a
 export interface TacticsConfig {
   formation: FormationCode;
   attackingStyle: AttackingStyle;
+  playingStyle?: TacticalPlayingStyle; // canonical 12-style philosophy
   pressing: PressingIntensity;
   defensiveLine: DefensiveLine;
-  width: number; // 1..100
-  tempo: number; // 1..100
-  directness: number; // 1..100
+  width: number; // 1..100 (Attacking width)
+  tempo: number; // 1..100 (Passing tempo)
+  directness: number; // 1..100 (Passing directness)
   mentality: TacticalMentality;
   counterPressing: boolean;
   offsideTrap: boolean;
+  // Extended FC27 Custom Tactical Instructions (1..100 or boolean)
+  transitionSpeed?: number; // 1..100
+  defensiveCompactness?: number; // 1..100
+  overlappingRuns?: boolean;
+  underlappingRuns?: boolean;
+  playerFreedom?: number; // 1..100
+  creativeFreedom?: number; // 1..100
+  forwardMovement?: number; // 1..100
+  defensivePositioning?: 'zonal' | 'manMarking' | 'hybrid';
+  roleOverrides?: Record<number, TacticalPlayerRole>; // slotIndex 0..10 -> role
+}
+
+export interface TacticalPreset {
+  id: string;
+  name: string;
+  createdAtIso: string;
+  tactics: TacticsConfig;
 }
 
 export type TrainingFocus =
@@ -383,6 +466,17 @@ export interface MatchTeamStats {
   yellowCards: number;
   redCards: number;
   corners: number;
+  // Extended FC27 Match Telemetry
+  playingStyle?: TacticalPlayingStyle;
+  tacticalMatchupOutcome?: TacticalMatchupOutcome;
+  tacticalAdvantagePct?: number;
+  tacticalAdaptationScore?: number;
+  pressingSuccessPct?: number;
+  runningDistanceKm?: number;
+  sprintDistanceKm?: number;
+  avgStaminaEnd?: number;
+  avgFatigueAdded?: number;
+  aiMidMatchSwitchedStyle?: TacticalPlayingStyle;
 }
 
 export interface MatchResult {
@@ -397,6 +491,8 @@ export interface MatchResult {
   events: MatchEvent[];
   playerRatings: Record<string, number>;
   manOfTheMatchPlayerId: string;
+  playerStaminaRemaining?: Record<string, number>;
+  playerFatigueDelta?: Record<string, number>;
 }
 
 export interface MatchSimulationInput {
@@ -412,6 +508,11 @@ export interface MatchSimulationInput {
   awaySynergyScore?: number; // 0..100
   homeActiveBoosters?: ActiveBoosterInstance[];
   awayActiveBoosters?: ActiveBoosterInstance[];
+  homePositionBoosters?: ActivePositionBooster[];
+  awayPositionBoosters?: ActivePositionBooster[];
+  currentSeason?: number;
+  homeManagerAttributes?: ManagerAttributes;
+  awayManagerAttributes?: ManagerAttributes;
   balanceConfig?: BalanceConfiguration;
 }
 
@@ -580,6 +681,17 @@ export interface ActiveCutscene {
   scoreText?: string;
 }
 
+export interface ManagerAttributes {
+  tacticalIntelligence: number; // 0..100
+  tacticalAdaptability: number; // 0..100
+  manManagement: number; // 0..100
+  motivationalAbility: number; // 0..100
+  trainingQuality: number; // 0..100
+  playerDevelopment: number; // 0..100
+  matchPreparation: number; // 0..100
+  tacticalFlexibility: number; // 0..100
+}
+
 export interface ManagerProfile {
   name: string;
   nationality: string;
@@ -587,6 +699,8 @@ export interface ManagerProfile {
   difficulty: 'relaxed' | 'standard' | 'hardcore';
   startingChallenge: 'none' | 'financialCrisis' | 'youthOnly' | 'titleOrBust';
   clubId: string;
+  attributes?: ManagerAttributes;
+  savedPresets?: TacticalPreset[];
 }
 
 export interface NewsItem {
@@ -749,6 +863,8 @@ export type BoosterCategory =
   | 'chemistry'
   | 'synergy'
   | 'recovery'
+  | 'fitness'
+  | 'position'
   | 'morale'
   | 'cosmetic';
 
@@ -786,6 +902,12 @@ export interface BoosterItemDefinition {
     | 'recovery_pack'
     | 'condition_pack'
     | 'fatigue_recovery'
+    | 'individual_fitness'
+    | 'team_fitness'
+    | 'individual_recovery'
+    | 'team_recovery'
+    | 'season_position'
+    | 'temporary_position'
     | 'team_morale'
     | 'individual_morale'
     | 'leadership_motivation'
@@ -802,6 +924,23 @@ export interface BoosterItemDefinition {
   softCurrencyPrice?: number;
   premiumCurrencyPrice?: number;
   usageRestrictionsText: string;
+}
+
+export interface ActivePositionBooster {
+  boosterId: string;
+  itemId: string;
+  playerId: string;
+  playerName: string;
+  clubId: string;
+  naturalPosition: PositionCode;
+  unlockedPosition: PositionCode;
+  boosterType: 'season_position' | 'temporary_position';
+  familiarityGranted: number; // e.g. 92 (out of 100)
+  activatedSeason: number;
+  activatedWeek: number;
+  expiresAtEndOfSeason?: number; // for 1-season position booster
+  remainingMatches?: number; // 3..0 for temporary 3-match position booster
+  status: 'active' | 'expired';
 }
 
 export interface InventoryItemRecord {
@@ -952,6 +1091,13 @@ export interface BalanceConfiguration {
   starterPackRareSynergyQty: number; // default 1
   starterPackOnboardingWeeksLimit: number; // default 22
   storePurchasesEnabled: boolean; // default true
+  // FC27 Tactical Counter Matrix & Physical Tuning
+  tacticalStrongAdvantagePct?: number; // default 5.0 (%)
+  tacticalWeakDisadvantagePct?: number; // default -5.0 (%)
+  staminaDrainMultiplier?: number; // default 1.0
+  fatigueAccumulationMultiplier?: number; // default 1.0
+  offPositionSeverePenaltyPct?: number; // default 35.0 (%)
+  offPositionAdjacentPenaltyPct?: number; // default 12.0 (%)
 }
 
 export interface AdminAuditLogEntry {
@@ -968,6 +1114,7 @@ export interface EconomyState {
   premiumCurrency: number; // Pro Diamonds / Premium Coins
   inventory: InventoryItemRecord[];
   activeBoosters: ActiveBoosterInstance[];
+  activePositionBoosters?: ActivePositionBooster[];
   cooldownsByTarget: Record<string, number>; // `${targetId}_${conflictGroup}` -> expiresAtTotalWeek
   usageHistory: BoosterUsageHistoryEntry[];
   acquisitionHistory: AcquisitionHistoryEntry[];

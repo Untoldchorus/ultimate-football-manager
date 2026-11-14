@@ -5,8 +5,10 @@ import {
 } from './balanceConfig';
 import { FORMATION_SLOTS } from './ratings';
 import { hashStringToSeed } from './rng';
+import { evaluateDetailedPositionalSuitability } from './tacticalMatrixEngine';
 import {
   ActiveBoosterInstance,
+  ActivePositionBooster,
   BalanceConfiguration,
   ChemistryFactorBreakdown,
   Club,
@@ -140,22 +142,23 @@ export function evaluatePersonalityCompatibility(
 }
 
 /**
- * Evaluates how familiar a player is with the assigned tactical slot position (0..100).
+ * Evaluates how familiar a player is with the assigned tactical slot position (0..100),
+ * factoring in natural position, secondary positions, learned positional familiarity,
+ * and active Season (1-season) or Temporary (3-match) Position Boosters.
  */
-export function evaluatePositionalFamiliarity(player: Player, assignedSlot: PositionCode): number {
-  if (player.primaryPosition === assignedSlot) return 100;
-  if (player.secondaryPositions.includes(assignedSlot)) return 84;
-
-  // Adjacent role group partial familiarity
-  const defGroup: PositionCode[] = ['CB', 'LB', 'RB', 'CDM'];
-  const midGroup: PositionCode[] = ['CDM', 'CM', 'CAM', 'LW', 'RW'];
-  const attGroup: PositionCode[] = ['CAM', 'LW', 'RW', 'ST'];
-
-  if (player.primaryPosition === 'GK' || assignedSlot === 'GK') return 15;
-  if (defGroup.includes(player.primaryPosition) && defGroup.includes(assignedSlot)) return 64;
-  if (midGroup.includes(player.primaryPosition) && midGroup.includes(assignedSlot)) return 66;
-  if (attGroup.includes(player.primaryPosition) && attGroup.includes(assignedSlot)) return 68;
-  return 38;
+export function evaluatePositionalFamiliarity(
+  player: Player,
+  assignedSlot: PositionCode,
+  activePositionBoosters: ActivePositionBooster[] = [],
+  currentSeason?: number
+): number {
+  const suit = evaluateDetailedPositionalSuitability(
+    player,
+    assignedSlot,
+    activePositionBoosters,
+    currentSeason
+  );
+  return suit.familiarityScore;
 }
 
 /**
@@ -210,7 +213,8 @@ export function evaluatePartnershipChemistry(
   captainId?: string,
   viceCaptainId?: string,
   activeBoosters: ActiveBoosterInstance[] = [],
-  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG
+  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG,
+  activePositionBoosters: ActivePositionBooster[] = []
 ): PartnershipChemistryEvaluation {
   const slots = FORMATION_SLOTS[formation] ?? FORMATION_SLOTS['4-3-3'];
   const slotPosA = slots[slotIdxA]?.position ?? playerA.primaryPosition;
@@ -258,10 +262,25 @@ export function evaluatePartnershipChemistry(
       ? 65
       : 40;
 
-  // 7. Positional familiarity (0..100)
-  const posFamA = evaluatePositionalFamiliarity(playerA, slotPosA);
-  const posFamB = evaluatePositionalFamiliarity(playerB, slotPosB);
+  // 7. Positional familiarity (0..100) + off-position chemistry penalty
+  const suitA = evaluateDetailedPositionalSuitability(
+    playerA,
+    slotPosA,
+    activePositionBoosters,
+    currentSeason
+  );
+  const suitB = evaluateDetailedPositionalSuitability(
+    playerB,
+    slotPosB,
+    activePositionBoosters,
+    currentSeason
+  );
+  const posFamA = suitA.familiarityScore;
+  const posFamB = suitB.familiarityScore;
   const positionalFamiliarityScore = Math.round((posFamA + posFamB) / 2);
+  const offPositionPairPenalty = Math.round(
+    (suitA.chemistryPenaltyPoints + suitB.chemistryPenaltyPoints) * 0.45
+  );
 
   // 8. Playing relationships (pitch link + dynamic familiarity gained from training/matches)
   const isLinked = areSlotsTacticallyLinked(formation, slotIdxA, slotIdxB);
@@ -332,7 +351,8 @@ export function evaluatePartnershipChemistry(
     communicationLeadershipScore * 0.08 +
     dynamicBonus * 0.45 +
     boosterBonus -
-    transferAdaptationPenalty;
+    transferAdaptationPenalty -
+    offPositionPairPenalty;
 
   const score = Math.max(5, Math.min(100, Math.round(weightedRaw)));
   const level = getChemistryLevelLabel(score);
@@ -388,7 +408,8 @@ export function evaluateTeamChemistry(
   currentSeason = 2026,
   currentWeek = 1,
   activeBoosters: ActiveBoosterInstance[] = [],
-  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG
+  config: BalanceConfiguration = DEFAULT_BALANCE_CONFIG,
+  activePositionBoosters: ActivePositionBooster[] = []
 ): TeamChemistryReport {
   const playerMap = new Map(clubPlayers.map((p) => [p.id, p]));
   const formation = club.tactics.formation;
@@ -424,7 +445,8 @@ export function evaluateTeamChemistry(
         club.captainId,
         club.viceCaptainId,
         activeBoosters,
-        config
+        config,
+        activePositionBoosters
       );
       partnerships.push(evalPair);
     }
@@ -434,7 +456,13 @@ export function evaluateTeamChemistry(
   const relevantPartnerships = linkedPartnerships.length > 0 ? linkedPartnerships : partnerships;
 
   const individualPlayers: IndividualPlayerChemistryEvaluation[] = starters.map((s) => {
-    const posFam = evaluatePositionalFamiliarity(s.player, s.slotPos);
+    const suit = evaluateDetailedPositionalSuitability(
+      s.player,
+      s.slotPos,
+      activePositionBoosters,
+      currentSeason
+    );
+    const posFam = suit.familiarityScore;
     const myLinks = relevantPartnerships.filter(
       (p) => p.playerAId === s.player.id || p.playerBId === s.player.id
     );
@@ -453,7 +481,10 @@ export function evaluateTeamChemistry(
 
     const individualChemistry = Math.max(
       5,
-      Math.min(100, Math.round(posFam * 0.35 + avgTeammate * 0.65))
+      Math.min(
+        100,
+        Math.round(posFam * 0.35 + avgTeammate * 0.65 - suit.chemistryPenaltyPoints * 0.5)
+      )
     );
 
     return {

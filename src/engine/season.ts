@@ -3,6 +3,8 @@ import {
 } from './balanceConfig';
 import {
   ensureEconomyState,
+  expireSeasonPositionBoostersAtSeasonEnd,
+  tickTemporaryPositionBoostersAfterMatch,
   tickWeeklyBoostersAndExpirations,
 } from './boosterEconomy';
 import {
@@ -20,10 +22,15 @@ import {
   calculateMarketValue,
   calculateOverallRating,
   calculateWeeklyWage,
+  FORMATION_SLOTS,
 } from './ratings';
 import { createRng } from './rng';
 import { calculateStandings } from './standings';
 import { evaluateTeamSynergy } from './synergyEngine';
+import {
+  progressPositionalFamiliarity,
+  resolveExtendedPlayerAttributes,
+} from './tacticalMatrixEngine';
 import {
   MIN_SQUAD_SIZE,
   processWeeklyAiTransfers,
@@ -82,6 +89,15 @@ export function applyMatchResultToState(
 
   const homeStarters = new Set(homeClub?.startingXI ?? []);
   const awayStarters = new Set(awayClub?.startingXI ?? []);
+  const subbedInIds = new Set<string>();
+  for (const ev of result.events) {
+    if (ev.type === 'substitution' && ev.metadata?.subInId) {
+      subbedInIds.add(ev.metadata.subInId);
+    }
+  }
+  const homeSlots = homeClub ? FORMATION_SLOTS[homeClub.tactics.formation] ?? FORMATION_SLOTS['4-3-3'] : FORMATION_SLOTS['4-3-3'];
+  const awaySlots = awayClub ? FORMATION_SLOTS[awayClub.tactics.formation] ?? FORMATION_SLOTS['4-3-3'] : FORMATION_SLOTS['4-3-3'];
+
   const homeCleanSheet = result.awayScore === 0;
   const awayCleanSheet = result.homeScore === 0;
   const homeWon = result.homeScore > result.awayScore;
@@ -90,9 +106,10 @@ export function applyMatchResultToState(
   const updatedPlayers = state.players.map((p) => {
     const isHomeStarter = homeStarters.has(p.id);
     const isAwayStarter = awayStarters.has(p.id);
+    const isSubIn = subbedInIds.has(p.id);
 
-    if (!isHomeStarter && !isAwayStarter) {
-      // Bench/Reserve player recovers fitness slightly, but star players may lose morale if benched
+    if (!isHomeStarter && !isAwayStarter && !isSubIn) {
+      // Bench/Reserve player recovers fitness & clears accumulated fatigue, but star players may lose morale if benched
       const moraleDelta =
         (p.clubId === result.homeClubId || p.clubId === result.awayClubId) &&
         p.roleExpectation === 'star' &&
@@ -100,9 +117,15 @@ export function applyMatchResultToState(
           ? -3
           : 0;
       const newMorale = Math.max(20, Math.min(100, p.morale + moraleDelta));
+      const ext = resolveExtendedPlayerAttributes(p);
+      const naturalClearance = Math.round(12 + ext.recovery * 0.12);
+      const nextFatigue = Math.max(0, (p.fatigue ?? 0) - naturalClearance);
       return {
         ...p,
         fitness: Math.min(100, p.fitness + 6),
+        stamina: Math.min(100, (p.stamina ?? 90) + 12),
+        fatigue: nextFatigue,
+        consecutiveMatches: 0,
         morale: newMorale,
         transferRequested: p.transferRequested || newMorale < 35,
       };
@@ -119,15 +142,38 @@ export function applyMatchResultToState(
         ? 1
         : 0;
 
-    const won = (isHomeStarter && homeWon) || (isAwayStarter && awayWon);
+    const won =
+      ((isHomeStarter || p.clubId === result.homeClubId) && homeWon) ||
+      ((isAwayStarter || p.clubId === result.awayClubId) && awayWon);
     const drew = result.homeScore === result.awayScore;
     const moraleDelta = won ? 4 : drew ? 1 : -3;
     const newMorale = Math.max(25, Math.min(100, p.morale + moraleDelta));
     const newForm = Math.max(1, Math.min(10, Math.round((p.form * 0.7 + matchRating * 0.3) * 10) / 10));
 
+    // Calculate played position & progress positional familiarity if deployed in a secondary/unfamiliar slot
+    let playedPos: PositionCode = p.primaryPosition;
+    if (isHomeStarter && homeClub) {
+      const idx = homeClub.startingXI.indexOf(p.id);
+      if (idx >= 0 && homeSlots[idx]) playedPos = homeSlots[idx].position;
+    } else if (isAwayStarter && awayClub) {
+      const idx = awayClub.startingXI.indexOf(p.id);
+      if (idx >= 0 && awaySlots[idx]) playedPos = awaySlots[idx].position;
+    }
+    const mins = isSubIn && !isHomeStarter && !isAwayStarter ? 25 : 90;
+    const progressedPlayer = progressPositionalFamiliarity(p, playedPos, mins, false);
+
+    const consec = (p.consecutiveMatches ?? 0) + 1;
+    const rawFatigueDelta = result.playerFatigueDelta?.[p.id] ?? (mins >= 60 ? 11 : 5);
+    const consecExtraFatigue = consec >= 3 ? (consec - 2) * 3 : 0;
+    const nextFatigue = Math.min(100, Math.round((p.fatigue ?? 0) + rawFatigueDelta + consecExtraFatigue));
+    const nextStamina = Math.max(45, Math.min(100, Math.round(100 - nextFatigue * 0.45)));
+
     return {
-      ...p,
-      fitness: Math.max(45, p.fitness - 9),
+      ...progressedPlayer,
+      fitness: Math.max(45, p.fitness - (mins >= 60 ? 9 : 4)),
+      stamina: nextStamina,
+      fatigue: nextFatigue,
+      consecutiveMatches: consec,
       morale: newMorale,
       form: newForm,
       injuryWeeks: p.injuryWeeks + (injuryWeeksMap.get(p.id) ?? 0),
@@ -139,7 +185,7 @@ export function applyMatchResultToState(
         yellowCards: p.stats.yellowCards + (yellowCounts.get(p.id) ?? 0),
         redCards: p.stats.redCards + (redCounts.get(p.id) ?? 0),
         averageRating: avgRating,
-        minutesPlayed: p.stats.minutesPlayed + 90,
+        minutesPlayed: p.stats.minutesPlayed + mins,
       },
     };
   });
@@ -220,11 +266,22 @@ export function applyMatchResultToState(
       return obj;
     });
 
+    // Decrement Temporary Position Boosters (3-match duration) once per completed official match for participating players
+    const participatingUserPlayerIds = new Set<string>([
+      ...uClub.startingXI,
+      ...Array.from(subbedInIds),
+    ]);
+    const updatedPositionBoosters = tickTemporaryPositionBoostersAfterMatch(
+      nextEconomy.activePositionBoosters ?? [],
+      participatingUserPlayerIds
+    );
+
     nextEconomy = {
       ...nextEconomy,
       softCurrency: nextEconomy.softCurrency + matchSoftCoins,
       pairChemistry: updatedPairChem,
       objectives: updatedObjectives,
+      activePositionBoosters: updatedPositionBoosters,
     };
   }
 
@@ -304,6 +361,9 @@ export function simulateWeekMatches(state: GameState, weekSeed: number): GameSta
         awaySynergyScore: awaySynReport.overallSynergy,
         homeActiveBoosters: isHomeUser ? econ.activeBoosters : [],
         awayActiveBoosters: isAwayUser ? econ.activeBoosters : [],
+        homePositionBoosters: isHomeUser ? econ.activePositionBoosters ?? [] : [],
+        awayPositionBoosters: isAwayUser ? econ.activePositionBoosters ?? [] : [],
+        currentSeason: nextState.currentSeason,
         balanceConfig: balCfg,
       },
       (weekSeed ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0
@@ -721,6 +781,13 @@ export function performSeasonRollover(state: GameState): GameState {
 
   const nextFixtures = generateSeasonFixtures(updatedClubs, nextSeason, state.worldSeed + nextSeason);
 
+  // Expire all 1-season Position Boosters at season rollover without mutating natural positions
+  const nextEcon = ensureEconomyState(state);
+  const rolledPositionBoosters = expireSeasonPositionBoostersAtSeasonEnd(
+    nextEcon.activePositionBoosters ?? [],
+    state.currentSeason
+  );
+
   return {
     ...state,
     currentSeason: nextSeason,
@@ -730,6 +797,10 @@ export function performSeasonRollover(state: GameState): GameState {
     fixtures: nextFixtures,
     trophies: newTrophies,
     seasonHistory: [historyEntry, ...state.seasonHistory],
+    economy: {
+      ...nextEcon,
+      activePositionBoosters: rolledPositionBoosters,
+    },
     news: [
       {
         id: `news-newseason-${nextSeason}`,

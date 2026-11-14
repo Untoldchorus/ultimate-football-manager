@@ -6,7 +6,17 @@ import { formatCommentary } from './commentary';
 import { FORMATION_SLOTS } from './ratings';
 import { createRng, SeededRng } from './rng';
 import {
+  evaluateDetailedPositionalSuitability,
+  evaluatePlayerInMatchPhysicalState,
+  evaluateTacticalMatchup,
+  resolveExtendedPlayerAttributes,
+  resolveManagerAttributes,
+  resolveTacticalPlayingStyle,
+  TACTICAL_STYLES_CATALOG,
+} from './tacticalMatrixEngine';
+import {
   ActiveBoosterInstance,
+  ActivePositionBooster,
   BalanceConfiguration,
   Club,
   MatchEvent,
@@ -46,7 +56,10 @@ function computeTeamRatings(
   chemistryScore = 58,
   synergyScore = 58,
   activeBoosters: ActiveBoosterInstance[] = [],
-  balanceConfig: BalanceConfiguration = DEFAULT_BALANCE_CONFIG
+  balanceConfig: BalanceConfiguration = DEFAULT_BALANCE_CONFIG,
+  tacticalSituationalModPct = 0,
+  positionBoosters: ActivePositionBooster[] = [],
+  currentSeason = 2026
 ): {
   attack: number;
   midfield: number;
@@ -57,6 +70,7 @@ function computeTeamRatings(
   synergyModPct: number;
   combinedModPct: number;
 } {
+  const slots = FORMATION_SLOTS[tactics.formation] ?? FORMATION_SLOTS['4-3-3'];
   const active = starters.filter((p) => !sentOffIds.has(p.id));
   const gk = active.find((p) => p.primaryPosition === 'GK') ?? active[0] ?? starters[0];
 
@@ -65,10 +79,22 @@ function computeTeamRatings(
   const defenders = active.filter((p) => ['CB', 'LB', 'RB', 'CDM'].includes(p.primaryPosition));
 
   const effOvr = (p: Player) => {
-    const fitMod = 0.85 + (p.fitness / 100) * 0.15;
+    const slotIdx = starters.findIndex((s) => s.id === p.id);
+    const slotPos = slotIdx >= 0 ? slots[slotIdx]?.position ?? p.primaryPosition : p.primaryPosition;
+    const posSuit = evaluateDetailedPositionalSuitability(p, slotPos, positionBoosters, currentSeason);
+    const effectiveFitness = p.stamina !== undefined ? Math.min(100, (p.fitness + p.stamina) / 2) : p.fitness;
+    const fatiguePen = p.fatigue !== undefined && p.fatigue > 30 ? (p.fatigue - 30) * 0.0018 : 0;
+    const fitMod = Math.max(0.72, 0.85 + (effectiveFitness / 100) * 0.15 - fatiguePen);
     const moraleMod = 0.94 + (p.morale / 100) * 0.08;
     const formMod = 0.94 + (p.form / 10) * 0.08;
-    return p.overall * fitMod * moraleMod * formMod;
+    // Apply off-position penalty when positionalFamiliarity or positionBoosters are explicitly tracked
+    const hasExplicitPositionTracking =
+      positionBoosters.length > 0 || (p.positionalFamiliarity && Object.keys(p.positionalFamiliarity).length > 0);
+    const posMod =
+      !hasExplicitPositionTracking || posSuit.isNatural || posSuit.isSecondary || posSuit.isBoosterUnlocked
+        ? 1.0
+        : posSuit.tacticalExecutionMultiplier;
+    return p.overall * fitMod * moraleMod * formMod * posMod;
   };
 
   const avg = (list: Player[]) =>
@@ -93,20 +119,23 @@ function computeTeamRatings(
     attack -= 3.2;
   }
 
-  if (tactics.attackingStyle === 'possession' || tactics.attackingStyle === 'tikiTaka') {
+  const style = resolveTacticalPlayingStyle(tactics);
+  if (style === 'possession' || style === 'tikiTaka' || style === 'totalFootball') {
     midfield += 2.0;
-  } else if (tactics.attackingStyle === 'directCounter' || tactics.attackingStyle === 'wingPlay') {
+  } else if (style === 'directCounter' || style === 'wingPlay' || style === 'longBall') {
     attack += 1.5;
+  } else if (style === 'parkTheBus' || style === 'catenaccio' || style === 'midBlock') {
+    defense += 1.8;
   }
 
   let aggression = 1.0;
-  if (tactics.pressing === 'high') {
+  if (tactics.pressing === 'high' || style === 'highPress') {
     midfield += 1.0;
     aggression = 1.12;
-  } else if (tactics.pressing === 'gegenpress') {
+  } else if (tactics.pressing === 'gegenpress' || style === 'gegenpress') {
     midfield += 1.8;
     aggression = 1.24;
-  } else if (tactics.pressing === 'low') {
+  } else if (tactics.pressing === 'low' || style === 'parkTheBus' || style === 'catenaccio') {
     aggression = 0.85;
   }
 
@@ -117,6 +146,7 @@ function computeTeamRatings(
   defense -= redPenalty;
 
   // Controlled Nonlinear Chemistry (<= 3%) and Synergy (<= 4%) Match Integration (Combined <= 7%)
+  // Plus 12x12 Tactical Counter Matrix situational modifier (+5% Strong, 0% Neutral, -5% Weak)
   let effectiveChem = chemistryScore;
   let effectiveSyn = synergyScore;
   for (const b of activeBoosters) {
@@ -128,7 +158,7 @@ function computeTeamRatings(
   }
 
   const nlMods = computeNonlinearMatchModifiers(effectiveChem, effectiveSyn, balanceConfig);
-  const mult = 1 + nlMods.combinedModPct / 100;
+  const mult = 1 + (nlMods.combinedModPct + tacticalSituationalModPct) / 100;
 
   attack *= mult;
   midfield *= mult;
@@ -270,6 +300,24 @@ export function simulateMatch(
   const awaySyn = input.awaySynergyScore ?? 58;
   const homeBoosters = input.homeActiveBoosters ?? [];
   const awayBoosters = input.awayActiveBoosters ?? [];
+  const homePosBoosters = input.homePositionBoosters ?? [];
+  const awayPosBoosters = input.awayPositionBoosters ?? [];
+  const currentSeason = input.currentSeason ?? 2026;
+
+  // Evaluate 12 x 12 Tactical Counter Matrix matchup
+  const matchup = evaluateTacticalMatchup({
+    homeClub: input.homeClub,
+    awayClub: input.awayClub,
+    homePlayers: homeSquad.starters,
+    awayPlayers: awaySquad.starters,
+    homeSynergyScore: homeSyn,
+    awaySynergyScore: awaySyn,
+    homeChemistryScore: homeChem,
+    awayChemistryScore: awayChem,
+    homeManager: input.homeManagerAttributes,
+    awayManager: input.awayManagerAttributes,
+    config: balCfg,
+  });
 
   const homeRatings = computeTeamRatings(
     homeSquad.starters,
@@ -278,7 +326,10 @@ export function simulateMatch(
     homeChem,
     homeSyn,
     homeBoosters,
-    balCfg
+    balCfg,
+    matchup.teamASituationalModifierPct,
+    homePosBoosters,
+    currentSeason
   );
   const awayRatings = computeTeamRatings(
     awaySquad.starters,
@@ -287,7 +338,10 @@ export function simulateMatch(
     awayChem,
     awaySyn,
     awayBoosters,
-    balCfg
+    balCfg,
+    matchup.teamBSituationalModifierPct,
+    awayPosBoosters,
+    currentSeason
   );
 
   const homeCtx: TeamSimContext = {
@@ -332,13 +386,32 @@ export function simulateMatch(
   let homeScore = options?.initialHomeScore ?? 0;
   let awayScore = options?.initialAwayScore ?? 0;
 
+  const homeStyle = resolveTacticalPlayingStyle(input.homeClub.tactics);
+  const awayStyle = resolveTacticalPlayingStyle(input.awayClub.tactics);
+
   const homePassAcc = Math.max(
     68,
-    Math.min(94, Math.round(82 + homeRatings.chemistryModPct * 1.5 + homeRatings.synergyModPct * 0.8))
+    Math.min(
+      95,
+      Math.round(
+        82 +
+          homeRatings.chemistryModPct * 1.5 +
+          homeRatings.synergyModPct * 0.8 +
+          matchup.teamAPassAccuracyBonus * 0.5
+      )
+    )
   );
   const awayPassAcc = Math.max(
     68,
-    Math.min(94, Math.round(80 + awayRatings.chemistryModPct * 1.5 + awayRatings.synergyModPct * 0.8))
+    Math.min(
+      95,
+      Math.round(
+        80 +
+          awayRatings.chemistryModPct * 1.5 +
+          awayRatings.synergyModPct * 0.8 +
+          matchup.teamBPassAccuracyBonus * 0.5
+      )
+    )
   );
 
   const homeStats: MatchTeamStats = {
@@ -353,6 +426,13 @@ export function simulateMatch(
     yellowCards: 0,
     redCards: 0,
     corners: 0,
+    playingStyle: homeStyle,
+    tacticalMatchupOutcome: matchup.teamAOutcome,
+    tacticalAdvantagePct: matchup.teamASituationalModifierPct,
+    tacticalAdaptationScore: matchup.teamAAdaptationScore,
+    pressingSuccessPct: Math.max(35, Math.min(92, Math.round(58 + matchup.teamAPressingSuccessBonus))),
+    runningDistanceKm: Number((108.5 * TACTICAL_STYLES_CATALOG[homeStyle].staminaDrainFactor).toFixed(1)),
+    sprintDistanceKm: Number((11.4 * TACTICAL_STYLES_CATALOG[homeStyle].staminaDrainFactor).toFixed(1)),
   };
 
   const awayStats: MatchTeamStats = {
@@ -367,6 +447,13 @@ export function simulateMatch(
     yellowCards: 0,
     redCards: 0,
     corners: 0,
+    playingStyle: awayStyle,
+    tacticalMatchupOutcome: matchup.teamBOutcome,
+    tacticalAdvantagePct: matchup.teamBSituationalModifierPct,
+    tacticalAdaptationScore: matchup.teamBAdaptationScore,
+    pressingSuccessPct: Math.max(35, Math.min(92, Math.round(56 + matchup.teamBPressingSuccessBonus))),
+    runningDistanceKm: Number((107.2 * TACTICAL_STYLES_CATALOG[awayStyle].staminaDrainFactor).toFixed(1)),
+    sprintDistanceKm: Number((11.1 * TACTICAL_STYLES_CATALOG[awayStyle].staminaDrainFactor).toFixed(1)),
   };
 
   const playerRatings: Record<string, number> = {};
@@ -440,7 +527,10 @@ export function simulateMatch(
       homeChem,
       homeSyn,
       homeBoosters,
-      balCfg
+      balCfg,
+      matchup.teamASituationalModifierPct,
+      homePosBoosters,
+      currentSeason
     );
     const aR = computeTeamRatings(
       awayCtx.starters,
@@ -449,7 +539,10 @@ export function simulateMatch(
       awayChem,
       awaySyn,
       awayBoosters,
-      balCfg
+      balCfg,
+      matchup.teamBSituationalModifierPct,
+      awayPosBoosters,
+      currentSeason
     );
     homeCtx.attackRating = hR.attack + homeAdvBonus;
     homeCtx.midfieldRating = hR.midfield + homeAdvBonus * 0.85;
@@ -991,6 +1084,40 @@ export function simulateMatch(
   homeStats.possession = totalPasses > 0 ? Math.round((homeStats.passes / totalPasses) * 100) : 50;
   awayStats.possession = 100 - homeStats.possession;
 
+  // Compute full-time stamina remaining and accumulated fatigue delta for all active players
+  const playerStaminaRemaining: Record<string, number> = {};
+  const playerFatigueDelta: Record<string, number> = {};
+
+  let homeStaminaSum = 0;
+  let homeFatigueSum = 0;
+  for (const p of homeCtx.starters) {
+    const phys = evaluatePlayerInMatchPhysicalState(p, homeStyle, 90, balCfg);
+    playerStaminaRemaining[p.id] = phys.staminaRemaining;
+    const fatDelta = Math.max(2, Number((phys.fatigueAccumulated - (p.fatigue ?? 0)).toFixed(1)));
+    playerFatigueDelta[p.id] = fatDelta;
+    homeStaminaSum += phys.staminaRemaining;
+    homeFatigueSum += fatDelta;
+  }
+  homeStats.avgStaminaEnd =
+    homeCtx.starters.length > 0 ? Number((homeStaminaSum / homeCtx.starters.length).toFixed(1)) : 65;
+  homeStats.avgFatigueAdded =
+    homeCtx.starters.length > 0 ? Number((homeFatigueSum / homeCtx.starters.length).toFixed(1)) : 12;
+
+  let awayStaminaSum = 0;
+  let awayFatigueSum = 0;
+  for (const p of awayCtx.starters) {
+    const phys = evaluatePlayerInMatchPhysicalState(p, awayStyle, 90, balCfg);
+    playerStaminaRemaining[p.id] = phys.staminaRemaining;
+    const fatDelta = Math.max(2, Number((phys.fatigueAccumulated - (p.fatigue ?? 0)).toFixed(1)));
+    playerFatigueDelta[p.id] = fatDelta;
+    awayStaminaSum += phys.staminaRemaining;
+    awayFatigueSum += fatDelta;
+  }
+  awayStats.avgStaminaEnd =
+    awayCtx.starters.length > 0 ? Number((awayStaminaSum / awayCtx.starters.length).toFixed(1)) : 65;
+  awayStats.avgFatigueAdded =
+    awayCtx.starters.length > 0 ? Number((awayFatigueSum / awayCtx.starters.length).toFixed(1)) : 12;
+
   // Normalize player ratings & pick Man of the Match
   let motmId = homeCtx.starters[0]?.id ?? '';
   let bestRating = -1;
@@ -1015,6 +1142,8 @@ export function simulateMatch(
     events,
     playerRatings,
     manOfTheMatchPlayerId: motmId,
+    playerStaminaRemaining,
+    playerFatigueDelta,
   };
 }
 
