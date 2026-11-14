@@ -768,7 +768,7 @@ export function MatchdayScreen() {
                       <button
                         type="button"
                         onClick={() => {
-                          const scorer = gameState.players.find((p) => p.id === ev.actorPlayerId);
+                          const scorer = gameState.players.find((p) => p.id === ev.playerId);
                           triggerCutscene({
                             type: 'goalCelebration',
                             title: scorer
