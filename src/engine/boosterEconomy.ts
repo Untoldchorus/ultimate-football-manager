@@ -390,6 +390,105 @@ export function getBoosterDefinition(itemId: string): BoosterItemDefinition | un
   return BOOSTER_CATALOG.find((b) => b.itemId === itemId);
 }
 
+export interface StoreOfferCatalogItem {
+  offerId: string;
+  offerName: string;
+  category: 'starter_pack' | 'bundle' | 'currency_pack' | 'booster';
+  currencyType: 'soft' | 'premium' | 'real_money';
+  costAmount: number;
+  priceDisplay: string;
+  badgeText?: string;
+  description: string;
+  itemsGranted: { itemId: string; quantity: number }[];
+  softCoinsGranted?: number;
+  premiumCoinsGranted?: number;
+}
+
+export const SERVER_STORE_OFFERS: StoreOfferCatalogItem[] = [
+  {
+    offerId: 'offer-bundle-matchday-prep',
+    offerName: 'Matchday Tactical & Fitness Bundle',
+    category: 'bundle',
+    currencyType: 'premium',
+    costAmount: 145,
+    priceDisplay: '145 Premium Coins',
+    badgeText: 'POPULAR BUNDLE',
+    description:
+      'Includes 1x Opposition & Tactical Preparation Dossier (Rare), 2x Cryo Recovery Packs (Common), and 1x Squad Communication Workshop (Common).',
+    itemsGranted: [
+      { itemId: 'bst-syn-tac-rare', quantity: 1 },
+      { itemId: 'bst-rec-pack-common', quantity: 2 },
+      { itemId: 'bst-chem-train-common', quantity: 1 },
+    ],
+  },
+  {
+    offerId: 'offer-bundle-champions-cohesion',
+    offerName: 'Champions Cohesion & Synergy Crate',
+    category: 'bundle',
+    currencyType: 'premium',
+    costAmount: 310,
+    priceDisplay: '310 Premium Coins',
+    badgeText: 'EVENT SPECIAL',
+    description:
+      'High-tier tactical & dressing room crate: 1x Pre-Match Retreat & Team Bonding (Epic), 1x Synchronized Unit Coordination Camp (Epic), and 1x Dressing Room Gala (Rare).',
+    itemsGranted: [
+      { itemId: 'bst-chem-bonding-epic', quantity: 1 },
+      { itemId: 'bst-syn-unit-epic', quantity: 1 },
+      { itemId: 'bst-mor-team-rare', quantity: 1 },
+    ],
+  },
+  {
+    offerId: 'offer-bundle-academy-breakthrough',
+    offerName: 'Elite Academy Development Pack',
+    category: 'bundle',
+    currencyType: 'soft',
+    costAmount: 1650,
+    priceDisplay: '1,650 Club Coins',
+    badgeText: 'SOFT CURRENCY VALUE',
+    description:
+      'Accelerate player development within fair-play caps: 2x Standard Training XP Drills (Common) and 1x Precision Technical Masterclass (Rare).',
+    itemsGranted: [
+      { itemId: 'bst-train-xp-common', quantity: 2 },
+      { itemId: 'bst-train-tech-rare', quantity: 1 },
+    ],
+  },
+  {
+    offerId: 'offer-coins-board-stipend',
+    offerName: 'Club Board Treasury Exchange (2,500 Club Coins)',
+    category: 'currency_pack',
+    currencyType: 'premium',
+    costAmount: 110,
+    priceDisplay: '110 Premium Coins',
+    description: 'Convert 110 Premium Coins into 2,500 Soft Club Coins for regular consumables.',
+    itemsGranted: [],
+    softCoinsGranted: 2500,
+  },
+  {
+    offerId: 'offer-premium-pouch-500',
+    offerName: 'Manager Treasury Pouch (500 Premium Coins)',
+    category: 'currency_pack',
+    currencyType: 'real_money',
+    costAmount: 4.99,
+    priceDisplay: '$4.99',
+    badgeText: 'TREASURY PACK',
+    description: '500 verified Premium Coins for specialist tactical dossiers and seasonal crates.',
+    itemsGranted: [],
+    premiumCoinsGranted: 500,
+  },
+  {
+    offerId: 'offer-premium-vault-1200',
+    offerName: 'Champions Boardroom Vault (1,200 Premium Coins)',
+    category: 'currency_pack',
+    currencyType: 'real_money',
+    costAmount: 9.99,
+    priceDisplay: '$9.99',
+    badgeText: '+20% BONUS COINS',
+    description: '1,200 verified Premium Coins + 1x Bonus Precision Technical Masterclass (Rare).',
+    itemsGranted: [{ itemId: 'bst-train-tech-rare', quantity: 1 }],
+    premiumCoinsGranted: 1200,
+  },
+];
+
 /**
  * Generates the initial default objectives (Daily, Weekly, Seasonal, Achievements).
  */

@@ -18,12 +18,12 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
-import { SERVER_STORE_OFFERS } from '@/app/api/economy/purchase/route';
 import { DEFAULT_BALANCE_CONFIG } from '@/engine/balanceConfig';
 import {
   BOOSTER_CATALOG,
   ensureEconomyState,
   getBoosterDefinition,
+  SERVER_STORE_OFFERS,
 } from '@/engine/boosterEconomy';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
