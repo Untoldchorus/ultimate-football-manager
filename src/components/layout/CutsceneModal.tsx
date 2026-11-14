@@ -1,8 +1,15 @@
-import React, { useEffect } from 'react';
-import { FastForward, Sparkles, Trophy, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FastForward, Sparkles, Trophy, X, Film } from 'lucide-react';
 import { CutsceneType } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
+import { normalizeCutsceneId } from '@/services/cutsceneTriggerService';
+
+interface VideoClipMeta {
+  mp4?: string;
+  webm?: string;
+  poster?: string;
+}
 
 function CinematicSceneStage({
   type,
@@ -22,8 +29,33 @@ function CinematicSceneStage({
   const isTalk = type === 'preMatchTalk' || type === 'halfTimeTalk';
   const isUnveiling = type === 'managerIntro';
 
+  const canonicalId = normalizeCutsceneId(type);
+  const [videoSrc, setVideoSrc] = useState<VideoClipMeta | null>(null);
+
+  useEffect(() => {
+    // Try to load pre-rendered 3D HD video clip
+    const testMp4 = `/cutscenes/${canonicalId}/generic.mp4`;
+    const testWebm = `/cutscenes/${canonicalId}/generic.webm`;
+    const testPoster = `/cutscenes/${canonicalId}/generic.jpg`;
+    setVideoSrc({ mp4: testMp4, webm: testWebm, poster: testPoster });
+  }, [canonicalId]);
+
   return (
-    <div className="relative w-full h-64 rounded-2xl overflow-hidden border border-white/15 bg-navy-950 shadow-inner">
+    <div className="relative w-full h-72 md:h-80 rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl">
+      {videoSrc ? (
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={videoSrc.poster}
+          className="w-full h-full object-cover"
+          onError={() => setVideoSrc(null)}
+        >
+          <source src={videoSrc.webm} type="video/webm" />
+          <source src={videoSrc.mp4} type="video/mp4" />
+        </video>
+      ) : (
       <svg viewBox="0 0 800 320" className="w-full h-full block select-none">
         <defs>
           <linearGradient id="stageSky" x1="0" y1="0" x2="0" y2="1">
@@ -277,11 +309,12 @@ function CinematicSceneStage({
           </g>
         )}
       </svg>
+      )}
 
       {/* Top Overlay Badge */}
-      <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-navy-950/90 border border-gold-400/50 text-[10px] font-black uppercase tracking-widest text-gold-400 flex items-center gap-1.5">
-        {isTrophy ? <Trophy className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-        <span>Live Broadcast Cutscene &bull; {type}</span>
+      <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-navy-950/90 border border-gold-400/50 text-[10px] font-black uppercase tracking-widest text-gold-400 flex items-center gap-1.5 backdrop-blur-sm shadow-md">
+        {videoSrc ? <Film className="w-3.5 h-3.5 text-pitch-400" /> : isTrophy ? <Trophy className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
+        <span>{videoSrc ? 'EA FC 3D CINEMATIC' : 'Live Broadcast Cutscene'} &bull; {type}</span>
       </div>
     </div>
   );
