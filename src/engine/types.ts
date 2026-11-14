@@ -527,7 +527,17 @@ export interface ActiveCutscene {
   subtitle: string;
   primaryColor?: string;
   secondaryColor?: string;
+  playerId?: string;
   playerName?: string;
+  shirtNumber?: number;
+  position?: PositionCode;
+  overall?: number;
+  nationality?: string;
+  heightCm?: number;
+  strength?: number;
+  photoUrl?: string;
+  skinColor?: string;
+  hairColor?: string;
   clubName?: string;
   scoreText?: string;
 }

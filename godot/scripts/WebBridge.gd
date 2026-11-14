@@ -58,8 +58,23 @@ func _setup_javascript_bridge() -> void:
 		bridge.playReplay = _cb_play_replay
 		bridge.ready = true
 
-	# Notify parent iframe / window that Godot is initialized and ready for timeline data
+	# Notify parent iframe / window that Godot is initialized and ready for timeline data, and listen for postMessage commands
 	JavaScriptBridge.eval("""
+		window.addEventListener('message', function(ev) {
+			var d = ev.data;
+			if (!d || !d.type || !window.godotMatchBridge) return;
+			if (d.type === 'PLAY_CUTSCENE' && window.godotMatchBridge.playCutscene) {
+				window.godotMatchBridge.playCutscene(JSON.stringify(d));
+			} else if (d.type === 'LOAD_TIMELINE' && window.godotMatchBridge.loadTimeline) {
+				window.godotMatchBridge.loadTimeline(JSON.stringify(d.payload || d));
+			} else if (d.type === 'SET_CLOCK' && window.godotMatchBridge.setClock) {
+				window.godotMatchBridge.setClock(d.clockSeconds || 0);
+			} else if (d.type === 'SET_CAMERA' && window.godotMatchBridge.setCamera) {
+				window.godotMatchBridge.setCamera(d.preset || 'broadcast');
+			} else if (d.type === 'SET_QUALITY' && window.godotMatchBridge.setQuality) {
+				window.godotMatchBridge.setQuality(d.quality || 'high');
+			}
+		});
 		if (window.parent && window.parent !== window) {
 			window.parent.postMessage({ type: 'GODOT_VIEWER_READY' }, '*');
 		}

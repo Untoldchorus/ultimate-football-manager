@@ -1,4 +1,77 @@
-import { CanonicalCutsceneId, CutsceneType, MatchEvent } from '@/engine/types';
+import { CanonicalCutsceneId, CutsceneType, MatchEvent, Player } from '@/engine/types';
+
+export interface DerivedPlayerAppearance {
+  skinColor: string;
+  hairColor: string;
+  heightScale: number;
+  buildScale: number;
+  shirtNumber: number;
+}
+
+const SKIN_PALETTE = [
+  '#f4d0b5', // Fair warm
+  '#eac09e', // Light Mediterranean
+  '#d8a07a', // Olive / Mestizo
+  '#b87b52', // Warm Bronze
+  '#8c5332', // Rich Brown
+  '#52301c', // Deep Espresso
+];
+
+const HAIR_PALETTE = [
+  '#0f0c0a', // Jet Black
+  '#1f1610', // Dark Espresso Brown
+  '#3b2618', // Chestnut Brown
+  '#6e4726', // Medium Golden Brown
+  '#b88b4a', // Dirty Blonde
+  '#8c2d19', // Auburn
+];
+
+function hashString(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+export function derivePlayerAppearance(
+  player?: Partial<Player> | null,
+  fallbackName = 'Player'
+): DerivedPlayerAppearance {
+  const seedKey = `${player?.id ?? ''}_${player?.firstName ?? ''}_${player?.lastName ?? fallbackName}_${player?.nationality ?? ''}`;
+  const hash = hashString(seedKey);
+  const nat = (player?.nationality ?? '').toLowerCase();
+
+  let skinIdx = hash % SKIN_PALETTE.length;
+  if (nat.includes('nigeria') || nat.includes('senegal') || nat.includes('ghana') || nat.includes('cameroon') || nat.includes('ivory') || nat.includes('mali')) {
+    skinIdx = 4 + (hash % 2);
+  } else if (nat.includes('norway') || nat.includes('sweden') || nat.includes('denmark') || nat.includes('poland') || nat.includes('germany')) {
+    skinIdx = hash % 2;
+  } else if (nat.includes('spain') || nat.includes('italy') || nat.includes('portugal') || nat.includes('argentina') || nat.includes('mexico') || nat.includes('japan') || nat.includes('korea')) {
+    skinIdx = 1 + (hash % 2);
+  } else if (nat.includes('brazil') || nat.includes('colombia') || nat.includes('france') || nat.includes('england') || nat.includes('usa') || nat.includes('netherlands')) {
+    skinIdx = hash % SKIN_PALETTE.length;
+  }
+
+  const hairIdx =
+    skinIdx >= 3 ? (hash >> 3) % 2 : (hash >> 3) % HAIR_PALETTE.length;
+
+  const heightCm = player?.heightCm ?? 175 + (hash % 18);
+  const strength = player?.attributes?.strength ?? 68 + (hash % 22);
+
+  const heightScale = Number(Math.max(0.94, Math.min(1.16, (heightCm / 180) * 1.05)).toFixed(3));
+  const buildScale = Number(Math.max(0.93, Math.min(1.12, 0.92 + (strength / 100) * 0.18)).toFixed(3));
+  const shirtNumber = player?.shirtNumber ?? ((hash % 29) + 2);
+
+  return {
+    skinColor: SKIN_PALETTE[skinIdx],
+    hairColor: HAIR_PALETTE[hairIdx],
+    heightScale,
+    buildScale,
+    shirtNumber,
+  };
+}
 
 export type CutsceneRenderMode = 'cinematic' | 'live' | 'off';
 export type CutsceneFrequency = 'all' | 'key_moments' | 'off';

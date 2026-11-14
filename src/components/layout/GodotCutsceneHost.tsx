@@ -24,6 +24,15 @@ export function GodotCutsceneHost({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (!ready) {
+        onSkip();
+      }
+    }, 6500);
+    return () => window.clearTimeout(timeout);
+  }, [ready, onSkip]);
+
+  useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       const data = event.data as { type?: string } | null;
@@ -41,6 +50,15 @@ export function GodotCutsceneHost({
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, [cutsceneId, params, quality, onFinished]);
+
+  useEffect(() => {
+    if (ready) {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'PLAY_CUTSCENE', cutsceneId, params, quality },
+        window.location.origin
+      );
+    }
+  }, [ready, cutsceneId, params, quality]);
 
   return (
     <div className="relative w-full h-full bg-navy-950 rounded-2xl overflow-hidden">

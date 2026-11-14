@@ -767,10 +767,13 @@ export function MatchdayScreen() {
                     {isGoal && (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          const scorer = gameState.players.find((p) => p.id === ev.actorPlayerId);
                           triggerCutscene({
                             type: 'goalCelebration',
-                            title: `GOAL! (${ev.minute}')`,
+                            title: scorer
+                              ? `GOAL! ${scorer.firstName} ${scorer.lastName} (${ev.minute}')`
+                              : `GOAL! (${ev.minute}')`,
                             subtitle: ev.metadata?.commentary ?? 'The stadium erupts!',
                             primaryColor:
                               ev.teamId === liveHomeClub.id
@@ -780,10 +783,19 @@ export function MatchdayScreen() {
                               ev.teamId === liveHomeClub.id
                                 ? liveHomeClub.secondaryColor
                                 : liveAwayClub.secondaryColor,
+                            playerId: scorer?.id,
+                            playerName: scorer ? `${scorer.firstName} ${scorer.lastName}` : undefined,
+                            shirtNumber: scorer?.shirtNumber,
+                            position: scorer?.primaryPosition,
+                            overall: scorer?.overall,
+                            nationality: scorer?.nationality,
+                            heightCm: scorer?.heightCm,
+                            strength: scorer?.attributes.strength,
+                            photoUrl: scorer?.photoUrl,
                             clubName:
                               ev.teamId === liveHomeClub.id ? liveHomeClub.name : liveAwayClub.name,
-                          })
-                        }
+                          });
+                        }}
                         className="px-2 py-1 rounded bg-gold-500 text-navy-950 text-[10px] font-black uppercase shrink-0"
                       >
                         Scene

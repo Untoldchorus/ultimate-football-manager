@@ -25,6 +25,7 @@ func _ready() -> void:
 	WebBridge.timeline_updated.connect(_on_timeline_updated)
 	WebBridge.clock_updated.connect(_on_clock_updated)
 	WebBridge.camera_preset_changed.connect(_on_camera_preset_changed)
+	WebBridge.cutscene_requested.connect(_on_cutscene_requested)
 
 func _build_environment() -> void:
 	var env := Environment.new()
@@ -271,6 +272,28 @@ func _on_clock_updated(clock_seconds: float) -> void:
 func _on_camera_preset_changed(preset: String) -> void:
 	_camera_preset = preset
 	_interpolate_and_apply()
+
+var _active_cutscene_rig: Node = null
+
+func _on_cutscene_requested(cutscene_id: String, payload: Dictionary) -> void:
+	if _active_cutscene_rig != null and is_instance_valid(_active_cutscene_rig):
+		_active_cutscene_rig.queue_free()
+		_active_cutscene_rig = null
+
+	var RigClass = load("res://scripts/cinematic/CinematicRig.gd")
+	if RigClass == null:
+		return
+	var rig: Node = RigClass.new()
+	_active_cutscene_rig = rig
+	add_child(rig)
+	var params: Dictionary = payload.get("params", payload) if typeof(payload.get("params")) == TYPE_DICTIONARY else payload.duplicate()
+	params["cutsceneId"] = cutscene_id
+	if payload.has("quality"):
+		params["quality"] = payload.get("quality")
+	rig.sequence_completed.connect(func():
+		WebBridge.emit_event_to_react("CUTSCENE_COMPLETE", {"cutsceneId": cutscene_id})
+	)
+	rig.configure(params)
 
 func _event_time_sec(ev: Dictionary) -> float:
 	return (float(ev.get("minute", 1)) - 1.0) * 60.0 + float(ev.get("second", 0))

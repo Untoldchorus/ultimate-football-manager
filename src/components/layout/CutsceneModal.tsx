@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { FastForward, Sparkles, Trophy, X, Film } from 'lucide-react';
-import { CutsceneType } from '@/engine/types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FastForward, Sparkles, Trophy, X, Film, Cpu, User } from 'lucide-react';
+import { ActiveCutscene, CutsceneType } from '@/engine/types';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
-import { normalizeCutsceneId } from '@/services/cutsceneTriggerService';
+import { derivePlayerAppearance, normalizeCutsceneId } from '@/services/cutsceneTriggerService';
+import { GodotCutsceneHost } from './GodotCutsceneHost';
 
 interface VideoClipMeta {
   mp4?: string;
@@ -12,16 +13,17 @@ interface VideoClipMeta {
 }
 
 function CinematicSceneStage({
-  type,
-  primaryColor,
-  secondaryColor,
-  clubName,
+  cutscene,
+  onComplete,
 }: {
-  type: CutsceneType;
-  primaryColor: string;
-  secondaryColor: string;
-  clubName: string;
+  cutscene: ActiveCutscene;
+  onComplete: () => void;
 }) {
+  const type = cutscene.type;
+  const primaryColor = cutscene.primaryColor ?? '#dc2626';
+  const secondaryColor = cutscene.secondaryColor ?? '#ffffff';
+  const clubName = cutscene.clubName ?? 'Football Club';
+
   const isTrophy = type === 'trophyPresentation' || type === 'leagueChampionship';
   const isGoal = type === 'goalCelebration';
   const isSigning = type === 'playerSigning';
@@ -31,18 +33,60 @@ function CinematicSceneStage({
 
   const canonicalId = normalizeCutsceneId(type);
   const [videoSrc, setVideoSrc] = useState<VideoClipMeta | null>(null);
+  const [useLive3D, setUseLive3D] = useState<boolean>(true);
+  const [photoBroken, setPhotoBroken] = useState<boolean>(false);
+
+  const appearance = useMemo(
+    () =>
+      derivePlayerAppearance(
+        {
+          id: cutscene.playerId,
+          firstName: cutscene.playerName?.split(' ')[0],
+          lastName: cutscene.playerName?.split(' ').slice(1).join(' '),
+          nationality: cutscene.nationality,
+          heightCm: cutscene.heightCm,
+          shirtNumber: cutscene.shirtNumber,
+          attributes: cutscene.strength ? ({ strength: cutscene.strength } as never) : undefined,
+        },
+        cutscene.playerName ?? 'Player'
+      ),
+    [cutscene]
+  );
+
+  const godotParams = useMemo(
+    () => ({
+      primaryColor,
+      secondaryColor,
+      skinColor: cutscene.skinColor ?? appearance.skinColor,
+      hairColor: cutscene.hairColor ?? appearance.hairColor,
+      heightScale: appearance.heightScale,
+      buildScale: appearance.buildScale,
+      shirtNumber: cutscene.shirtNumber ?? appearance.shirtNumber,
+      playerName: cutscene.playerName ?? '',
+      clubName,
+    }),
+    [cutscene, primaryColor, secondaryColor, clubName, appearance]
+  );
 
   useEffect(() => {
-    // Try to load pre-rendered 3D HD video clip
     const testMp4 = `/cutscenes/${canonicalId}/generic.mp4`;
     const testWebm = `/cutscenes/${canonicalId}/generic.webm`;
     const testPoster = `/cutscenes/${canonicalId}/generic.jpg`;
     setVideoSrc({ mp4: testMp4, webm: testWebm, poster: testPoster });
-  }, [canonicalId]);
+    setPhotoBroken(false);
+  }, [canonicalId, cutscene.playerId]);
 
   return (
     <div className="relative w-full h-72 md:h-80 rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl">
-      {videoSrc ? (
+      {useLive3D ? (
+        <GodotCutsceneHost
+          cutsceneId={canonicalId}
+          params={godotParams}
+          quality="high"
+          onFinished={onComplete}
+          onSkip={() => setUseLive3D(false)}
+        />
+      ) : videoSrc ? (
         <video
           autoPlay
           muted
@@ -311,11 +355,95 @@ function CinematicSceneStage({
       </svg>
       )}
 
-      {/* Top Overlay Badge */}
-      <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-navy-950/90 border border-gold-400/50 text-[10px] font-black uppercase tracking-widest text-gold-400 flex items-center gap-1.5 backdrop-blur-sm shadow-md">
-        {videoSrc ? <Film className="w-3.5 h-3.5 text-pitch-400" /> : isTrophy ? <Trophy className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-        <span>{videoSrc ? 'EA FC 3D CINEMATIC' : 'Live Broadcast Cutscene'} &bull; {type}</span>
+      {/* Top Overlay Badge + Engine Toggle */}
+      <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+        <div className="px-3 py-1 rounded-full bg-navy-950/90 border border-gold-400/50 text-[10px] font-black uppercase tracking-widest text-gold-400 flex items-center gap-1.5 backdrop-blur-sm shadow-md">
+          {useLive3D ? (
+            <Cpu className="w-3.5 h-3.5 text-pitch-400" />
+          ) : videoSrc ? (
+            <Film className="w-3.5 h-3.5 text-pitch-400" />
+          ) : isTrophy ? (
+            <Trophy className="w-3.5 h-3.5" />
+          ) : (
+            <Sparkles className="w-3.5 h-3.5" />
+          )}
+          <span>
+            {useLive3D ? 'LIVE 3D PLAYER ENGINE' : videoSrc ? 'EA FC 3D CINEMATIC' : 'Live Broadcast Cutscene'} &bull; {type}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setUseLive3D((prev) => !prev)}
+          className="px-2.5 py-1 rounded-full bg-navy-900/90 hover:bg-navy-800 border border-slate-700 text-[10px] font-bold text-slate-200 backdrop-blur-sm transition"
+        >
+          {useLive3D ? 'Switch to HD Video' : 'Switch to Live 3D'}
+        </button>
       </div>
+
+      {/* Personalized Broadcast Player Identity Card Overlay */}
+      {cutscene.playerName && (
+        <div
+          data-testid="cutscene-player-card"
+          className="absolute bottom-3 left-3 z-20 flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-navy-950/90 border border-white/15 backdrop-blur-md shadow-xl text-left max-w-[85%]"
+        >
+          <div
+            className="relative w-12 h-12 rounded-xl overflow-hidden border-2 shrink-0 flex items-center justify-center bg-navy-900"
+            style={{ borderColor: primaryColor }}
+          >
+            {cutscene.photoUrl && !photoBroken ? (
+              <img
+                src={cutscene.photoUrl}
+                alt={cutscene.playerName}
+                className="w-full h-full object-cover"
+                onError={() => setPhotoBroken(true)}
+              />
+            ) : (
+              <div
+                className="w-full h-full flex flex-col items-center justify-center font-black text-xs"
+                style={{ backgroundColor: primaryColor, color: secondaryColor }}
+              >
+                <User className="w-4 h-4 opacity-80" />
+                <span>#{godotParams.shirtNumber}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span
+                className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase"
+                style={{ backgroundColor: primaryColor, color: secondaryColor }}
+              >
+                #{godotParams.shirtNumber}
+              </span>
+              {cutscene.position && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-gold-400 text-[10px] font-black uppercase">
+                  {cutscene.position}
+                </span>
+              )}
+              {cutscene.overall && (
+                <span className="px-1.5 py-0.5 rounded bg-pitch-600/30 border border-pitch-500/40 text-pitch-300 text-[10px] font-black">
+                  OVR {cutscene.overall}
+                </span>
+              )}
+              <span
+                className="w-3 h-3 rounded-full border border-white/40 inline-block"
+                title={`3D Skin Tone: ${godotParams.skinColor}`}
+                style={{ backgroundColor: godotParams.skinColor }}
+              />
+            </div>
+            <div className="text-sm font-black text-white truncate mt-0.5">
+              {cutscene.playerName}
+            </div>
+            <div className="text-[11px] font-semibold text-slate-300 truncate">
+              {clubName}
+              {cutscene.nationality ? ` • ${cutscene.nationality}` : ''}
+              {cutscene.heightCm ? ` • ${cutscene.heightCm}cm` : ''}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -360,10 +488,8 @@ export function CutsceneModal() {
 
         {/* Animated Cinematic Stage */}
         <CinematicSceneStage
-          type={activeCutscene.type}
-          primaryColor={activeCutscene.primaryColor ?? '#10b981'}
-          secondaryColor={activeCutscene.secondaryColor ?? '#ffffff'}
-          clubName={activeCutscene.clubName ?? 'Football Club'}
+          cutscene={activeCutscene}
+          onComplete={() => {}}
         />
 
         <div className="space-y-2">

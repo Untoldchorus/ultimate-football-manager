@@ -40,6 +40,13 @@ func _build_scene(p: Dictionary) -> void:
 
 	var primary := Color.from_string(str(p.get("primaryColor", "#dc2626")), Color("#dc2626"))
 	var secondary := Color.from_string(str(p.get("secondaryColor", "#ffffff")), Color("#ffffff"))
+	var skin_color := Color.from_string(str(p.get("skinColor", "#946142")), Color(0.58, 0.38, 0.26))
+	var hair_color := Color.from_string(str(p.get("hairColor", "#0d0a07")), Color(0.05, 0.04, 0.03))
+	var height_scale := clampf(float(p.get("heightScale", 1.05)), 0.90, 1.20)
+	var build_scale := clampf(float(p.get("buildScale", 1.0)), 0.90, 1.16)
+	var shirt_number := int(p.get("shirtNumber", 9))
+	var player_name := str(p.get("playerName", ""))
+	var club_name := str(p.get("clubName", "FOOTBALL CLUB"))
 
 	_cam = Camera3D.new()
 	_cam.fov = 38.0
@@ -74,26 +81,48 @@ func _build_scene(p: Dictionary) -> void:
 
 		var backdrop := MeshInstance3D.new()
 		var b_box := BoxMesh.new()
-		b_box.size = Vector3(4.2, 2.3, 0.18)
+		b_box.size = Vector3(4.8, 2.75, 0.18)
 		backdrop.mesh = b_box
 		var b_mat := StandardMaterial3D.new()
 		b_mat.albedo_color = primary.darkened(0.25)
 		b_mat.roughness = 0.35
 		backdrop.material_override = b_mat
-		backdrop.position = Vector3(0.0, 1.15, -3.8)
+		backdrop.position = Vector3(0.0, 1.38, -3.8)
 		add_child(backdrop)
 
 		var gold_trim := MeshInstance3D.new()
 		var g_box := BoxMesh.new()
-		g_box.size = Vector3(4.3, 0.12, 0.22)
+		g_box.size = Vector3(4.9, 0.12, 0.22)
 		gold_trim.mesh = g_box
 		var g_mat := StandardMaterial3D.new()
 		g_mat.albedo_color = Color("#fbbf24")
 		g_mat.metallic = 0.8
 		g_mat.roughness = 0.2
 		gold_trim.material_override = g_mat
-		gold_trim.position = Vector3(0.0, 2.32, -3.8)
+		gold_trim.position = Vector3(0.0, 2.78, -3.8)
 		add_child(gold_trim)
+
+		# Dynamic 3D Club & Player Nameplate on the Unveiling Backdrop Arch (above player's head)
+		var club_lbl := Label3D.new()
+		club_lbl.text = club_name.to_upper()
+		club_lbl.font_size = 52
+		club_lbl.pixel_size = 0.0038
+		club_lbl.modulate = Color("#fbbf24")
+		club_lbl.outline_size = 10
+		club_lbl.outline_modulate = Color("#020617")
+		club_lbl.position = Vector3(0.0, 2.48, -3.68)
+		add_child(club_lbl)
+
+		if player_name.strip_edges() != "":
+			var hero_lbl := Label3D.new()
+			hero_lbl.text = ("#" + str(shirt_number) + " " + player_name.to_upper()) if shirt_number > 0 else player_name.to_upper()
+			hero_lbl.font_size = 44
+			hero_lbl.pixel_size = 0.0035
+			hero_lbl.modulate = secondary
+			hero_lbl.outline_size = 8
+			hero_lbl.outline_modulate = Color("#020617")
+			hero_lbl.position = Vector3(0.0, 2.18, -3.68)
+			add_child(hero_lbl)
 
 	var CharClass = load("res://scripts/cinematic/CinematicCharacter.gd")
 	var hero = CharClass.new()
@@ -101,10 +130,10 @@ func _build_scene(p: Dictionary) -> void:
 	
 	# Prefer newly generated realistic anatomical model with custom shirt presentation animation
 	var glb := "res://assets/characters/footballer_unveiling.glb"
-	if not FileAccess.file_exists(glb):
+	if not ResourceLoader.exists(glb) and not FileAccess.file_exists(glb):
 		glb = "res://assets/characters/player.glb" if is_player_hero else "res://assets/characters/manager.glb"
 		
-	hero.setup(glb, primary, secondary, 1.05)
+	hero.setup(glb, primary, secondary, height_scale, skin_color, hair_color, build_scale, shirt_number, player_name)
 	hero.position = Vector3(0.0, 0.0, -2.2) if cutscene_id in ["player_signing", "manager_intro"] else Vector3(0.0, 0.0, 0.0)
 	_actors.append(hero)
 
