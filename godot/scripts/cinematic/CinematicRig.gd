@@ -1,4 +1,4 @@
-extends CutsceneBase
+extends "res://scripts/cinematic/CutsceneBase.gd"
 class_name CinematicRig
 ## Reusable AAA multi-camera cinematic rig with DoF, stadium backdrop, rigged characters, and press flashes.
 
@@ -6,7 +6,7 @@ var _cam: Camera3D = null
 var _flash_light: OmniLight3D = null
 var _flash_timer: float = 0.0
 var _enable_flashes: bool = false
-var _actors: Array[CinematicCharacter] = []
+var _actors: Array = []
 
 const DURATIONS := {
 	"manager_intro": 6.0,
@@ -47,7 +47,8 @@ func _build_scene(p: Dictionary) -> void:
 	add_child(_cam)
 
 	var quality := str(p.get("quality", "high"))
-	CinematicQualityManager.apply_to_viewport(get_viewport(), world_env, _cam, quality)
+	var QualityManager = load("res://scripts/cinematic/CinematicQualityManager.gd")
+	QualityManager.apply_to_viewport(get_viewport(), world_env, _cam, quality)
 
 	var is_player_hero := cutscene_id in ["player_signing", "goal_celebration", "red_card_reaction", "missed_penalty", "career_milestone", "trophy_presentation"]
 	_enable_flashes = cutscene_id in ["player_signing", "manager_intro", "trophy_presentation", "league_championship"]
@@ -56,44 +57,58 @@ func _build_scene(p: Dictionary) -> void:
 		_flash_light = OmniLight3D.new()
 		_flash_light.light_color = Color(0.95, 0.97, 1.0)
 		_flash_light.light_energy = 0.0
-		_flash_light.omni_range = 12.0
+		_flash_light.omni_range = 14.0
 		_flash_light.position = Vector3(1.8, 1.9, 2.8)
 		add_child(_flash_light)
 
-	var hero := CinematicCharacter.new()
+	var CharClass = load("res://scripts/cinematic/CinematicCharacter.gd")
+	var hero = CharClass.new()
 	add_child(hero)
-	var glb := "res://assets/characters/player.glb" if is_player_hero else "res://assets/characters/manager.glb"
-	hero.setup(glb, primary, secondary, 1.15)
-	hero.position = Vector3(0.0, 0.0, -3.5) if cutscene_id == "player_signing" else Vector3(0.0, 0.0, 0.0)
+	
+	# Prefer newly generated realistic anatomical model with custom shirt presentation animation
+	var glb := "res://assets/characters/footballer_unveiling.glb"
+	if not FileAccess.file_exists(glb):
+		glb = "res://assets/characters/player.glb" if is_player_hero else "res://assets/characters/manager.glb"
+		
+	hero.setup(glb, primary, secondary, 1.05)
+	hero.position = Vector3(0.0, 0.0, -3.0) if cutscene_id == "player_signing" else Vector3(0.0, 0.0, 0.0)
 	_actors.append(hero)
 
 	var dur := float(p.get("duration", default_duration))
-	if cutscene_id == "player_signing":
+	if cutscene_id in ["player_signing", "manager_intro"]:
 		_run_player_unveiling(hero, dur)
 	else:
 		_run_standard_cinematic(hero, is_player_hero, dur)
 
-func _run_player_unveiling(hero: CinematicCharacter, dur: float) -> void:
-	hero.play_anim(["walk", "Walk", "idle", "Idle"], 0.2)
+func _run_player_unveiling(hero: Node, dur: float) -> void:
+	hero.play_anim(["shirt_presentation", "walk", "Walk", "idle", "Idle"], 0.2)
 	var walk_tween := create_tween()
-	walk_tween.tween_property(hero, "position", Vector3(0.0, 0.0, 0.0), dur * 0.52).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	walk_tween.tween_callback(func(): hero.play_anim(["idle", "Idle", "walk", "Walk"], 0.35))
+	walk_tween.tween_property(hero, "position", Vector3(0.0, 0.0, 0.0), dur * 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
-	# Shot 1: Wide stadium establish -> Shot 2: Medium tracking -> Shot 3: Close-up hero
-	_cam.position = Vector3(-5.5, 2.4, 6.0)
-	_cam.look_at(Vector3(0.0, 1.2, -1.5), Vector3.UP)
+	# Multi-shot broadcast coverage:
+	# Shot 1 (0 to 45%): Low wide tracking shot capturing walk-in to presentation area
+	# Shot 2 (45% to 75%): Medium heroic shot as player raises and holds up club jersey
+	# Shot 3 (75% to 100%): Tight dramatic close-up showing jersey details, name, and press flash photography
+	_cam.position = Vector3(-4.2, 1.9, 5.0)
+	_cam.look_at_from_position(_cam.position, Vector3(0.0, 1.2, -1.0), Vector3.UP)
 
 	var cam_tween := create_tween()
 	cam_tween.tween_method(func(t: float) -> void:
-		_cam.position = Vector3(-5.5, 2.4, 6.0).lerp(Vector3(2.8, 1.65, 3.6), t)
+		_cam.position = Vector3(-4.2, 1.9, 5.0).lerp(Vector3(2.4, 1.55, 3.2), t)
 		_cam.look_at(hero.position + Vector3(0.0, 1.25, 0.0), Vector3.UP)
-	, 0.0, 1.0, dur * 0.55)
-	cam_tween.tween_method(func(t: float) -> void:
-		_cam.position = Vector3(1.4, 1.55, 2.4).lerp(Vector3(-0.9, 1.6, 2.1), t)
-		_cam.look_at(Vector3(0.0, 1.38, 0.0), Vector3.UP)
 	, 0.0, 1.0, dur * 0.45)
+	
+	cam_tween.tween_method(func(t: float) -> void:
+		_cam.position = Vector3(1.6, 1.45, 2.5).lerp(Vector3(-1.1, 1.48, 2.2), t)
+		_cam.look_at(Vector3(0.0, 1.35, 0.0), Vector3.UP)
+	, 0.0, 1.0, dur * 0.30)
+	
+	cam_tween.tween_method(func(t: float) -> void:
+		_cam.position = Vector3(-0.45, 1.42, 1.65).lerp(Vector3(0.40, 1.46, 1.55), t)
+		_cam.look_at(Vector3(0.0, 1.38, 0.0), Vector3.UP)
+	, 0.0, 1.0, dur * 0.25)
 
-func _run_standard_cinematic(hero: CinematicCharacter, is_player_hero: bool, dur: float) -> void:
+func _run_standard_cinematic(hero: Node, is_player_hero: bool, dur: float) -> void:
 	if is_player_hero:
 		hero.play_anim(["run", "Run", "walk", "Walk", "idle", "Idle"], 0.25)
 	else:

@@ -31,6 +31,8 @@ func configure(new_params: Dictionary) -> void:
 	is_paused = false
 
 func _apply_club_colours() -> void:
+	if not is_inside_tree():
+		return
 	var primary := Color.from_string(str(params.get("primaryColor", "#10b981")), Color("#10b981"))
 	var secondary := Color.from_string(str(params.get("secondaryColor", "#ffffff")), Color("#ffffff"))
 	for node in get_tree().get_nodes_in_group("home_kit"):
