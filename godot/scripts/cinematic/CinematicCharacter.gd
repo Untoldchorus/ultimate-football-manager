@@ -11,10 +11,10 @@ func setup(glb_path: String, primary_color: Color, secondary_color: Color, char_
 		push_warning("CinematicCharacter: GLB not found at " + glb_path)
 		return
 	
-	# Load runtime GLTF directly to bypass Godot import cache requirements
+	# Load runtime GLTF directly via globalize_path to bypass Godot import cache requirements
 	var gltf := GLTFDocument.new()
 	var state := GLTFState.new()
-	var err := gltf.append_from_file(glb_path, state)
+	var err := gltf.append_from_file(global_path, state)
 	if err == OK:
 		model_node = gltf.generate_scene(state)
 	else:
@@ -33,17 +33,25 @@ func setup(glb_path: String, primary_color: Color, secondary_color: Color, char_
 	anim_player = model_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_apply_kit_tint(primary_color, secondary_color)
 
-func _apply_kit_tint(primary: Color, _secondary: Color) -> void:
+func _apply_kit_tint(primary: Color, secondary: Color) -> void:
 	if model_node == null:
 		return
 	for mesh in model_node.find_children("*", "MeshInstance3D", true, false):
 		var mi := mesh as MeshInstance3D
-		if mi != null and mi.get_surface_override_material_count() > 0:
-			var mat := mi.get_active_material(0)
-			if mat is StandardMaterial3D:
-				var dup := mat.duplicate() as StandardMaterial3D
-				dup.albedo_color = dup.albedo_color.lerp(primary, 0.35)
-				mi.set_surface_override_material(0, dup)
+		if mi != null and mi.mesh != null:
+			var surf_count := mi.mesh.get_surface_count()
+			for s in range(surf_count):
+				var mat := mi.get_active_material(s)
+				if mat is StandardMaterial3D:
+					var mname := mat.resource_name
+					if mname in ["KitShirtMat", "SocksMat"]:
+						var dup := mat.duplicate() as StandardMaterial3D
+						dup.albedo_color = primary
+						mi.set_surface_override_material(s, dup)
+					elif mname == "KitSleeveMat":
+						var dup2 := mat.duplicate() as StandardMaterial3D
+						dup2.albedo_color = secondary
+						mi.set_surface_override_material(s, dup2)
 
 func play_anim(candidates: Array, blend: float = 0.25) -> void:
 	if anim_player == null:

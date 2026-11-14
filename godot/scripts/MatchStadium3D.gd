@@ -29,21 +29,33 @@ func _ready() -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#020617")
+	env.background_color = Color("#070b19")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#38bdf8")
-	env.ambient_light_energy = 0.45
+	env.ambient_light_color = Color("#e2e8f0")
+	env.ambient_light_energy = 0.25
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.glow_enabled = true
+	env.glow_intensity = 0.15
 
 	var world_env := WorldEnvironment.new()
+	world_env.name = "WorldEnvironment"
 	world_env.environment = env
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
-	sun.position = Vector3(35.0, 65.0, 30.0)
+	sun.position = Vector3(25.0, 45.0, 35.0)
 	sun.look_at_from_position(sun.position, Vector3.ZERO, Vector3.UP)
-	sun.light_energy = 1.35
+	sun.light_color = Color("#fffbeb")
+	sun.light_energy = 0.55
 	sun.shadow_enabled = true
 	add_child(sun)
+
+	var rim := DirectionalLight3D.new()
+	rim.position = Vector3(-30.0, 28.0, -35.0)
+	rim.look_at_from_position(rim.position, Vector3.ZERO, Vector3.UP)
+	rim.light_color = Color("#bae6fd")
+	rim.light_energy = 0.25
+	add_child(rim)
 
 func _build_stadium_and_pitch() -> void:
 	_pitch_root = Node3D.new()
@@ -74,11 +86,11 @@ func _build_stadium_and_pitch() -> void:
 	_build_goal(-50.0)
 	_build_goal(50.0)
 
-	# Stadium Stands
-	_build_stand(Vector3(0, 5.5, -42), Vector3(110, 11, 11))
-	_build_stand(Vector3(0, 5.5, 42), Vector3(110, 11, 11))
-	_build_stand(Vector3(-61, 5.5, 0), Vector3(11, 11, 76))
-	_build_stand(Vector3(61, 5.5, 0), Vector3(11, 11, 76))
+	# Stadium Stands (brought closer to touchlines & tiered with crowd + roof + LED boards)
+	_build_tiered_stand(Vector3(0, 0, -20.0), 104.0, false)
+	_build_tiered_stand(Vector3(0, 0, 20.0), 104.0, true)
+	_build_stand(Vector3(-56, 6.5, 0), Vector3(10, 13, 44))
+	_build_stand(Vector3(56, 6.5, 0), Vector3(10, 13, 44))
 
 	_players_root = Node3D.new()
 	_players_root.name = "PlayersRoot"
@@ -109,6 +121,74 @@ func _build_goal(x_pos: float) -> void:
 	goal.position = Vector3(x_pos + dir * 1.15, 1.45, 0.0)
 	_pitch_root.add_child(goal)
 
+func _build_tiered_stand(base_pos: Vector3, length: float, flip_z: bool) -> void:
+	var z_dir := 1.0 if flip_z else -1.0
+	# 1. Pitchside LED Advertising Board
+	var ad_board := MeshInstance3D.new()
+	var ad_box := BoxMesh.new()
+	ad_box.size = Vector3(length, 1.05, 0.35)
+	ad_board.mesh = ad_box
+	var ad_mat := StandardMaterial3D.new()
+	ad_mat.albedo_color = Color("#0f172a")
+	ad_mat.emission_enabled = true
+	ad_mat.emission = Color("#dc2626")
+	ad_mat.emission_energy_multiplier = 0.55
+	ad_board.material_override = ad_mat
+	ad_board.position = base_pos + Vector3(0, 0.52, -z_dir * 2.2)
+	_pitch_root.add_child(ad_board)
+
+	# 2. 6 Stepped Seating Tiers + Crowd Rows
+	var crowd_colors := [Color("#dc2626"), Color("#f8fafc"), Color("#fbbf24"), Color("#1e293b"), Color("#ef4444")]
+	for t in range(6):
+		var tier := MeshInstance3D.new()
+		var t_box := BoxMesh.new()
+		t_box.size = Vector3(length, 1.8, 2.6)
+		tier.mesh = t_box
+		var t_mat := StandardMaterial3D.new()
+		t_mat.albedo_color = Color("#1e293b") if t % 2 == 0 else Color("#0f172a")
+		tier.material_override = t_mat
+		var tz := base_pos.z + z_dir * (float(t) * 2.4)
+		var ty := 0.9 + float(t) * 1.65
+		tier.position = Vector3(base_pos.x, ty, tz)
+		_pitch_root.add_child(tier)
+
+		# Crowd band on top of tier
+		var crowd := MeshInstance3D.new()
+		var c_box := BoxMesh.new()
+		c_box.size = Vector3(length * 0.96, 0.65, 1.1)
+		crowd.mesh = c_box
+		var c_mat := StandardMaterial3D.new()
+		c_mat.albedo_color = crowd_colors[t % crowd_colors.size()]
+		c_mat.roughness = 0.7
+		crowd.material_override = c_mat
+		crowd.position = Vector3(base_pos.x, ty + 1.15, tz - z_dir * 0.4)
+		_pitch_root.add_child(crowd)
+
+	# 3. Stadium Roof Canopy + Floodlight Strip
+	var roof := MeshInstance3D.new()
+	var r_box := BoxMesh.new()
+	r_box.size = Vector3(length + 4.0, 0.7, 16.0)
+	roof.mesh = r_box
+	var r_mat := StandardMaterial3D.new()
+	r_mat.albedo_color = Color("#334155")
+	r_mat.metallic = 0.6
+	roof.material_override = r_mat
+	roof.position = Vector3(base_pos.x, 12.8, base_pos.z + z_dir * 6.0)
+	_pitch_root.add_child(roof)
+
+	var light_strip := MeshInstance3D.new()
+	var l_box := BoxMesh.new()
+	l_box.size = Vector3(length * 0.85, 0.25, 0.6)
+	light_strip.mesh = l_box
+	var l_mat := StandardMaterial3D.new()
+	l_mat.albedo_color = Color.WHITE
+	l_mat.emission_enabled = true
+	l_mat.emission = Color("#fef08a")
+	l_mat.emission_energy_multiplier = 2.5
+	light_strip.material_override = l_mat
+	light_strip.position = Vector3(base_pos.x, 12.35, base_pos.z - z_dir * 1.2)
+	_pitch_root.add_child(light_strip)
+
 func _build_stand(pos: Vector3, sz: Vector3) -> void:
 	var stand := MeshInstance3D.new()
 	var box := BoxMesh.new()
@@ -123,17 +203,31 @@ func _build_stand(pos: Vector3, sz: Vector3) -> void:
 func _build_ball() -> void:
 	_ball_mesh = MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.42
-	sphere.height = 0.84
+	sphere.radius = 0.115
+	sphere.height = 0.23
 	_ball_mesh.mesh = sphere
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color.WHITE
-	mat.emission_enabled = true
-	mat.emission = Color("#fbbf24")
-	mat.emission_energy_multiplier = 0.25
+	mat.albedo_color = Color("#f8fafc")
+	mat.roughness = 0.3
+	mat.metallic = 0.1
 	_ball_mesh.material_override = mat
-	_ball_mesh.position = Vector3(0.0, 0.42, 0.0)
+	_ball_mesh.position = Vector3(0.42, 0.115, 0.48)
 	add_child(_ball_mesh)
+
+	# Add pro match-ball contrasting panel rings (black & crimson/gold)
+	for rot_vec in [Vector3(0, 0, 0), Vector3(60, 45, 0), Vector3(-60, -45, 30)]:
+		var ring := MeshInstance3D.new()
+		var torus := CylinderMesh.new()
+		torus.top_radius = 0.118
+		torus.bottom_radius = 0.118
+		torus.height = 0.035
+		ring.mesh = torus
+		var r_mat := StandardMaterial3D.new()
+		r_mat.albedo_color = Color("#0f172a") if rot_vec.x == 0 else Color("#dc2626")
+		r_mat.roughness = 0.35
+		ring.material_override = r_mat
+		ring.rotation_degrees = rot_vec
+		_ball_mesh.add_child(ring)
 
 func _build_camera() -> void:
 	_camera = Camera3D.new()

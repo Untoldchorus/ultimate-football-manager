@@ -38,7 +38,7 @@ func _build_scene(p: Dictionary) -> void:
 		add_child(stadium)
 		world_env = stadium.find_child("WorldEnvironment", true, false) as WorldEnvironment
 
-	var primary := Color.from_string(str(p.get("primaryColor", "#10b981")), Color("#10b981"))
+	var primary := Color.from_string(str(p.get("primaryColor", "#dc2626")), Color("#dc2626"))
 	var secondary := Color.from_string(str(p.get("secondaryColor", "#ffffff")), Color("#ffffff"))
 
 	_cam = Camera3D.new()
@@ -61,6 +61,40 @@ func _build_scene(p: Dictionary) -> void:
 		_flash_light.position = Vector3(1.8, 1.9, 2.8)
 		add_child(_flash_light)
 
+		# Build 3D Pitchside Presentation Carpet & Club Unveiling Backdrop Arch
+		var carpet := MeshInstance3D.new()
+		var c_box := BoxMesh.new()
+		c_box.size = Vector3(4.6, 0.04, 5.2)
+		carpet.mesh = c_box
+		var c_mat := StandardMaterial3D.new()
+		c_mat.albedo_color = Color("#0f172a")
+		carpet.material_override = c_mat
+		carpet.position = Vector3(0.0, 0.02, -1.2)
+		add_child(carpet)
+
+		var backdrop := MeshInstance3D.new()
+		var b_box := BoxMesh.new()
+		b_box.size = Vector3(4.2, 2.3, 0.18)
+		backdrop.mesh = b_box
+		var b_mat := StandardMaterial3D.new()
+		b_mat.albedo_color = primary.darkened(0.25)
+		b_mat.roughness = 0.35
+		backdrop.material_override = b_mat
+		backdrop.position = Vector3(0.0, 1.15, -3.8)
+		add_child(backdrop)
+
+		var gold_trim := MeshInstance3D.new()
+		var g_box := BoxMesh.new()
+		g_box.size = Vector3(4.3, 0.12, 0.22)
+		gold_trim.mesh = g_box
+		var g_mat := StandardMaterial3D.new()
+		g_mat.albedo_color = Color("#fbbf24")
+		g_mat.metallic = 0.8
+		g_mat.roughness = 0.2
+		gold_trim.material_override = g_mat
+		gold_trim.position = Vector3(0.0, 2.32, -3.8)
+		add_child(gold_trim)
+
 	var CharClass = load("res://scripts/cinematic/CinematicCharacter.gd")
 	var hero = CharClass.new()
 	add_child(hero)
@@ -71,7 +105,7 @@ func _build_scene(p: Dictionary) -> void:
 		glb = "res://assets/characters/player.glb" if is_player_hero else "res://assets/characters/manager.glb"
 		
 	hero.setup(glb, primary, secondary, 1.05)
-	hero.position = Vector3(0.0, 0.0, -3.0) if cutscene_id == "player_signing" else Vector3(0.0, 0.0, 0.0)
+	hero.position = Vector3(0.0, 0.0, -2.2) if cutscene_id in ["player_signing", "manager_intro"] else Vector3(0.0, 0.0, 0.0)
 	_actors.append(hero)
 
 	var dur := float(p.get("duration", default_duration))
@@ -130,7 +164,7 @@ func _process(delta: float) -> void:
 	if _enable_flashes and _flash_light != null and is_running and not is_paused:
 		_flash_timer -= delta
 		if _flash_timer <= 0.0:
-			_flash_light.light_energy = randf_range(4.0, 9.0) if randf() > 0.45 else 0.0
+			_flash_light.light_energy = randf_range(0.18, 0.45) if randf() > 0.45 else 0.0
 			_flash_timer = randf_range(0.08, 0.22)
 		else:
-			_flash_light.light_energy = max(0.0, _flash_light.light_energy - delta * 35.0)
+			_flash_light.light_energy = max(0.0, _flash_light.light_energy - delta * 6.0)
