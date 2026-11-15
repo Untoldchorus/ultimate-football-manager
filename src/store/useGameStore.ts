@@ -61,6 +61,7 @@ export type NavTab =
   | 'training'
   | 'fixtures'
   | 'competitions'
+  | 'worldCompetitions'
   | 'finances'
   | 'youth'
   | 'history'

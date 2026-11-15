@@ -20,6 +20,7 @@ import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { ClubCrest, getPlayerShirtNumber, PlayerAvatar } from '../ui/FootballVisuals';
 import { PlayerProfileModal } from '../ui/PlayerProfileModal';
+import { FreeAgentMarketPanel } from './FreeAgentMarketPanel';
 
 const POSITIONS: (PositionCode | 'ALL')[] = ['ALL', 'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
 
@@ -33,6 +34,7 @@ export function TransfersScreen() {
   const [nationalityFilter, setNationalityFilter] = useState<string>('ALL');
   const [onlyShortlist, setOnlyShortlist] = useState(false);
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState<'transfers' | 'free_agents'>('transfers');
 
   const [negotiatingPlayer, setNegotiatingPlayer] = useState<Player | null>(null);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
@@ -168,11 +170,32 @@ export function TransfersScreen() {
         <div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-gold-400" />
-            <h2 className="text-lg font-extrabold text-white">Global Transfer Market &amp; Scouting Hub</h2>
+            <h2 className="text-lg font-extrabold text-white">Global Transfer &amp; Free Agent Market</h2>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Search {filteredPlayers.length} senior professionals across Premier Division 1 &amp; Championship Division 2.
-          </p>
+          <div className="flex gap-1.5 mt-2 bg-navy-950 p-1 rounded-xl border border-slate-800 w-fit">
+            <button
+              type="button"
+              onClick={() => setViewMode('transfers')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors ${
+                viewMode === 'transfers'
+                  ? 'bg-lime-400 text-navy-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Transfer Market
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('free_agents')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors ${
+                viewMode === 'free_agents'
+                  ? 'bg-lime-400 text-navy-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Free Agent Market
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <div className="px-3.5 py-2 rounded-xl bg-navy-950 border border-slate-800">
@@ -191,8 +214,12 @@ export function TransfersScreen() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+      {viewMode === 'free_agents' ? (
+        <FreeAgentMarketPanel />
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <div className="relative lg:col-span-2">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
           <input
@@ -589,6 +616,8 @@ export function TransfersScreen() {
           </div>
         </div>
       </div>
+    </>
+  )}
 
       {/* Completed Transfer History & Market News */}
       <div className="bg-navy-900 border border-slate-800 rounded-2xl p-5 space-y-3">

@@ -1,5 +1,6 @@
 import { createInitialEconomyState } from './boosterEconomy';
 import { createInitialClubEmpireState } from './clubEmpireEngine';
+import { replaceClubInCareer } from './originalClubEngine';
 import {
   deriveSpokenLanguagesForNationality,
   resolvePlayerPersonality,
@@ -728,23 +729,40 @@ export function generateInitialGameState(
 
   const careerType = manager.careerType ?? 'real_club';
   const origCfg = careerType === 'original_team' ? manager.originalClubConfig : undefined;
-  const finalClubs = origCfg
-    ? clubs.map((c) =>
-        c.id === userClub.id
-          ? {
-              ...c,
-              name: origCfg.name || c.name,
-              shortName: origCfg.shortName || c.shortName,
-              primaryColor: origCfg.primaryColor || c.primaryColor,
-              secondaryColor: origCfg.secondaryColor || c.secondaryColor,
-              stadiumName: origCfg.stadiumName || c.stadiumName,
-              stadiumCapacity: 2000,
-              reputation: 48,
-            }
-          : c
-      )
-    : clubs;
-  const finalUserClub = finalClubs.find((c) => c.id === userClub.id) ?? userClub;
+
+  let finalClubs = clubs;
+  let finalPlayers: Player[] = enrichedPlayers;
+  let finalUserClub = userClub;
+
+  if (careerType === 'original_team' && origCfg) {
+    const replacement = replaceClubInCareer(
+      clubs,
+      enrichedPlayers,
+      userClub.id,
+      {
+        name: origCfg.name || 'FC Nova',
+        shortName: origCfg.shortName || 'NOV',
+        country: userClub.countryId || manager.nationality || 'England',
+        city: userClub.city || 'Capital City',
+        primaryColor: origCfg.primaryColor || '#84cc16',
+        secondaryColor: origCfg.secondaryColor || '#070a12',
+        stadiumName: origCfg.stadiumName || 'Nova Arena',
+        stadiumCapacity: 5000,
+      },
+      worldSeed,
+      true
+    );
+    finalClubs = replacement.updatedClubs;
+    finalPlayers = replacement.updatedPlayers;
+    finalUserClub = replacement.newClub;
+  }
+
+  const resolvedEnrichedPlayers = finalPlayers.map((p) => ({
+    ...p,
+    spokenLanguages: p.spokenLanguages ?? deriveSpokenLanguagesForNationality(p.nationality),
+    personality: p.personality ?? resolvePlayerPersonality(p),
+    tacticalRole: p.tacticalRole ?? resolvePlayerTacticalRole(p, p.primaryPosition),
+  }));
 
   return {
     saveVersion: 2,
@@ -759,7 +777,7 @@ export function generateInitialGameState(
       clubId: finalUserClub.id,
     },
     clubs: finalClubs,
-    players: enrichedPlayers,
+    players: resolvedEnrichedPlayers,
     fixtures,
     shortlistPlayerIds: [],
     scouts,

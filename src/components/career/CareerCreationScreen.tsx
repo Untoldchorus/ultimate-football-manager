@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
   Shield,
   Trophy,
@@ -26,14 +27,18 @@ import { ClubCrest } from '../ui/FootballVisuals';
 const PAGE_SIZE = 24;
 const FLAGSHIP_IDS = new Set(CLUB_PRESETS.map((c) => c.id));
 
-export function CareerCreationScreen() {
+interface CareerCreationScreenProps {
+  initialCareerType?: 'real_club' | 'original_team';
+}
+
+export function CareerCreationScreen({ initialCareerType = 'real_club' }: CareerCreationScreenProps = {}) {
   const { startNewCareer, saveSlots, loadFromSlot } = useGameStore();
   const [name, setName] = useState('Alex Mercer');
   const [nationality, setNationality] = useState('England');
   const [tacticalStyle, setTacticalStyle] = useState<AttackingStyle>('possession');
   const [difficulty, setDifficulty] = useState<ManagerProfile['difficulty']>('standard');
   const [startingChallenge, setStartingChallenge] = useState<ManagerProfile['startingChallenge']>('none');
-  const [careerType, setCareerType] = useState<'real_club' | 'original_team'>('real_club');
+  const [careerType, setCareerType] = useState<'real_club' | 'original_team'>(initialCareerType);
   const [originalClubName, setOriginalClubName] = useState('FC Nova');
   const [originalShortName, setOriginalShortName] = useState('NOV');
   const [originalStadiumName, setOriginalStadiumName] = useState('Nova Arena');
@@ -253,7 +258,7 @@ export function CareerCreationScreen() {
 
         <form onSubmit={handleStart} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Career Mode Selection: Real Club vs Original Team (Club Empire) */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-4">
+          <div className="lg:col-span-12 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider">Career Mode</h2>
@@ -288,47 +293,75 @@ export function CareerCreationScreen() {
             </div>
 
             {careerType === 'original_team' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-800">
-                <input
-                  type="text"
-                  value={originalClubName}
-                  onChange={(e) => setOriginalClubName(e.target.value)}
-                  placeholder="Club Name"
-                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
-                />
-                <input
-                  type="text"
-                  value={originalShortName}
-                  maxLength={4}
-                  onChange={(e) => setOriginalShortName(e.target.value)}
-                  placeholder="Short (e.g. NOV)"
-                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white uppercase"
-                />
-                <input
-                  type="text"
-                  value={originalStadiumName}
-                  onChange={(e) => setOriginalStadiumName(e.target.value)}
-                  placeholder="Stadium Name"
-                  className="rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white"
-                />
-                <label className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
-                  Primary
-                  <input
-                    type="color"
-                    value={originalPrimaryColor}
-                    onChange={(e) => setOriginalPrimaryColor(e.target.value)}
-                    className="h-6 w-8 bg-transparent border-0 cursor-pointer"
+              <div className="space-y-4 pt-2 border-t border-slate-800">
+                {/* Image 2 Inspired Stadium Campus Banner */}
+                <div className="relative rounded-2xl overflow-hidden border border-emerald-500/40 h-36 w-full">
+                  <Image
+                    src="/branding/stadium_build_split.jpg"
+                    alt="Build Your Football Club Campus"
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 80vw"
+                    className="object-cover object-center"
                   />
-                </label>
-                <label className="flex items-center gap-2 rounded-lg bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
-                  Secondary
+                  <div className="absolute inset-0 bg-gradient-to-r from-navy-950/90 via-navy-950/60 to-transparent" />
+                  <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-[10px] uppercase tracking-wider w-fit">
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      Build Your Football Club &bull; 3D Campus Construction
+                    </span>
+                    <div>
+                      <h4 className="text-base font-black uppercase text-white tracking-tight drop-shadow">
+                        From Ground to World-Class Stadium
+                      </h4>
+                      <p className="text-[11px] text-slate-300">
+                        Customize your club identity. Your squad and facilities will grow in the 3D Club Empire campus.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <input
-                    type="color"
-                    value={originalSecondaryColor}
-                    onChange={(e) => setOriginalSecondaryColor(e.target.value)}
-                    className="h-6 w-8 bg-transparent border-0 cursor-pointer"
+                    type="text"
+                    value={originalClubName}
+                    onChange={(e) => setOriginalClubName(e.target.value)}
+                    placeholder="Club Name (e.g. Apex FC)"
+                    className="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400"
                   />
-                </label>
+                  <input
+                    type="text"
+                    value={originalShortName}
+                    maxLength={4}
+                    onChange={(e) => setOriginalShortName(e.target.value)}
+                    placeholder="Short Code (e.g. APX)"
+                    className="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-emerald-400"
+                  />
+                  <input
+                    type="text"
+                    value={originalStadiumName}
+                    onChange={(e) => setOriginalStadiumName(e.target.value)}
+                    placeholder="Stadium Name"
+                    className="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-400"
+                  />
+                  <label className="flex items-center justify-between gap-2 rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-slate-300 cursor-pointer">
+                    <span>Home Color</span>
+                    <input
+                      type="color"
+                      value={originalPrimaryColor}
+                      onChange={(e) => setOriginalPrimaryColor(e.target.value)}
+                      className="h-6 w-8 bg-transparent border-0 cursor-pointer rounded"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-slate-300 cursor-pointer">
+                    <span>Away Color</span>
+                    <input
+                      type="color"
+                      value={originalSecondaryColor}
+                      onChange={(e) => setOriginalSecondaryColor(e.target.value)}
+                      className="h-6 w-8 bg-transparent border-0 cursor-pointer rounded"
+                    />
+                  </label>
+                </div>
               </div>
             )}
           </div>
@@ -503,7 +536,11 @@ export function CareerCreationScreen() {
               className="w-full py-3.5 px-6 rounded-xl bg-pitch-600 hover:bg-pitch-500 text-white font-extrabold uppercase tracking-wider text-sm shadow-lg shadow-pitch-600/30 transition flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              <span>Sign Contract with {activeClub.shortName} &amp; Launch Career</span>
+              <span>
+                {careerType === 'original_team'
+                  ? `Found ${originalClubName.trim() || 'Custom Club'} (Replace ${activeClub.shortName}) & Launch Career`
+                  : `Sign Contract with ${activeClub.shortName} & Launch Career`}
+              </span>
             </button>
           </div>
 
@@ -513,7 +550,9 @@ export function CareerCreationScreen() {
               <div className="flex items-center gap-2 text-gold-400 font-bold uppercase tracking-wider text-xs">
                 <Shield className="w-4 h-4" />
                 <span>
-                  Step 2 &bull; Select Real Club ({filteredClubs.length} of {GLOBAL_CLUB_PRESETS.length} Global Clubs)
+                  {careerType === 'original_team'
+                    ? `Step 2 \u2022 Select Club to Replace (${filteredClubs.length} Available)`
+                    : `Step 2 \u2022 Select Real Club (${filteredClubs.length} of ${GLOBAL_CLUB_PRESETS.length} Global Clubs)`}
                 </span>
               </div>
 

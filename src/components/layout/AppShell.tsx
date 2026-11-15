@@ -53,6 +53,7 @@ import {
   SettingsScreen,
 } from '../management/ClubFinanceHistorySettingsScreens';
 import { MatchdayScreen } from '../match/MatchdayScreen';
+import { WorldCompetitionsScreen } from '../competitions/WorldCompetitionsScreen';
 import { ClubCrest } from '../ui/FootballVisuals';
 
 const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -67,7 +68,8 @@ const NAV_ITEMS: { id: NavTab; label: string; icon: React.ComponentType<{ classN
   { id: 'scouting', label: 'Scouting', icon: Compass },
   { id: 'training', label: 'Training', icon: Dumbbell },
   { id: 'fixtures', label: 'Fixtures', icon: Calendar },
-  { id: 'competitions', label: 'Competitions', icon: Trophy },
+  { id: 'competitions', label: 'Domestic Competitions', icon: Trophy },
+  { id: 'worldCompetitions', label: 'World Football & UEFA', icon: Sparkles },
   { id: 'finances', label: 'Finances', icon: Landmark },
   { id: 'youth', label: 'Youth Academy', icon: GraduationCap },
   { id: 'history', label: 'Club History', icon: History },
@@ -254,6 +256,7 @@ export function AppShell() {
           {activeTab === 'training' && <TrainingScreen />}
           {activeTab === 'fixtures' && <FixturesScreen />}
           {activeTab === 'competitions' && <CompetitionsScreen />}
+          {activeTab === 'worldCompetitions' && <WorldCompetitionsScreen />}
           {activeTab === 'finances' && <FinancesScreen />}
           {activeTab === 'youth' && <YouthAcademyScreen />}
           {activeTab === 'history' && <ClubHistoryScreen />}
