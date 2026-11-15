@@ -954,7 +954,7 @@ export function CompetitionsScreen() {
                       <div className="text-[10px] text-slate-400">{c?.shortName}</div>
                     </div>
                   </div>
-                  <span className="font-black text-pitch-400 text-sm">{p.stats.assists}A</span>
+                  <span className="font-black text-pitch-400 text-sm">{p.stats?.assists ?? 0}A</span>
                 </button>
               );
             })}
@@ -987,7 +987,7 @@ export function CompetitionsScreen() {
                       <div className="text-[10px] text-slate-400">{c?.shortName}</div>
                     </div>
                   </div>
-                  <span className="font-black text-sky-400 text-sm">{p.stats.cleanSheets} CS</span>
+                  <span className="font-black text-sky-400 text-sm">{p.stats?.cleanSheets ?? 0} CS</span>
                 </button>
               );
             })}
@@ -1021,7 +1021,7 @@ export function CompetitionsScreen() {
                     </div>
                   </div>
                   <span className="font-black text-amber-400 text-sm">
-                    {p.stats.averageRating.toFixed(2)}
+                    {(p.stats?.averageRating ?? 6.5).toFixed(2)}
                   </span>
                 </button>
               );

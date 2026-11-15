@@ -71,8 +71,14 @@ export function CareerCreationScreen({ initialCareerType = 'real_club' }: Career
 
   const filteredClubs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const isOriginal = careerType === 'original_team';
     return orderedGlobalPresets.filter((c) => {
-      if (selectedTier !== 'ALL' && c.division !== selectedTier) return false;
+      // In Original Club mode, managers must start in Tier 2 (second-tier division) of the chosen country
+      if (isOriginal) {
+        if (c.division !== 2) return false;
+      } else if (selectedTier !== 'ALL' && c.division !== selectedTier) {
+        return false;
+      }
       if (countryFilter !== 'ALL' && c.countryId !== countryFilter) return false;
       if (leagueFilter !== 'ALL' && c.leagueId !== leagueFilter) return false;
       if (financeFilter !== 'ALL' && c.financialStatus !== financeFilter) return false;
@@ -87,7 +93,7 @@ export function CareerCreationScreen({ initialCareerType = 'real_club' }: Career
       }
       return true;
     });
-  }, [orderedGlobalPresets, selectedTier, countryFilter, leagueFilter, financeFilter, minRepFilter, searchQuery]);
+  }, [orderedGlobalPresets, careerType, selectedTier, countryFilter, leagueFilter, financeFilter, minRepFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredClubs.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -96,10 +102,11 @@ export function CareerCreationScreen({ initialCareerType = 'real_club' }: Career
     [filteredClubs, safePage]
   );
 
-  const activeClub =
-    GLOBAL_CLUB_PRESETS.find((c) => c.id === selectedClubId) ??
-    filteredClubs[0] ??
-    GLOBAL_CLUB_PRESETS[0];
+  const activeClub = useMemo(() => {
+    const found = filteredClubs.find((c) => c.id === selectedClubId);
+    if (found) return found;
+    return filteredClubs[0] ?? GLOBAL_CLUB_PRESETS[0];
+  }, [filteredClubs, selectedClubId]);
 
   const activeCountry = getCountryById(activeClub.countryId);
   const rivalNames = activeClub.rivalClubIds
@@ -280,7 +287,11 @@ export function CareerCreationScreen({ initialCareerType = 'real_club' }: Career
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCareerType('original_team')}
+                  onClick={() => {
+                    setCareerType('original_team');
+                    setSelectedTier(2);
+                    setPage(0);
+                  }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
                     careerType === 'original_team'
                       ? 'bg-emerald-600 text-white'
@@ -551,36 +562,43 @@ export function CareerCreationScreen({ initialCareerType = 'real_club' }: Career
                 <Shield className="w-4 h-4" />
                 <span>
                   {careerType === 'original_team'
-                    ? `Step 2 \u2022 Select Club to Replace (${filteredClubs.length} Available)`
+                    ? `Step 2 \u2022 Select Tier 2 Club to Replace (${filteredClubs.length} Available)`
                     : `Step 2 \u2022 Select Real Club (${filteredClubs.length} of ${GLOBAL_CLUB_PRESETS.length} Global Clubs)`}
                 </span>
               </div>
 
-              <div className="flex rounded-xl bg-navy-950 p-1 border border-slate-800">
-                {(
-                  [
-                    ['ALL', 'All Tiers'],
-                    [1, '1st Division (T1)'],
-                    [2, '2nd Division (T2)'],
-                  ] as const
-                ).map(([tierVal, label]) => (
-                  <button
-                    key={String(tierVal)}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTier(tierVal);
-                      setPage(0);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
-                      selectedTier === tierVal
-                        ? 'bg-pitch-600 text-white'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {careerType === 'original_team' ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Tier 2 (Second Division) Only &bull; Earn Promotion to Tier 1</span>
+                </div>
+              ) : (
+                <div className="flex rounded-xl bg-navy-950 p-1 border border-slate-800">
+                  {(
+                    [
+                      ['ALL', 'All Tiers'],
+                      [1, '1st Division (T1)'],
+                      [2, '2nd Division (T2)'],
+                    ] as const
+                  ).map(([tierVal, label]) => (
+                    <button
+                      key={String(tierVal)}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTier(tierVal);
+                        setPage(0);
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                        selectedTier === tierVal
+                          ? 'bg-pitch-600 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Search + Filter Bar */}

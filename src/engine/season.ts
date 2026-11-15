@@ -179,13 +179,13 @@ export function applyMatchResultToState(
       injuryWeeks: p.injuryWeeks + (injuryWeeksMap.get(p.id) ?? 0),
       stats: {
         appearances: apps,
-        goals: p.stats.goals + (goalCounts.get(p.id) ?? 0),
-        assists: p.stats.assists + (assistCounts.get(p.id) ?? 0),
-        cleanSheets: p.stats.cleanSheets + cleanSheetInc,
-        yellowCards: p.stats.yellowCards + (yellowCounts.get(p.id) ?? 0),
-        redCards: p.stats.redCards + (redCounts.get(p.id) ?? 0),
+        goals: (p.stats?.goals ?? 0) + (goalCounts.get(p.id) ?? 0),
+        assists: (p.stats?.assists ?? 0) + (assistCounts.get(p.id) ?? 0),
+        cleanSheets: (p.stats?.cleanSheets ?? 0) + cleanSheetInc,
+        yellowCards: (p.stats?.yellowCards ?? 0) + (yellowCounts.get(p.id) ?? 0),
+        redCards: (p.stats?.redCards ?? 0) + (redCounts.get(p.id) ?? 0),
         averageRating: avgRating,
-        minutesPlayed: p.stats.minutesPlayed + mins,
+        minutesPlayed: (p.stats?.minutesPlayed ?? 0) + mins,
       },
     };
   });
@@ -622,7 +622,7 @@ export function performSeasonRollover(state: GameState): GameState {
 
   const userPlayers = state.players
     .filter((p) => p.clubId === userClub.id)
-    .sort((a, b) => b.stats.goals - a.stats.goals);
+    .sort((a, b) => (b.stats?.goals ?? 0) - (a.stats?.goals ?? 0));
   const topScorer = userPlayers[0];
 
   const userTrophiesThisSeason = newTrophies
@@ -643,7 +643,7 @@ export function performSeasonRollover(state: GameState): GameState {
     goalsAgainst: userRow.goalsAgainst,
     points: userRow.points,
     topScorerName: topScorer ? `${topScorer.firstName} ${topScorer.lastName}` : 'N/A',
-    topScorerGoals: topScorer ? topScorer.stats.goals : 0,
+    topScorerGoals: topScorer ? (topScorer.stats?.goals ?? 0) : 0,
     trophiesWon: userTrophiesThisSeason,
   };
 

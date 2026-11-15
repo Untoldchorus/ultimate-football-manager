@@ -11,7 +11,8 @@ import {
   runAiFreeAgentCompetition,
 } from '@/engine/freeAgentEngine';
 import { createRng } from '@/engine/rng';
-import { Club, Player } from '@/engine/types';
+import { Club, ManagerProfile, Player } from '@/engine/types';
+import { generateInitialGameState, selectActiveSimulationClubSeeds } from '@/engine/generator';
 
 const MOCK_CLUBS: Club[] = [
   {
@@ -132,6 +133,77 @@ describe('Original Club Career & Free Agent Market', () => {
       expect(typeof player.stats.appearances).toBe('number');
       expect(typeof player.stats.assists).toBe('number');
       expect(player.stats.goals).toBe(0);
+    }
+  });
+
+  it('selectActiveSimulationClubSeeds maintains 100% domestic country purity without mixing foreign leagues', () => {
+    // English seeds (Arsenal in Tier 1 or Leeds in Tier 2)
+    const engSeeds = selectActiveSimulationClubSeeds('club-redcliff');
+    expect(engSeeds).toHaveLength(20);
+    expect(engSeeds.every((c) => c.countryId === 'ENG')).toBe(true);
+
+    const engT1 = engSeeds.slice(0, 10);
+    const engT2 = engSeeds.slice(10, 20);
+    expect(engT1.every((c) => c.division === 1)).toBe(true);
+    expect(engT2.every((c) => c.division === 2)).toBe(true);
+    expect(engT2.some((c) => c.id === 'club-redcliff')).toBe(true);
+
+    // Spanish seeds (Real Madrid in Tier 1)
+    const espSeeds = selectActiveSimulationClubSeeds('club-kingsbridge');
+    expect(espSeeds).toHaveLength(20);
+    expect(espSeeds.every((c) => c.countryId === 'ESP')).toBe(true);
+
+    const espT1 = espSeeds.slice(0, 10);
+    const espT2 = espSeeds.slice(10, 20);
+    expect(espT1.every((c) => c.division === 1)).toBe(true);
+    expect(espT2.every((c) => c.division === 2)).toBe(true);
+    expect(espT1.some((c) => c.id === 'club-kingsbridge')).toBe(true);
+  });
+
+  it('generates full game state for Original Club Career locked strictly to Tier 2 with pure domestic divisions', () => {
+    const manager: ManagerProfile = {
+      name: 'Elena Rostova',
+      nationality: 'England',
+      tacticalStyle: 'possession',
+      difficulty: 'standard',
+      startingChallenge: 'none',
+      clubId: 'club-redcliff',
+      careerType: 'original_team',
+      originalClubConfig: {
+        name: 'Apex Stars FC',
+        shortName: 'APX',
+        stadiumName: 'Apex Arena',
+        primaryColor: '#84cc16',
+        secondaryColor: '#070a12',
+      },
+    };
+
+    const state = generateInitialGameState(99991, manager);
+
+    expect(state.careerType).toBe('original_team');
+    expect(state.clubs).toHaveLength(20);
+
+    const userClub = state.clubs.find((c) => c.id === state.manager.clubId)!;
+    expect(userClub).toBeDefined();
+    expect(userClub.name).toBe('Apex Stars FC');
+    expect(userClub.division).toBe(2);
+    expect(userClub.countryId).toBe('ENG');
+
+    // All Tier 1 clubs must be English
+    const tier1 = state.clubs.filter((c) => c.division === 1);
+    expect(tier1).toHaveLength(10);
+    expect(tier1.every((c) => c.countryId === 'ENG')).toBe(true);
+
+    // All Tier 2 clubs must be English
+    const tier2 = state.clubs.filter((c) => c.division === 2);
+    expect(tier2).toHaveLength(10);
+    expect(tier2.every((c) => c.countryId === 'ENG')).toBe(true);
+
+    // Every player must have valid stats
+    for (const p of state.players) {
+      expect(p.stats).toBeDefined();
+      expect(typeof p.stats.goals).toBe('number');
+      expect(typeof p.stats.appearances).toBe('number');
     }
   });
 });

@@ -27,6 +27,7 @@ import {
 import { generateSeasonFixtures } from './fixtures';
 import { REAL_WORLD_CLUBS, RealClubSeed } from '@/data/realWorldDatabase';
 import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
+import { COMPETITIONS_REGISTRY } from '@/data/competitionsRegistry';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
 
 export interface ClubPreset {
@@ -404,17 +405,18 @@ export function autoPickLineupForClub(
 }
 
 export function selectActiveSimulationClubSeeds(selectedClubId: string): RealClubSeed[] {
-  const isFlagshipClub = REAL_WORLD_CLUBS.some((c) => c.id === selectedClubId);
-  if (isFlagshipClub) {
-    return REAL_WORLD_CLUBS;
-  }
+  // Find chosen club either in GLOBAL_CLUBS_REGISTRY or REAL_WORLD_CLUBS
+  const chosenClub =
+    GLOBAL_CLUBS_REGISTRY.find((c) => c.id === selectedClubId) ??
+    REAL_WORLD_CLUBS.find((c) => c.id === selectedClubId) ??
+    GLOBAL_CLUBS_REGISTRY[0];
 
-  const chosenClub = GLOBAL_CLUBS_REGISTRY.find((c) => c.id === selectedClubId);
-  if (!chosenClub) {
-    return REAL_WORLD_CLUBS;
-  }
+  const targetCountryId = chosenClub.countryId || 'ENG';
+  const t1Comp = COMPETITIONS_REGISTRY.find((c) => c.countryId === targetCountryId && c.tier === 1);
+  const t2Comp = COMPETITIONS_REGISTRY.find((c) => c.countryId === targetCountryId && c.tier === 2);
 
-  const countryClubs = GLOBAL_CLUBS_REGISTRY.filter((c) => c.countryId === chosenClub.countryId);
+  // Retrieve clubs strictly from that country to maintain 100% domestic league purity
+  const countryClubs = GLOBAL_CLUBS_REGISTRY.filter((c) => c.countryId === targetCountryId);
   const countryDiv1 = countryClubs
     .filter((c) => c.division === 1 && c.id !== chosenClub.id)
     .sort((a, b) => b.reputation - a.reputation);
@@ -426,27 +428,69 @@ export function selectActiveSimulationClubSeeds(selectedClubId: string): RealClu
   const tier2Pool: RealClubSeed[] = [];
 
   if (chosenClub.division === 1) {
-    tier1Pool.push(chosenClub);
+    tier1Pool.push({
+      ...chosenClub,
+      division: 1,
+      leagueId: t1Comp?.id ?? chosenClub.leagueId ?? 'division1',
+    });
   } else {
-    tier2Pool.push(chosenClub);
+    tier2Pool.push({
+      ...chosenClub,
+      division: 2,
+      leagueId: t2Comp?.id ?? chosenClub.leagueId ?? 'division2',
+    });
   }
 
   for (const c of countryDiv1) {
     if (tier1Pool.length >= 10) break;
-    tier1Pool.push(c);
+    tier1Pool.push({
+      ...c,
+      division: 1,
+      leagueId: t1Comp?.id ?? c.leagueId ?? 'division1',
+    });
   }
   for (const c of countryDiv2) {
     if (tier2Pool.length >= 10) break;
-    tier2Pool.push(c);
+    tier2Pool.push({
+      ...c,
+      division: 2,
+      leagueId: t2Comp?.id ?? c.leagueId ?? 'division2',
+    });
   }
 
-  // Fallback fill from REAL_WORLD_CLUBS if a country has fewer than 10 clubs in a division
-  for (const c of REAL_WORLD_CLUBS) {
-    if (c.division === 1 && tier1Pool.length < 10 && !tier1Pool.some((x) => x.id === c.id)) {
-      tier1Pool.push(c);
+  // Defensive fallback: If a country has fewer than 10 clubs in a division,
+  // NEVER cross country borders! Clone within that nation with distinct IDs
+  if (tier1Pool.length < 10) {
+    const existing = [...tier1Pool];
+    let cloneCounter = 1;
+    while (tier1Pool.length < 10 && existing.length > 0) {
+      const src = existing[(cloneCounter - 1) % existing.length];
+      tier1Pool.push({
+        ...src,
+        id: `${src.id}-reg-${cloneCounter++}`,
+        name: `${src.name} Rovers`,
+        shortName: `${src.shortName}R`.slice(0, 4),
+        division: 1,
+        countryId: targetCountryId,
+        leagueId: t1Comp?.id ?? 'division1',
+      });
     }
-    if (c.division === 2 && tier2Pool.length < 10 && !tier2Pool.some((x) => x.id === c.id)) {
-      tier2Pool.push(c);
+  }
+
+  if (tier2Pool.length < 10) {
+    const existing = [...tier2Pool];
+    let cloneCounter = 1;
+    while (tier2Pool.length < 10 && existing.length > 0) {
+      const src = existing[(cloneCounter - 1) % existing.length];
+      tier2Pool.push({
+        ...src,
+        id: `${src.id}-reg-${cloneCounter++}`,
+        name: `${src.name} Athletic`,
+        shortName: `${src.shortName}A`.slice(0, 4),
+        division: 2,
+        countryId: targetCountryId,
+        leagueId: t2Comp?.id ?? 'division2',
+      });
     }
   }
 

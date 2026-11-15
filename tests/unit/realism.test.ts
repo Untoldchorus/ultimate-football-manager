@@ -13,9 +13,9 @@ describe('Match Engine Realism Targets (1,000 Simulated Matches)', () => {
     clubId: 'club-emerald',
   });
 
-  // Pick two evenly matched average clubs (approx 75 OVR)
-  const rawHomeClub = baseState.clubs.find((c) => c.id === 'club-emerald')!;
-  const rawAwayClub = baseState.clubs.find((c) => c.id === 'club-solaris')!;
+  // Pick two clubs from the generated domestic league
+  const rawHomeClub = baseState.clubs[0];
+  const rawAwayClub = baseState.clubs[1];
 
   const normalizePlayersToOvr = (players: Player[], targetOvr: number): Player[] =>
     players.map((p) => {

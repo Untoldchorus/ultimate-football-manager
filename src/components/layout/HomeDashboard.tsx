@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { calculateStandings } from '@/engine/standings';
 import { Player } from '@/engine/types';
+import { COMPETITIONS_REGISTRY } from '@/data/competitionsRegistry';
 import { soundManager } from '@/lib/audio';
 import { useGameStore } from '@/store/useGameStore';
 import { ClubCrest, getPlayerShirtNumber, PlayerAvatar } from '../ui/FootballVisuals';
@@ -35,6 +36,13 @@ export function HomeDashboard() {
   const userRowIdx = standings.findIndex((r) => r.clubId === userClub.id);
   const userRank = userRowIdx + 1;
   const userStandingsRow = standings[userRowIdx] ?? standings[0];
+
+  const leagueEntity =
+    COMPETITIONS_REGISTRY.find((c) => c.id === userClub.leagueId) ??
+    (userClub.division === 1
+      ? COMPETITIONS_REGISTRY.find((c) => c.countryId === userClub.countryId && c.tier === 1)
+      : COMPETITIONS_REGISTRY.find((c) => c.countryId === userClub.countryId && c.tier === 2));
+  const leagueDisplayName = leagueEntity?.name ?? `Division ${userClub.division}`;
 
   const nextFixture = gameState.fixtures.find(
     (f) =>
@@ -155,8 +163,8 @@ export function HomeDashboard() {
                   {userClub.name}
                 </h2>
                 <p className="text-xs text-slate-300 font-semibold">
-                  {userClub.stadiumName} ({userClub.stadiumCapacity.toLocaleString()} capacity) &bull; Division{' '}
-                  {userClub.division}
+                  {userClub.stadiumName} ({userClub.stadiumCapacity.toLocaleString()} capacity) &bull;{' '}
+                  <span className="text-pitch-400 font-bold">{leagueDisplayName}</span>
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px]">
                   <span className="px-2.5 py-0.5 rounded-md bg-navy-950/90 border border-slate-700 text-slate-200 font-bold">
@@ -184,7 +192,7 @@ export function HomeDashboard() {
                   <span className="text-xs font-extrabold text-white mt-1 truncate max-w-[110px]">
                     {userClub.name}
                   </span>
-                  <span className="text-[10px] text-slate-400">#{userRank} Div {userClub.division}</span>
+                  <span className="text-[10px] text-slate-400">#{userRank} {leagueEntity?.shortName ?? `Div ${userClub.division}`}</span>
                 </div>
 
                 <div className="px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-700 text-center">
@@ -530,7 +538,7 @@ export function HomeDashboard() {
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-gold-400 flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
-              <span>Division {userClub.division} Live Table</span>
+              <span>{leagueDisplayName} Live Table</span>
             </h3>
             <button
               type="button"
