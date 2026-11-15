@@ -143,30 +143,37 @@ export function computeNonlinearMatchModifiers(
   passingAndMovementMultiplier: number;
   tacticalAndStructureMultiplier: number;
 } {
-  const clampedChem = Math.max(0, Math.min(100, chemistryScore));
-  const clampedSyn = Math.max(0, Math.min(100, synergyScore));
+  const safeConfig = { ...DEFAULT_BALANCE_CONFIG, ...(config ?? {}) };
+  const safeChem = Number.isNaN(chemistryScore) ? 60 : chemistryScore;
+  const safeSyn = Number.isNaN(synergyScore) ? 60 : synergyScore;
+  const clampedChem = Math.max(0, Math.min(100, safeChem));
+  const clampedSyn = Math.max(0, Math.min(100, safeSyn));
 
   // Neutral reference point is 58. Above 58 yields positive bonus; below 58 yields slight penalty.
   const chemNormalized = (clampedChem - 58) / 28;
   const synNormalized = (clampedSyn - 58) / 28;
 
-  const rawChemPct = Math.tanh(chemNormalized) * config.maxChemistryMatchBonusPct;
-  const rawSynPct = Math.tanh(synNormalized) * config.maxSynergyMatchBonusPct;
+  const maxChem = safeConfig.maxChemistryMatchBonusPct ?? 8.0;
+  const maxSyn = safeConfig.maxSynergyMatchBonusPct ?? 8.0;
+  const maxComb = safeConfig.maxCombinedChemSynergyBonusPct ?? 14.0;
+
+  const rawChemPct = Math.tanh(chemNormalized) * maxChem;
+  const rawSynPct = Math.tanh(synNormalized) * maxSyn;
 
   const chemistryModPct = Math.max(
-    -config.maxChemistryMatchBonusPct,
-    Math.min(config.maxChemistryMatchBonusPct, Math.round(rawChemPct * 100) / 100)
+    -maxChem,
+    Math.min(maxChem, Math.round(rawChemPct * 100) / 100)
   );
   const synergyModPct = Math.max(
-    -config.maxSynergyMatchBonusPct,
-    Math.min(config.maxSynergyMatchBonusPct, Math.round(rawSynPct * 100) / 100)
+    -maxSyn,
+    Math.min(maxSyn, Math.round(rawSynPct * 100) / 100)
   );
 
   const combinedRaw = chemistryModPct + synergyModPct;
   const combinedModPct = Math.max(
-    -config.maxCombinedChemSynergyBonusPct,
+    -maxComb,
     Math.min(
-      config.maxCombinedChemSynergyBonusPct,
+      maxComb,
       Math.round(combinedRaw * 100) / 100
     )
   );

@@ -10,6 +10,8 @@ import {
   Shield,
   Zap,
   Sparkles,
+  Plus,
+  ArrowDownRight,
 } from 'lucide-react';
 import { DEFAULT_BALANCE_CONFIG } from '@/engine/balanceConfig';
 import { ensureEconomyState } from '@/engine/boosterEconomy';
@@ -36,6 +38,8 @@ export function SquadScreen() {
   const {
     gameState,
     swapPlayersInSquad,
+    movePlayerToSubstitutes,
+    movePlayerToReserves,
     autoPickUserLineup,
     setUserFormation,
     updatePlayerRole,
@@ -115,6 +119,23 @@ export function SquadScreen() {
     }
     setDraggedPlayerId(null);
     setSelectedPlayerId(null);
+  };
+
+  const handleEmptySubClick = async (slotIdx: number) => {
+    soundManager.playUiClick();
+    if (selectedPlayerId) {
+      await movePlayerToSubstitutes(selectedPlayerId, slotIdx);
+      setSelectedPlayerId(null);
+    }
+  };
+
+  const handleDropOnEmptySub = async (slotIdx: number) => {
+    if (draggedPlayerId) {
+      soundManager.playUiClick();
+      await movePlayerToSubstitutes(draggedPlayerId, slotIdx);
+      setDraggedPlayerId(null);
+      setSelectedPlayerId(null);
+    }
   };
 
   return (
@@ -450,13 +471,49 @@ export function SquadScreen() {
         <div className="xl:col-span-5 space-y-6">
           {/* Substitutes (7) */}
           <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-gold-400">
-              Substitutes Bench ({userClub.substitutes.length} / 7)
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-gold-400">
+                Substitutes Bench ({userClub.substitutes.length} / 7)
+              </h3>
+              <span className="text-[10px] text-slate-400">
+                {selectedPlayerId ? 'Tap empty slot to place' : 'Drag or tap to assign'}
+              </span>
+            </div>
             <div className="space-y-1.5">
-              {userClub.substitutes.map((subId, idx) => {
-                const p = playerMap.get(subId);
-                if (!p) return null;
+              {Array.from({ length: 7 }, (_, idx) => {
+                const subId = userClub.substitutes[idx];
+                const p = subId ? playerMap.get(subId) : null;
+
+                if (!p) {
+                  return (
+                    <div
+                      key={`empty-sub-${idx}`}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => handleDropOnEmptySub(idx)}
+                      onClick={() => handleEmptySubClick(idx)}
+                      data-testid={`sub-empty-slot-${idx}`}
+                      className={`p-2.5 rounded-xl border border-dashed transition flex items-center justify-between text-xs cursor-pointer ${
+                        selectedPlayerId
+                          ? 'border-gold-400/80 bg-gold-400/10 hover:bg-gold-400/20 text-gold-300 shadow-[0_0_15px_rgba(251,191,36,0.15)] animate-pulse'
+                          : 'border-slate-800 bg-navy-950/60 text-slate-500 hover:border-slate-700 hover:text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-navy-900 border border-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs">
+                          {idx + 1}
+                        </div>
+                        <span className="font-semibold">
+                          {selectedPlayerId ? 'Tap to assign selected player here' : `Empty Substitute Slot ${idx + 1}`}
+                        </span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold text-gold-400 flex items-center gap-1">
+                        <Plus className="w-3 h-3" />
+                        <span>{selectedPlayerId ? 'Place' : 'Open'}</span>
+                      </span>
+                    </div>
+                  );
+                }
+
                 const isSelected = selectedPlayerId === p.id;
                 return (
                   <div
@@ -473,27 +530,39 @@ export function SquadScreen() {
                         : 'bg-navy-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <PlayerAvatar
                         player={p}
                         clubColor={userClub.primaryColor}
                         secondaryColor={userClub.secondaryColor}
                         size={36}
                       />
-                      <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-pitch-400">
+                      <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-pitch-400 shrink-0">
                         {p.primaryPosition}
                       </span>
-                      <div>
-                        <div className="text-xs font-bold text-white">
+                      <div className="min-w-0 truncate">
+                        <div className="text-xs font-bold text-white truncate">
                           #{getPlayerShirtNumber(p)} {p.firstName} {p.lastName}
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-slate-400 truncate">
                           Age {p.age} &bull; Fit {p.fitness}% &bull; Morale {p.morale}% &bull; £{(p.marketValue / 1000000).toFixed(1)}M &bull; C:{p.contractEndSeason}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       <span className="text-sm font-black text-gold-400">{p.overall}</span>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          soundManager.playUiClick();
+                          await movePlayerToReserves(p.id);
+                        }}
+                        className="p-1.5 rounded-lg bg-navy-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition"
+                        title="Move to Reserves"
+                      >
+                        <ArrowDownRight className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -514,9 +583,12 @@ export function SquadScreen() {
 
           {/* Reserves */}
           <div className="bg-navy-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-              Reserve Squad ({userClub.reserves.length})
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+                Reserve Squad ({userClub.reserves.length})
+              </h3>
+              <span className="text-[10px] text-slate-400">Tap &apos;+ Bench&apos; to promote</span>
+            </div>
             <div className="space-y-1.5 max-h-[250px] overflow-y-auto pr-1">
               {userClub.reserves.map((resId) => {
                 const p = playerMap.get(resId);
@@ -536,18 +608,18 @@ export function SquadScreen() {
                         : 'bg-navy-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <PlayerAvatar
                         player={p}
                         clubColor={userClub.primaryColor}
                         secondaryColor={userClub.secondaryColor}
                         size={34}
                       />
-                      <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-300">
+                      <span className="w-8 text-center py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-300 shrink-0">
                         {p.primaryPosition}
                       </span>
-                      <div>
-                        <div className="text-xs font-bold text-white">
+                      <div className="min-w-0 truncate">
+                        <div className="text-xs font-bold text-white truncate">
                           #{getPlayerShirtNumber(p)} {p.firstName} {p.lastName}
                           {p.injuryWeeks > 0 && (
                             <span className="ml-2 px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px]">
@@ -555,13 +627,26 @@ export function SquadScreen() {
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-400">
-                          Age {p.age} &bull; Fit {p.fitness}%
+                        <div className="text-[11px] text-slate-400 truncate">
+                          Age {p.age} &bull; Fit {p.fitness}% &bull; £{(p.marketValue / 1000000).toFixed(1)}M
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       <span className="text-sm font-black text-slate-200">{p.overall}</span>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          soundManager.playUiClick();
+                          await movePlayerToSubstitutes(p.id);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-gold-400/15 hover:bg-gold-400/25 border border-gold-400/30 text-gold-300 text-[10px] font-bold transition flex items-center gap-1"
+                        title="Promote to Substitutes Bench"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Bench</span>
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {

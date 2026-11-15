@@ -276,7 +276,7 @@ export function evaluatePartnershipSynergy(
     2;
 
   const weighted =
-    roleComplementScore * 0.72 * config.synergyRoleWeight + posFam * 0.28;
+    roleComplementScore * 0.72 * (config?.synergyRoleWeight ?? 1.0) + posFam * 0.28;
   const finalScore = Math.max(10, Math.min(100, Math.round(weighted)));
 
   return {
@@ -427,7 +427,7 @@ export function evaluateTeamSynergy(
   const formationFit = positionalRelationshipScore * 0.55 + matrixFormCompat * 0.45;
   const formationCompatibilityScore = Math.max(
     25,
-    Math.min(100, Math.round(formationFit * config.synergyFormationWeight))
+    Math.min(100, Math.round(formationFit * (config?.synergyFormationWeight ?? 1.0)))
   );
 
   // 5. Complementary attributes (e.g. creators' vision/passing + forwards' finishing/pace + defenders' tackling/positioning)
@@ -506,7 +506,7 @@ export function evaluateTeamSynergy(
   let boosterSynergyBonus = 0;
   for (const b of activeBoosters) {
     if (b.category === 'synergy') {
-      boosterSynergyBonus += b.effectStrength * config.boosterGlobalStrengthMultiplier;
+      boosterSynergyBonus += b.effectStrength * (config?.boosterGlobalStrengthMultiplier ?? 1.0);
     }
   }
   boosterSynergyBonus = Math.min(12, boosterSynergyBonus);
@@ -582,25 +582,23 @@ export function evaluateTeamSynergy(
     Math.round((avgAttr(rightFlank, 'pace') + avgAttr(rightFlank, 'passing') + roleCompatibilityScore) / 3)
   );
 
-  const overallSynergy = Math.max(
-    15,
-    Math.min(
-      100,
-      Math.round(
-        (roleCompatibilityScore * 0.16 +
-          positionalRelationshipScore * 0.12 +
-          tacticalInstructionScore * 0.12 +
-          formationCompatibilityScore * 0.10 +
-          complementaryAttributesScore * 0.10 +
-          playingStyleCompatibilityScore * 0.10 +
-          defensiveAttackingBalanceScore * 0.10 +
-          playerPositioningScore * 0.06 +
-          tacticalFamiliarityScore * 0.07 +
-          teamStructureScore * 0.07) *
-          config.synergyTacticsWeight
-      )
-    )
+  const rawOverall = Math.round(
+    (roleCompatibilityScore * 0.16 +
+      positionalRelationshipScore * 0.12 +
+      tacticalInstructionScore * 0.12 +
+      formationCompatibilityScore * 0.10 +
+      complementaryAttributesScore * 0.10 +
+      playingStyleCompatibilityScore * 0.10 +
+      defensiveAttackingBalanceScore * 0.10 +
+      playerPositioningScore * 0.06 +
+      tacticalFamiliarityScore * 0.07 +
+      teamStructureScore * 0.07) *
+      (config?.synergyTacticsWeight ?? 1.0)
   );
+
+  const overallSynergy = Number.isNaN(rawOverall)
+    ? 65
+    : Math.max(15, Math.min(100, rawOverall));
 
   const bestArchetypes = [...partnerships].sort((a, b) => b.score - a.score).slice(0, 2);
   for (const arch of bestArchetypes) {

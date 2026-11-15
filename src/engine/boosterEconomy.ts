@@ -863,7 +863,15 @@ export function createInitialEconomyState(
  * Ensures `state.economy` is always initialized on `GameState`.
  */
 export function ensureEconomyState(state: GameState): EconomyState {
-  if (state.economy) return state.economy;
+  if (state.economy) {
+    return {
+      ...state.economy,
+      balanceConfig: {
+        ...DEFAULT_BALANCE_CONFIG,
+        ...(state.economy.balanceConfig ?? {}),
+      },
+    };
+  }
   const userClub = state.clubs.find((c) => c.id === state.manager.clubId) ?? state.clubs[0];
   const clubPlayers = state.players.filter((p) => p.clubId === userClub.id);
   return createInitialEconomyState(

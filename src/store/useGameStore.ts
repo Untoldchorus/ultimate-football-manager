@@ -93,6 +93,8 @@ interface GameStore {
 
   // Squad & Tactics actions
   swapPlayersInSquad: (playerIdA: string, playerIdB: string) => Promise<void>;
+  movePlayerToSubstitutes: (playerId: string, targetSlotIndex?: number) => Promise<void>;
+  movePlayerToReserves: (playerId: string) => Promise<void>;
   autoPickUserLineup: () => Promise<void>;
   updateUserTactics: (partial: Partial<TacticsConfig>) => Promise<void>;
   setUserFormation: (formation: FormationCode) => Promise<void>;
@@ -166,25 +168,71 @@ interface GameStore {
 export function sanitizeLoadedGameState(state: GameState | null): GameState | null {
   if (!state || !state.players) return state;
   const sanitizedPlayers = state.players.map((p) => {
-    if (!p.stats) {
-      const legacyStats = (p as any).seasonStats;
-      return {
-        ...p,
-        stats: {
-          appearances: legacyStats?.appearances ?? 0,
-          goals: legacyStats?.goals ?? 0,
-          assists: legacyStats?.assists ?? 0,
-          cleanSheets: legacyStats?.cleanSheets ?? 0,
-          yellowCards: legacyStats?.yellowCards ?? 0,
-          redCards: legacyStats?.redCards ?? 0,
-          averageRating: legacyStats?.averageRating ?? 6.5,
-          minutesPlayed: legacyStats?.minutesPlayed ?? 0,
-        },
-      };
-    }
-    return p;
+    const legacyStats = (p as any).seasonStats;
+    const stats = p.stats ?? {
+      appearances: legacyStats?.appearances ?? 0,
+      goals: legacyStats?.goals ?? 0,
+      assists: legacyStats?.assists ?? 0,
+      cleanSheets: legacyStats?.cleanSheets ?? 0,
+      yellowCards: legacyStats?.yellowCards ?? 0,
+      redCards: legacyStats?.redCards ?? 0,
+      averageRating: legacyStats?.averageRating ?? 6.5,
+      minutesPlayed: legacyStats?.minutesPlayed ?? 0,
+    };
+
+    return {
+      ...p,
+      injuryWeeks: p.injuryWeeks ?? (p as any).injuredWeeks ?? 0,
+      isYouth: p.isYouth ?? false,
+      seasonGrowth: p.seasonGrowth ?? (p as any).seasonalGrowth ?? 0,
+      secondaryPositions: p.secondaryPositions ?? [],
+      form: typeof p.form === 'number' && p.form > 10 ? 7.0 : (p.form ?? 7.0),
+      stats: {
+        appearances: stats.appearances ?? 0,
+        goals: stats.goals ?? 0,
+        assists: stats.assists ?? 0,
+        cleanSheets: stats.cleanSheets ?? 0,
+        yellowCards: stats.yellowCards ?? 0,
+        redCards: stats.redCards ?? 0,
+        averageRating: stats.averageRating ?? 6.5,
+        minutesPlayed: stats.minutesPlayed ?? 0,
+      },
+    };
   });
-  return { ...state, players: sanitizedPlayers };
+
+  // Repair user club if substitutes is empty but club has available squad
+  const sanitizedClubs = state.clubs.map((c) => {
+    if (c.id === state.manager?.clubId && (!c.substitutes || c.substitutes.length === 0)) {
+      const clubPlayers = sanitizedPlayers.filter((p) => p.clubId === c.id);
+      if (clubPlayers.length >= 14) {
+        const picked = autoPickLineupForClub(c.tactics.formation, clubPlayers);
+        return {
+          ...c,
+          startingXI: picked.startingXI,
+          substitutes: picked.substitutes,
+          reserves: picked.reserves,
+        };
+      }
+    }
+    return c;
+  });
+
+  const sanitizedEconomy = state.economy
+    ? {
+        ...state.economy,
+        balanceConfig: {
+          ...DEFAULT_BALANCE_CONFIG,
+          ...(state.economy.balanceConfig ?? {}),
+        },
+      }
+    : undefined;
+
+  return {
+    ...state,
+    players: sanitizedPlayers,
+    clubs: sanitizedClubs,
+    economy: sanitizedEconomy,
+  };
 }
 
 async function persistAutosave(state: GameState): Promise<SaveEnvelope[]> {
@@ -342,20 +390,149 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   swapPlayersInSquad: async (playerIdA, playerIdB) => {
     const state = get().gameState;
-    if (!state || playerIdA === playerIdB) return;
+    if (!state || !playerIdA || playerIdA === playerIdB) return;
 
     const userClubId = state.manager.clubId;
     const updatedClubs = state.clubs.map((club) => {
       if (club.id !== userClubId) return club;
 
-      const replaceInList = (list: string[]) =>
-        list.map((id) => (id === playerIdA ? playerIdB : id === playerIdB ? playerIdA : id));
+      const startingXI = [...club.startingXI];
+      const substitutes = [...club.substitutes];
+      const reserves = [...club.reserves];
+
+      // Handle special empty slot targets like "empty-sub-0", "empty-sub-1", etc.
+      if (typeof playerIdB === 'string' && playerIdB.startsWith('empty-sub-')) {
+        const slotIdx = parseInt(playerIdB.replace('empty-sub-', ''), 10);
+        const inStart = startingXI.indexOf(playerIdA);
+        if (inStart >= 0) startingXI.splice(inStart, 1);
+        const inSub = substitutes.indexOf(playerIdA);
+        if (inSub >= 0) substitutes.splice(inSub, 1);
+        const inRes = reserves.indexOf(playerIdA);
+        if (inRes >= 0) reserves.splice(inRes, 1);
+
+        if (!isNaN(slotIdx) && slotIdx >= 0 && slotIdx < 7) {
+          substitutes.splice(slotIdx, 0, playerIdA);
+        } else {
+          substitutes.push(playerIdA);
+        }
+
+        return {
+          ...club,
+          startingXI,
+          substitutes: substitutes.slice(0, 7),
+          reserves,
+        };
+      }
+
+      // If both players exist in the club, determine their locations and swap them
+      const findLoc = (id: string): { list: 'startingXI' | 'substitutes' | 'reserves'; index: number } | null => {
+        const sIdx = startingXI.indexOf(id);
+        if (sIdx >= 0) return { list: 'startingXI', index: sIdx };
+        const subIdx = substitutes.indexOf(id);
+        if (subIdx >= 0) return { list: 'substitutes', index: subIdx };
+        const rIdx = reserves.indexOf(id);
+        if (rIdx >= 0) return { list: 'reserves', index: rIdx };
+        return null;
+      };
+
+      const locA = findLoc(playerIdA);
+      const locB = findLoc(playerIdB);
+
+      if (locA && locB) {
+        const getList = (l: 'startingXI' | 'substitutes' | 'reserves') =>
+          l === 'startingXI' ? startingXI : l === 'substitutes' ? substitutes : reserves;
+
+        const listA = getList(locA.list);
+        const listB = getList(locB.list);
+
+        listA[locA.index] = playerIdB;
+        listB[locB.index] = playerIdA;
+
+        return {
+          ...club,
+          startingXI,
+          substitutes,
+          reserves,
+        };
+      }
+
+      return club;
+    });
+
+    const nextState: GameState = { ...state, clubs: updatedClubs };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  movePlayerToSubstitutes: async (playerId, targetSlotIndex) => {
+    const state = get().gameState;
+    if (!state || !playerId) return;
+
+    const userClubId = state.manager.clubId;
+    const updatedClubs = state.clubs.map((club) => {
+      if (club.id !== userClubId) return club;
+
+      const startingXI = [...club.startingXI];
+      const substitutes = [...club.substitutes];
+      const reserves = [...club.reserves];
+
+      // Remove playerId from existing arrays
+      const inStart = startingXI.indexOf(playerId);
+      if (inStart >= 0) startingXI.splice(inStart, 1);
+      const inSub = substitutes.indexOf(playerId);
+      if (inSub >= 0) substitutes.splice(inSub, 1);
+      const inRes = reserves.indexOf(playerId);
+      if (inRes >= 0) reserves.splice(inRes, 1);
+
+      // If bench is already at 7 players and slot index specified, move displaced to reserves
+      if (substitutes.length >= 7 && targetSlotIndex !== undefined && targetSlotIndex < substitutes.length) {
+        const displaced = substitutes[targetSlotIndex];
+        reserves.push(displaced);
+        substitutes[targetSlotIndex] = playerId;
+      } else if (targetSlotIndex !== undefined && targetSlotIndex <= substitutes.length) {
+        substitutes.splice(targetSlotIndex, 0, playerId);
+      } else {
+        substitutes.push(playerId);
+      }
 
       return {
         ...club,
-        startingXI: replaceInList(club.startingXI),
-        substitutes: replaceInList(club.substitutes),
-        reserves: replaceInList(club.reserves),
+        startingXI,
+        substitutes: substitutes.slice(0, 7),
+        reserves,
+      };
+    });
+
+    const nextState: GameState = { ...state, clubs: updatedClubs };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+  },
+
+  movePlayerToReserves: async (playerId) => {
+    const state = get().gameState;
+    if (!state || !playerId) return;
+
+    const userClubId = state.manager.clubId;
+    const updatedClubs = state.clubs.map((club) => {
+      if (club.id !== userClubId) return club;
+
+      const startingXI = [...club.startingXI];
+      const substitutes = [...club.substitutes];
+      const reserves = [...club.reserves];
+
+      const inSub = substitutes.indexOf(playerId);
+      if (inSub >= 0) {
+        substitutes.splice(inSub, 1);
+        if (!reserves.includes(playerId)) reserves.push(playerId);
+      }
+
+      return {
+        ...club,
+        startingXI,
+        substitutes,
+        reserves,
       };
     });
 

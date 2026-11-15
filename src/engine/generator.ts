@@ -344,13 +344,15 @@ export function autoPickLineupForClub(
   formation: FormationCode,
   clubPlayers: Player[]
 ): { startingXI: string[]; substitutes: string[]; reserves: string[] } {
-  const slots = FORMATION_SLOTS[formation];
-  const available = clubPlayers.filter((p) => !p.isYouth && p.injuryWeeks === 0);
+  const slots = FORMATION_SLOTS[formation] ?? FORMATION_SLOTS['4-3-3'];
+  const healthy = clubPlayers.filter((p) => !p.isYouth && (p.injuryWeeks ?? 0) === 0);
+  const available = healthy.length >= 11 ? healthy : clubPlayers.filter((p) => (p.injuryWeeks ?? 0) === 0);
+  const candidatePool = available.length >= 11 ? available : clubPlayers;
   const usedIds = new Set<string>();
   const startingXI: string[] = [];
 
   // Slot 0 is always GK
-  const gks = available
+  const gks = candidatePool
     .filter((p) => p.primaryPosition === 'GK')
     .sort((a, b) => b.overall - a.overall);
   const allGks = clubPlayers
@@ -358,40 +360,57 @@ export function autoPickLineupForClub(
     .sort((a, b) => b.overall - a.overall);
 
   const starterGk = gks[0] ?? allGks[0] ?? clubPlayers[0];
-  startingXI.push(starterGk.id);
-  usedIds.add(starterGk.id);
+  if (starterGk) {
+    startingXI.push(starterGk.id);
+    usedIds.add(starterGk.id);
+  }
 
   // Pick outfield slots 1..10
   for (let i = 1; i < slots.length; i++) {
     const slotPos = slots[i].position;
-    const candidates = available
+    const candidates = candidatePool
       .filter((p) => !usedIds.has(p.id) && p.primaryPosition !== 'GK')
       .sort((a, b) => {
-        const aExact = a.primaryPosition === slotPos ? 8 : a.secondaryPositions.includes(slotPos) ? 4 : 0;
-        const bExact = b.primaryPosition === slotPos ? 8 : b.secondaryPositions.includes(slotPos) ? 4 : 0;
+        const aExact = a.primaryPosition === slotPos ? 8 : (a.secondaryPositions ?? []).includes(slotPos) ? 4 : 0;
+        const bExact = b.primaryPosition === slotPos ? 8 : (b.secondaryPositions ?? []).includes(slotPos) ? 4 : 0;
         return b.overall + bExact - (a.overall + aExact);
       });
 
     const chosen =
       candidates[0] ??
       clubPlayers.find((p) => !usedIds.has(p.id) && p.primaryPosition !== 'GK') ??
-      clubPlayers.find((p) => !usedIds.has(p.id))!;
+      clubPlayers.find((p) => !usedIds.has(p.id));
 
-    startingXI.push(chosen.id);
-    usedIds.add(chosen.id);
+    if (chosen) {
+      startingXI.push(chosen.id);
+      usedIds.add(chosen.id);
+    }
   }
 
   // Pick 7 substitutes (1 backup GK + 6 best outfielders)
   const substitutes: string[] = [];
-  const backupGk = available.find((p) => !usedIds.has(p.id) && p.primaryPosition === 'GK');
+  const backupGk =
+    candidatePool.find((p) => !usedIds.has(p.id) && p.primaryPosition === 'GK') ??
+    clubPlayers.find((p) => !usedIds.has(p.id) && p.primaryPosition === 'GK');
   if (backupGk) {
     substitutes.push(backupGk.id);
     usedIds.add(backupGk.id);
   }
 
-  const remainingOutfield = available
-    .filter((p) => !usedIds.has(p.id))
-    .sort((a, b) => b.overall - a.overall);
+  // Next prioritize best remaining healthy players, then any remaining club players
+  const subCandidates = [
+    ...candidatePool.filter((p) => !usedIds.has(p.id)),
+    ...clubPlayers.filter((p) => !usedIds.has(p.id)),
+  ];
+  const seenSubCandidateIds = new Set<string>();
+  const remainingOutfield: Player[] = [];
+  for (const p of subCandidates) {
+    if (!usedIds.has(p.id) && !seenSubCandidateIds.has(p.id)) {
+      seenSubCandidateIds.add(p.id);
+      remainingOutfield.push(p);
+    }
+  }
+  remainingOutfield.sort((a, b) => b.overall - a.overall);
 
   for (const p of remainingOutfield) {
     if (substitutes.length >= 7) break;

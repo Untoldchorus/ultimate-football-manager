@@ -1,7 +1,13 @@
-import { Club, Player } from './types';
+import { Club, Player, PositionCode } from './types';
 import { createRng } from './rng';
+import { generatePlayerAttributes } from './generator';
+import {
+  calculateOverallRating,
+  calculateMarketValue,
+  calculateWeeklyWage,
+} from './ratings';
 
-type Position = Player['primaryPosition'];
+type Position = PositionCode;
 
 export interface OriginalClubIdentity {
   name: string;
@@ -48,18 +54,22 @@ export function generateHybridSquad(
   baseOvr = 66
 ): Player[] {
   const seeded = createRng(seed);
-  const rng = () => seeded.next();
   return SQUAD_POSITIONS.map((pos, idx) => {
-    const firstName = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)];
-    const lastName = LAST_NAMES[Math.floor(rng() * LAST_NAMES.length)];
-    const age = 18 + Math.floor(rng() * 14);
-    const overall = Math.max(55, Math.min(82, baseOvr + Math.floor((rng() - 0.45) * 10)));
-    const potential = Math.min(92, overall + Math.floor(rng() * 10));
-    const wage = Math.round((overall * 180 + rng() * 1500) / 100) * 100;
-    const marketValue = Math.round((overall * overall * 180) / 1000) * 1000;
+    const firstName = FIRST_NAMES[seeded.nextInt(0, FIRST_NAMES.length - 1)];
+    const lastName = LAST_NAMES[seeded.nextInt(0, LAST_NAMES.length - 1)];
+    const age = seeded.nextInt(18, 31);
+    const targetSkill = Math.max(50, Math.min(80, baseOvr + seeded.nextInt(-5, 5)));
+    const attributes = generatePlayerAttributes(seeded, pos, targetSkill);
+    const overall = calculateOverallRating(attributes, pos);
+    const potential = Math.min(92, Math.max(overall, overall + (age <= 22 ? seeded.nextInt(4, 12) : seeded.nextInt(1, 4))));
+    const weeklyWage = calculateWeeklyWage(overall, age);
+    const marketValue = calculateMarketValue(overall, age, potential);
+
+    const roleExpectation: Player['roleExpectation'] =
+      idx < 11 ? (overall >= baseOvr + 2 ? 'star' : 'starter') : idx < 18 ? 'rotation' : 'prospect';
 
     return {
-      id: `${clubId}-hyb-${idx + 1}-${Math.floor(rng() * 10000)}`,
+      id: `${clubId}-hyb-${idx + 1}-${seeded.nextInt(1000, 9999)}`,
       clubId,
       firstName,
       lastName,
@@ -67,48 +77,25 @@ export function generateHybridSquad(
       nationality,
       primaryPosition: pos,
       secondaryPositions: [],
-      preferredFoot: rng() > 0.25 ? 'Right' : 'Left',
+      preferredFoot: seeded.chance(0.25) ? 'Left' : 'Right',
       overall,
       potential,
       marketValue,
-      weeklyWage: wage,
-      contractEndSeason: 2027 + Math.floor(rng() * 3),
-      roleExpectation: idx < 11 ? 'Important' : 'Rotation',
-      fitness: 95,
-      fatigue: 5,
-      morale: 75,
-      form: 70,
-      yellowCardsSeason: 0,
-      redCardsSeason: 0,
-      suspendedMatches: 0,
-      injuredWeeks: 0,
-      seasonalGrowth: 0,
-      attributes: {
-        pace: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        acceleration: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        stamina: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        strength: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        agility: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        jumping: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        passing: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        vision: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        crossing: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        dribbling: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        ballControl: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        finishing: Math.min(95, overall + Math.floor((rng() - 0.5) * 16)),
-        shotPower: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        longShots: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        tackling: Math.min(95, overall + Math.floor((rng() - 0.5) * 16)),
-        marking: Math.min(95, overall + Math.floor((rng() - 0.5) * 16)),
-        interceptions: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        heading: Math.min(95, overall + Math.floor((rng() - 0.5) * 14)),
-        composure: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        workRate: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        positioning: Math.min(95, overall + Math.floor((rng() - 0.5) * 12)),
-        reflexes: pos === 'GK' ? overall + 4 : 30,
-        handling: pos === 'GK' ? overall + 2 : 28,
-        gkPositioning: pos === 'GK' ? overall + 2 : 28,
-      },
+      weeklyWage,
+      contractEndSeason: 2028 + seeded.nextInt(0, 2),
+      roleExpectation,
+      fitness: 96,
+      stamina: 96,
+      fatigue: 4,
+      morale: 80,
+      form: 7.0,
+      injuryWeeks: 0,
+      isYouth: false,
+      seasonGrowth: 0,
+      consecutiveMatches: 0,
+      transferListed: false,
+      transferRequested: false,
+      attributes,
       stats: {
         appearances: 0,
         goals: 0,
@@ -119,7 +106,7 @@ export function generateHybridSquad(
         averageRating: 6.5,
         minutesPlayed: 0,
       },
-    } as unknown as Player;
+    };
   });
 }
 

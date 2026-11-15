@@ -311,12 +311,13 @@ export function evaluatePartnershipChemistry(
   // Check transfer adaptation period penalty for newly signed players
   const calcAdaptPenalty = (p: Player): number => {
     if (p.joinedClubSeason === undefined || p.joinedClubWeek === undefined) return 0;
+    const adaptWeeks = config?.transferAdaptationWeeks ?? 6;
     const weeksAtClub =
       (currentSeason - p.joinedClubSeason) * 22 + (currentWeek - p.joinedClubWeek);
-    if (weeksAtClub >= config.transferAdaptationWeeks) return 0;
+    if (weeksAtClub >= adaptWeeks) return 0;
     const remainingRatio =
-      Math.max(0, config.transferAdaptationWeeks - weeksAtClub) /
-      Math.max(1, config.transferAdaptationWeeks);
+      Math.max(0, adaptWeeks - weeksAtClub) /
+      Math.max(1, adaptWeeks);
     return Math.round(remainingRatio * 14);
   };
   const transferAdaptationPenalty = calcAdaptPenalty(playerA) + calcAdaptPenalty(playerB);
@@ -332,7 +333,7 @@ export function evaluatePartnershipChemistry(
       (b.targetPlayerId === playerA.id && b.secondaryPlayerId === playerB.id) ||
       (b.targetPlayerId === playerB.id && b.secondaryPlayerId === playerA.id)
     ) {
-      boosterBonus += b.effectStrength * config.boosterGlobalStrengthMultiplier;
+      boosterBonus += b.effectStrength * (config?.boosterGlobalStrengthMultiplier ?? 1.0);
     }
   }
   boosterBonus = Math.min(12, boosterBonus);
@@ -476,7 +477,7 @@ export function evaluateTeamChemistry(
       const elapsed =
         (currentSeason - s.player.joinedClubSeason) * 22 +
         (currentWeek - s.player.joinedClubWeek);
-      adaptationWeeksRemaining = Math.max(0, config.transferAdaptationWeeks - elapsed);
+      adaptationWeeksRemaining = Math.max(0, (config?.transferAdaptationWeeks ?? 6) - elapsed);
     }
 
     const individualChemistry = Math.max(
@@ -500,13 +501,16 @@ export function evaluateTeamChemistry(
     };
   });
 
-  const overallChemistry =
+  const rawOverallChemistry =
     individualPlayers.length > 0
       ? Math.round(
           individualPlayers.reduce((sum, p) => sum + p.individualChemistry, 0) /
             individualPlayers.length
         )
       : 60;
+  const overallChemistry = Number.isNaN(rawOverallChemistry)
+    ? 65
+    : Math.max(5, Math.min(100, rawOverallChemistry));
 
   const sortedLinks = [...relevantPartnerships].sort((a, b) => b.score - a.score);
   const strongestPartnerships = sortedLinks.slice(0, 4);

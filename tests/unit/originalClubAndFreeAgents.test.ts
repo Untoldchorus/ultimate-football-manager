@@ -12,7 +12,10 @@ import {
 } from '@/engine/freeAgentEngine';
 import { createRng } from '@/engine/rng';
 import { Club, ManagerProfile, Player } from '@/engine/types';
-import { generateInitialGameState, selectActiveSimulationClubSeeds } from '@/engine/generator';
+import { generateInitialGameState, selectActiveSimulationClubSeeds, autoPickLineupForClub } from '@/engine/generator';
+import { evaluateTeamChemistry } from '@/engine/chemistryEngine';
+import { evaluateTeamSynergy } from '@/engine/synergyEngine';
+import { evaluateTacticalMatchup } from '@/engine/tacticalMatrixEngine';
 
 const MOCK_CLUBS: Club[] = [
   {
@@ -205,5 +208,83 @@ describe('Original Club Career & Free Agent Market', () => {
       expect(typeof p.stats.goals).toBe('number');
       expect(typeof p.stats.appearances).toBe('number');
     }
+  });
+
+  it('autoPickLineupForClub always fills 7 substitutes and never leaves bench empty for hybrid squads', () => {
+    const squad = generateHybridSquad('orig_nova', 'England', 101, 66);
+    expect(squad.length).toBe(23);
+
+    const lineup = autoPickLineupForClub('3-5-2', squad);
+    expect(lineup.startingXI).toHaveLength(11);
+    expect(lineup.substitutes).toHaveLength(7);
+    expect(lineup.reserves).toHaveLength(5);
+
+    // Verify all IDs are unique across all 3 lists
+    const allAssigned = [...lineup.startingXI, ...lineup.substitutes, ...lineup.reserves];
+    expect(new Set(allAssigned).size).toBe(23);
+  });
+
+  it('guarantees chemistry, synergy, and tactical adaptation scores never produce NaN for original club', () => {
+    const manager: ManagerProfile = {
+      name: 'Alex Mercer',
+      nationality: 'England',
+      tacticalStyle: 'wingPlay',
+      difficulty: 'standard',
+      startingChallenge: 'none',
+      clubId: 'club-norwich',
+      careerType: 'original_team',
+      originalClubConfig: {
+        name: 'FC Nova',
+        shortName: 'NOV',
+        stadiumName: 'Nova Arena',
+        primaryColor: '#eab308',
+        secondaryColor: '#000000',
+      },
+    };
+
+    const state = generateInitialGameState(1246950961, manager);
+    const userClub = state.clubs.find((c) => c.id === state.manager.clubId)!;
+    const userPlayers = state.players.filter((p) => p.clubId === userClub.id);
+
+    const chem = evaluateTeamChemistry(
+      userClub,
+      userPlayers,
+      state.economy?.pairChemistry ?? {},
+      state.currentSeason,
+      state.currentWeek,
+      state.economy?.activeBoosters ?? [],
+      state.economy?.balanceConfig
+    );
+    expect(Number.isNaN(chem.overallChemistry)).toBe(false);
+    expect(chem.overallChemistry).toBeGreaterThanOrEqual(10);
+    expect(chem.overallChemistry).toBeLessThanOrEqual(100);
+
+    const syn = evaluateTeamSynergy(
+      userClub,
+      userPlayers,
+      state.economy?.activeBoosters ?? [],
+      state.economy?.balanceConfig
+    );
+    expect(Number.isNaN(syn.overallSynergy)).toBe(false);
+    expect(syn.overallSynergy).toBeGreaterThanOrEqual(10);
+    expect(syn.overallSynergy).toBeLessThanOrEqual(100);
+
+    const opponent = state.clubs.find((c) => c.division === userClub.division && c.id !== userClub.id)!;
+    const oppPlayers = state.players.filter((p) => p.clubId === opponent.id);
+
+    const matchup = evaluateTacticalMatchup({
+      homeClub: userClub,
+      awayClub: opponent,
+      homePlayers: userPlayers,
+      awayPlayers: oppPlayers,
+      homeSynergyScore: syn.overallSynergy,
+      homeChemistryScore: chem.overallChemistry,
+      config: state.economy?.balanceConfig,
+    });
+
+    expect(Number.isNaN(matchup.teamAAdaptationScore)).toBe(false);
+    expect(Number.isNaN(matchup.teamBAdaptationScore)).toBe(false);
+    expect(Number.isNaN(matchup.teamASituationalModifierPct)).toBe(false);
+    expect(Number.isNaN(matchup.teamBSituationalModifierPct)).toBe(false);
   });
 });

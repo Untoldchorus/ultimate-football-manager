@@ -1024,18 +1024,25 @@ export function calculateTacticalAdaptationScore(params: {
   transitionReadiness: 'Smooth' | 'Moderate' | 'Disorganized';
   disorganizationRiskPct: number;
 } {
+  const safeSyn = Number.isNaN(params.teamSynergy) ? 68 : (params.teamSynergy ?? 68);
+  const safeUnitSyn = Number.isNaN(params.positionalUnitSynergy) ? 68 : (params.positionalUnitSynergy ?? 68);
+  const safeTacFam = Number.isNaN(params.tacticalFamiliarity) ? 68 : (params.tacticalFamiliarity ?? 68);
+  const safeFormCompat = Number.isNaN(params.formationCompatibility) ? 75 : (params.formationCompatibility ?? 75);
+  const safeMgrAdapt = Number.isNaN(params.managerAdaptability) ? 70 : (params.managerAdaptability ?? 70);
+
   const baseScore =
-    params.teamSynergy * 0.30 +
-    params.positionalUnitSynergy * 0.25 +
-    params.tacticalFamiliarity * 0.25 +
-    params.formationCompatibility * 0.10 +
-    params.managerAdaptability * 0.10;
+    safeSyn * 0.30 +
+    safeUnitSyn * 0.25 +
+    safeTacFam * 0.25 +
+    safeFormCompat * 0.10 +
+    safeMgrAdapt * 0.10;
 
   const stamina = params.avgStamina ?? 85;
   const fatigue = params.avgFatigue ?? 10;
   const physicalMod = (stamina - 70) * 0.08 - Math.max(0, fatigue - 25) * 0.12;
 
-  const score = clamp(Number((baseScore + physicalMod).toFixed(1)), 15, 100);
+  const rawScore = Number((baseScore + physicalMod).toFixed(1));
+  const score = Number.isNaN(rawScore) ? 70 : clamp(rawScore, 15, 100);
   const transitionReadiness =
     score >= 74 ? 'Smooth' : score >= 52 ? 'Moderate' : 'Disorganized';
   const disorganizationRiskPct = clamp(Math.round(Math.max(2, (88 - score) * 0.65)), 2, 55);
@@ -1099,10 +1106,10 @@ export function evaluateTacticalMatchup(params: {
   const homeFormCompat = evaluateFormationStyleCompatibility(params.homeClub.tactics.formation, homeStyle);
   const awayFormCompat = evaluateFormationStyleCompatibility(params.awayClub.tactics.formation, awayStyle);
 
-  const homeSynergy = params.homeSynergyScore ?? 68;
-  const awaySynergy = params.awaySynergyScore ?? 68;
-  const homeChem = params.homeChemistryScore ?? 68;
-  const awayChem = params.awayChemistryScore ?? 68;
+  const homeSynergy = !params.homeSynergyScore || Number.isNaN(params.homeSynergyScore) ? 68 : params.homeSynergyScore;
+  const awaySynergy = !params.awaySynergyScore || Number.isNaN(params.awaySynergyScore) ? 68 : params.awaySynergyScore;
+  const homeChem = !params.homeChemistryScore || Number.isNaN(params.homeChemistryScore) ? 68 : params.homeChemistryScore;
+  const awayChem = !params.awayChemistryScore || Number.isNaN(params.awayChemistryScore) ? 68 : params.awayChemistryScore;
 
   const homeAdapt = calculateTacticalAdaptationScore({
     teamSynergy: homeSynergy,
