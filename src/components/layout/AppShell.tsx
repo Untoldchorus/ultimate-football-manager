@@ -371,7 +371,13 @@ export function AppShell() {
         </header>
 
         {/* Active Screen Main Panel */}
-        <main className="p-4 md:p-8 max-w-7xl w-full mx-auto flex-1 pb-24 md:pb-8">
+        <main
+          className={`w-full mx-auto flex-1 pb-24 md:pb-8 transition-all ${
+            activeTab === 'clubEmpire'
+              ? 'p-2 sm:p-4 max-w-[1760px]'
+              : 'p-4 md:p-8 max-w-7xl'
+          }`}
+        >
           {activeTab === 'home' && <HomeDashboard />}
           {activeTab === 'myClub' && <MyClubScreen />}
           {activeTab === 'clubEmpire' && isOriginal && <ClubEmpireScreen />}

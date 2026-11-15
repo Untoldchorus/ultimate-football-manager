@@ -396,7 +396,7 @@ export function PlayerProfileModal({
               </div>
               {player.careerHistory && player.careerHistory.length > 0 ? (
                 <div className="space-y-1.5">
-                  {player.careerHistory.map((h, i) => (
+                  {player.careerHistory.filter(Boolean).map((h, i) => (
                     <div
                       key={i}
                       className="flex items-center justify-between py-1 border-b border-slate-800/60 text-[11px]"
@@ -405,7 +405,7 @@ export function PlayerProfileModal({
                         {h.season} &bull; {h.clubName}
                       </span>
                       <span className="text-white font-bold">
-                        {h.appearances} Apps &bull; {h.goals}G &bull; {h.assists}A
+                        {h.appearances ?? 0} Apps &bull; {h.goals ?? 0}G &bull; {h.assists ?? 0}A
                       </span>
                     </div>
                   ))}

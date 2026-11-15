@@ -165,6 +165,76 @@ class SoundManager {
     noise.start();
     noise.stop(ctx.currentTime + 1.85);
   }
+
+  public playCoinCollect(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const gainVal = this.settings.masterVolume * this.settings.uiVolume * 0.22;
+    if (gainVal <= 0.001) return;
+
+    // Arpeggiated cheerful chime for coin collection
+    const notes = [987.77, 1318.51, 1567.98]; // B5, E6, G6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.06);
+
+      gain.gain.setValueAtTime(gainVal, ctx.currentTime + i * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.06 + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.06);
+      osc.stop(ctx.currentTime + i * 0.06 + 0.16);
+    });
+  }
+
+  public playBoosterCollect(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const gainVal = this.settings.masterVolume * this.settings.uiVolume * 0.25;
+    if (gainVal <= 0.001) return;
+
+    // Smooth energetic upward swoosh chime
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(440, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.22);
+
+    gain.gain.setValueAtTime(gainVal, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.26);
+  }
+
+  public playUpgradeComplete(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const gainVal = this.settings.masterVolume * this.settings.uiVolume * 0.28;
+    if (gainVal <= 0.001) return;
+
+    // Triumphant fanfare triad chord
+    const freqs = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+    freqs.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.04);
+
+      gain.gain.setValueAtTime(gainVal, ctx.currentTime + idx * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + idx * 0.04);
+      osc.stop(ctx.currentTime + 0.48);
+    });
+  }
 }
 
 export const soundManager = new SoundManager();

@@ -15,6 +15,19 @@ import {
   Ticket,
   Trophy,
   Users,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
+  Plus,
+  Play,
+  Zap,
+  Clock,
+  X,
+  Compass,
+  ArrowUpRight,
+  ChevronRight,
+  Flame,
+  CheckCircle2,
 } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import {
@@ -30,31 +43,10 @@ import {
   calculateSuperstarCommercialInfluence,
   evaluateBuildingPrerequisites,
 } from '@/engine/clubEmpireEngine';
-import type { ClubEmpireBuildingId } from '@/engine/types';
-import { ClubEmpire3DCampus } from './ClubEmpire3DCampus';
-
-type ClubEmpireSection =
-  | 'overview'
-  | 'stadium'
-  | 'training'
-  | 'medical'
-  | 'youth'
-  | 'commercial'
-  | 'land'
-  | 'finances'
-  | 'missions';
-
-const SECTIONS: { id: ClubEmpireSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'overview', label: 'Club Overview', icon: Crown },
-  { id: 'stadium', label: 'Stadium', icon: Ticket },
-  { id: 'training', label: 'Training Campus', icon: Dumbbell },
-  { id: 'medical', label: 'Medical Campus', icon: HeartPulse },
-  { id: 'youth', label: 'Youth Development', icon: Users },
-  { id: 'commercial', label: 'Commercial District', icon: Landmark },
-  { id: 'land', label: 'Land & Construction', icon: MapPin },
-  { id: 'finances', label: 'Club Finances', icon: Coins },
-  { id: 'missions', label: 'Development Missions', icon: Target },
-];
+import type { ClubEmpireBuildingId, LandPlot } from '@/engine/types';
+import { ClubEmpire3DScene, CameraTarget } from './ClubEmpire3DCampus';
+import { soundManager } from '@/lib/audio';
+import { ClubCrest } from '../ui/FootballVisuals';
 
 function formatMoney(amount: number): string {
   if (Math.abs(amount) >= 1_000_000) return `€${(amount / 1_000_000).toFixed(2)}M`;
@@ -73,6 +65,16 @@ function formatRemaining(ms: number): string {
   return `${secs}s`;
 }
 
+type CampusZoneFilter =
+  | 'all'
+  | 'stadium'
+  | 'training'
+  | 'medical'
+  | 'youth'
+  | 'commercial'
+  | 'land'
+  | 'finances';
+
 export function ClubEmpireScreen() {
   const {
     gameState,
@@ -83,10 +85,14 @@ export function ClubEmpireScreen() {
     useEmpireAdReduction,
     claimEmpireHospitalBooster,
     updateEmpireTicketPricing,
+    setActiveTab,
   } = useGameStore();
 
-  const [activeSection, setActiveSection] = useState<ClubEmpireSection>('overview');
+  const [activeZone, setActiveZone] = useState<CampusZoneFilter>('all');
   const [selectedBuildingId, setSelectedBuildingId] = useState<ClubEmpireBuildingId | null>(null);
+  const [selectedPlot, setSelectedPlot] = useState<LandPlot | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -120,23 +126,39 @@ export function ClubEmpireScreen() {
     return Object.values(gameState.players).filter((p) => p.clubId === userClub.id);
   }, [gameState, userClub]);
 
+  // Handle ESC key to exit fullscreen or close drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedBuildingId || selectedPlot) {
+          setSelectedBuildingId(null);
+          setSelectedPlot(null);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBuildingId, selectedPlot, isFullscreen]);
+
   if (!gameState || gameState.careerType !== 'original_team' || !empire || !userClub) {
     return (
-      <div className="rounded-2xl border border-amber-500/30 bg-slate-900/80 p-8 text-center">
-        <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-amber-400" />
-        <h2 className="text-xl font-bold text-white">Club Empire Unavailable</h2>
+      <div className="rounded-3xl border border-amber-500/30 bg-navy-900/90 p-8 text-center text-white">
+        <ShieldCheck className="mx-auto mb-3 h-12 w-12 text-amber-400" />
+        <h2 className="text-xl font-bold uppercase">Club Empire Unavailable</h2>
         <p className="mt-2 text-sm text-slate-400">
-          Club Empire infrastructure ownership is exclusive to Original Team Career Mode.
+          Club Empire 3D Campus infrastructure is exclusive to Original Team Career Mode.
         </p>
       </div>
     );
   }
 
-  const tierInfo = CLUB_DEVELOPMENT_TIERS.find((t) => t.tier === empire.developmentTier) ?? CLUB_DEVELOPMENT_TIERS[0];
+  const tierInfo =
+    CLUB_DEVELOPMENT_TIERS.find((t) => t.tier === empire.developmentTier) ??
+    CLUB_DEVELOPMENT_TIERS[0];
   const stadiumLevel = empire.buildings.stadium_stands?.level ?? 1;
-  const stadiumCapacity = STADIUM_CAPACITY_BY_LEVEL[stadiumLevel] ?? 12000;
-  const youthLevel = empire.buildings.youth_academy?.level ?? 0;
-  const youthCapacity = YOUTH_CAPACITY_BY_LEVEL[youthLevel] ?? 0;
+  const stadiumCapacity = STADIUM_CAPACITY_BY_LEVEL[stadiumLevel] ?? 2000;
   const superstarInfluence = calculateSuperstarCommercialInfluence(userSquad);
   const museumIncome = calculateMuseumTourismIncome(gameState);
   const pitchRiskMultiplier = calculatePitchInjuryRiskMultiplier(gameState);
@@ -150,537 +172,542 @@ export function ClubEmpireScreen() {
       } else {
         setFeedback({ ok: true, message: fallbackMsg });
       }
+      setTimeout(() => setFeedback(null), 5000);
     });
   };
 
-  const renderBuildingCard = (buildingId: ClubEmpireBuildingId) => {
-    const def = CLUB_EMPIRE_BUILDINGS_CATALOG[buildingId];
-    const state = empire.buildings[buildingId];
-    const isConstructing = empire.activeConstructions.some((c) => c.buildingId === buildingId);
-    const nextLevel = state.level + 1;
-    const evalRes = evaluateBuildingPrerequisites(gameState, buildingId, nextLevel);
-    const cost = evalRes.cost;
+  // Camera presets for quick navigation
+  const glideToZone = (zone: CampusZoneFilter) => {
+    soundManager.playUiClick();
+    setActiveZone(zone);
 
-    return (
-      <div
-        key={buildingId}
-        className={`rounded-xl border p-4 transition-all ${
-          selectedBuildingId === buildingId
-            ? 'border-emerald-400 bg-slate-900/95 shadow-lg shadow-emerald-950/30'
-            : 'border-slate-800 bg-slate-900/70 hover:border-slate-700'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-white">{def.name}</h4>
-              <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-medium text-emerald-300">
-                Lv {state.level} / {def.maxLevel}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-slate-400">{def.description}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSelectedBuildingId(buildingId)}
-            className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
-          >
-            Inspect
-          </button>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 text-xs">
-          <span className="text-slate-400">
-            Status: <strong className="text-slate-200">{state.level === 0 ? 'Not Built' : `Active Lv ${state.level}`}</strong>
-          </span>
-
-          {state.level >= def.maxLevel ? (
-            <span className="rounded-md bg-emerald-500/20 px-2.5 py-1 font-medium text-emerald-300">
-              Max Level
-            </span>
-          ) : isConstructing ? (
-            <span className="rounded-md bg-amber-500/20 px-2.5 py-1 font-medium text-amber-300">
-              Under Construction
-            </span>
-          ) : (
-            <button
-              type="button"
-              disabled={!evalRes.eligible}
-              onClick={() => runAction(startEmpireConstruction(buildingId), `Started ${def.name} construction`)}
-              className={`rounded-lg px-3 py-1.5 font-semibold transition-colors ${
-                evalRes.eligible
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  : 'cursor-not-allowed bg-slate-800 text-slate-500'
-              }`}
-            >
-              {state.level === 0 ? 'Build' : `Upgrade Lv ${nextLevel}`} ({formatMoney(cost)})
-            </button>
-          )}
-        </div>
-
-        {!evalRes.eligible && evalRes.missingReasons.length > 0 && state.level < def.maxLevel && !isConstructing && (
-          <p className="mt-2 text-[11px] text-amber-400/90">{evalRes.missingReasons[0]}</p>
-        )}
-      </div>
-    );
+    switch (zone) {
+      case 'stadium':
+        setCameraTarget({ position: [38, 28, -12], target: [38, 6, -42] });
+        setSelectedBuildingId('stadium_stands');
+        break;
+      case 'training':
+        setCameraTarget({ position: [2, 26, 26], target: [2, 2, -6] });
+        setSelectedBuildingId('football_pitch');
+        break;
+      case 'medical':
+        setCameraTarget({ position: [30, 20, 24], target: [30, 3, 0] });
+        setSelectedBuildingId('club_hospital');
+        break;
+      case 'commercial':
+        setCameraTarget({ position: [24, 20, 44], target: [24, 4, 22] });
+        setSelectedBuildingId('club_merchandise_store');
+        break;
+      case 'youth':
+        setCameraTarget({ position: [-28, 22, 16], target: [-28, 4, -6] });
+        setSelectedBuildingId('youth_academy');
+        break;
+      case 'land':
+        setCameraTarget({ position: [0, 65, 45], target: [0, 0, 0] });
+        setSelectedBuildingId(null);
+        break;
+      case 'finances':
+        setCameraTarget({ position: [24, 22, 42], target: [24, 4, 22] });
+        setSelectedBuildingId('club_headquarters');
+        break;
+      default:
+        setCameraTarget({ position: [36, 42, 58], target: [0, 4, 0] });
+        break;
+    }
   };
 
+  const selectedBuildingDef = selectedBuildingId
+    ? CLUB_EMPIRE_BUILDINGS_CATALOG[selectedBuildingId]
+    : null;
+  const selectedBuildingState = selectedBuildingId
+    ? empire.buildings[selectedBuildingId]
+    : null;
+  const selectedBuildingProject = selectedBuildingId
+    ? empire.activeConstructions.find((c) => c.buildingId === selectedBuildingId)
+    : null;
+
+  const nextLevel = selectedBuildingState ? selectedBuildingState.level + 1 : 1;
+  const evalRes = selectedBuildingId
+    ? evaluateBuildingPrerequisites(gameState, selectedBuildingId, nextLevel)
+    : null;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/40 p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
-            <Crown className="h-4 w-4" />
-            Original Team Career • Club Empire
+    <div
+      className={`relative w-full overflow-hidden select-none transition-all duration-300 ${
+        isFullscreen
+          ? 'fixed inset-0 z-50 bg-navy-950 h-screen w-screen'
+          : 'rounded-3xl border border-slate-800 bg-navy-950 h-[calc(100vh-140px)] min-h-[640px]'
+      }`}
+    >
+      {/* =================================================================== */}
+      {/* 1. TOP FLOATING EVONY HUD BAR (Header & Resource Tickers)           */}
+      {/* =================================================================== */}
+      <div className="absolute top-3 inset-x-3 z-20 pointer-events-none flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Club Crest, Title & Tier */}
+        <div className="pointer-events-auto flex items-center gap-3 p-2.5 pr-4 rounded-2xl bg-navy-950/90 border border-slate-800/90 shadow-2xl backdrop-blur-md">
+          <ClubCrest club={userClub} size={38} />
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-white tracking-wide">
+              <span>{userClub.name} Clubgelände</span>
+              <span className="px-1.5 py-0.5 rounded bg-gold-400/15 text-gold-300 text-[10px] font-bold border border-gold-400/30">
+                HD 3D
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <span>Tier: <strong className="text-pitch-400">{tierInfo.tier}</strong></span>
+              <span>&bull;</span>
+              <span>Max Lv: <strong className="text-white">{tierInfo.maxBuildingLevel}</strong></span>
+            </div>
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-white">{userClub.name} Infrastructure</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Tier: <span className="font-semibold text-emerald-300">{tierInfo.tier}</span> (Max Building Lv{' '}
-            {tierInfo.maxBuildingLevel}) • Active Constructions: {empire.activeConstructions.length}/
-            {empire.maxSimultaneousConstructions}
-          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2.5">
-            <div className="text-[11px] text-slate-400">Club Funds</div>
-            <div className="text-base font-bold text-emerald-400">{formatMoney(userClub.finances.cashBalance)}</div>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2.5">
-            <div className="text-[11px] text-slate-400">Stadium Cap</div>
-            <div className="text-base font-bold text-white">{stadiumCapacity.toLocaleString()}</div>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2.5">
-            <div className="text-[11px] text-slate-400">Hospital Boosters</div>
-            <div className="text-base font-bold text-cyan-300">
-              {empire.hospitalProduction.individualBoostersStored} Ind / {empire.hospitalProduction.teamBoostersStored} Team
+        {/* Center: Live Resource Tickers (Evony Style) */}
+        <div className="pointer-events-auto hidden sm:flex items-center gap-2 p-1.5 rounded-2xl bg-navy-950/90 border border-slate-800/90 shadow-2xl backdrop-blur-md text-xs font-bold">
+          {/* Club Funds */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-800 text-emerald-400">
+            <Coins className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div>
+              <div className="text-[9px] uppercase text-slate-400 font-bold leading-none">Club Funds</div>
+              <div className="text-xs font-black">{formatMoney(userClub.finances.cashBalance)}</div>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-2.5">
-            <div className="text-[11px] text-slate-400">Owned Plots</div>
-            <div className="text-base font-bold text-amber-300">
-              {empire.landPlots.filter((p) => p.owned).length} / {empire.landPlots.length}
+
+          {/* Stadium Capacity */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-800 text-white">
+            <Ticket className="w-4 h-4 text-gold-400 shrink-0" />
+            <div>
+              <div className="text-[9px] uppercase text-slate-400 font-bold leading-none">Stadium Cap</div>
+              <div className="text-xs font-black">{stadiumCapacity.toLocaleString()}</div>
             </div>
           </div>
+
+          {/* Hospital Boosters */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-800 text-sky-400">
+            <HeartPulse className="w-4 h-4 text-sky-400 shrink-0" />
+            <div>
+              <div className="text-[9px] uppercase text-slate-400 font-bold leading-none">Hospital Boosters</div>
+              <div className="text-xs font-black">
+                {empire.hospitalProduction.individualBoostersStored} Ind &bull;{' '}
+                {empire.hospitalProduction.teamBoostersStored} Team
+              </div>
+            </div>
+          </div>
+
+          {/* Active Construction Slots */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-800 text-amber-400">
+            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <div className="text-[9px] uppercase text-slate-400 font-bold leading-none">Constructions</div>
+              <div className="text-xs font-black">
+                {empire.activeConstructions.length} / {empire.maxSimultaneousConstructions}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Camera Reset & Fullscreen Controls */}
+        <div className="pointer-events-auto flex items-center gap-2 p-1.5 rounded-2xl bg-navy-950/90 border border-slate-800/90 shadow-2xl backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => glideToZone('all')}
+            className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-slate-300 hover:text-white transition"
+            title="Reset Camera to Overview"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-slate-300 hover:text-white transition"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
+      {/* Temporary Feedback Banner */}
       {feedback && (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm ${
-            feedback.ok
-              ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-200'
-              : 'border-rose-500/40 bg-rose-950/40 text-rose-200'
-          }`}
-        >
-          {feedback.message}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto px-4 py-2 rounded-2xl bg-navy-950/95 border text-xs font-bold shadow-2xl animate-fade-in flex items-center gap-2">
+          <CheckCircle2 className={`w-4 h-4 ${feedback.ok ? 'text-emerald-400' : 'text-rose-400'}`} />
+          <span className={feedback.ok ? 'text-white' : 'text-rose-300'}>{feedback.message}</span>
         </div>
       )}
 
-      {/* Section Tabs */}
-      <div className="flex flex-wrap gap-2">
-        {SECTIONS.map((sec) => {
-          const Icon = sec.icon;
-          const active = activeSection === sec.id;
-          return (
-            <button
-              key={sec.id}
-              type="button"
-              onClick={() => setActiveSection(sec.id)}
-              className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
-                active
-                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
-                  : 'border border-slate-800 bg-slate-900/70 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {sec.label}
-            </button>
-          );
-        })}
+      {/* =================================================================== */}
+      {/* 2. MAIN 3D FULL-VIEWPORT WORLD SCENE (We Are Football / Evony)      */}
+      {/* =================================================================== */}
+      <div className="w-full h-full">
+        <ClubEmpire3DScene
+          empire={empire}
+          club={userClub}
+          selectedBuildingId={selectedBuildingId}
+          onSelectBuilding={(id) => {
+            setSelectedBuildingId(id);
+            setSelectedPlot(null);
+          }}
+          onSelectPlot={(plot) => {
+            setSelectedPlot(plot);
+            setSelectedBuildingId(plot.assignedBuildingId ?? null);
+          }}
+          onClaimBooster={(type) => {
+            runAction(claimEmpireHospitalBooster(type), `Claimed ${type} hospital booster`);
+          }}
+          cameraTarget={cameraTarget}
+        />
       </div>
 
-      {/* 1. CLUB OVERVIEW */}
-      {activeSection === 'overview' && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 lg:col-span-2">
-            <h2 className="text-lg font-bold text-white">Active Construction Queue</h2>
-            {empire.activeConstructions.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                No active construction projects. Select a facility in any campus tab or Land & Construction to begin.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {empire.activeConstructions.map((proj) => {
-                  const def = CLUB_EMPIRE_BUILDINGS_CATALOG[proj.buildingId];
-                  const completesAt = proj.completedAtMs ?? nowMs;
-                  const remainingMs = Math.max(0, completesAt - nowMs);
-                  const totalMs = Math.max(1, completesAt - nowMs + 1000);
-                  const pct = Math.min(100, Math.max(0, ((totalMs - remainingMs) / totalMs) * 100));
-
-                  return (
-                    <div key={proj.buildingId} className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="font-semibold text-white">
-                            {def.name} → Lv {proj.targetLevel}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            Remaining: <span className="font-mono text-amber-300">{formatRemaining(remainingMs)}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => runAction(useEmpireConstructionBooster(proj.projectId, 'common'), 'Applied 5% booster')}
-                            className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700"
-                          >
-                            5% Boost ({empire.constructionBoosters.common})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => runAction(useEmpireConstructionBooster(proj.projectId, 'rare'), 'Applied 10% booster')}
-                            className="rounded-lg border border-cyan-700/60 bg-cyan-950/50 px-2.5 py-1 text-xs text-cyan-200 hover:bg-cyan-900/60"
-                          >
-                            10% Boost ({empire.constructionBoosters.rare})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => runAction(useEmpireAdReduction(proj.projectId), 'Applied Ad Reduction')}
-                            className="rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-500"
-                          >
-                            Watch Ad (-10% / 30m max)
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
-                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <h2 className="text-lg font-bold text-white">Club Development Status</h2>
-            <div className="space-y-2 text-sm text-slate-300">
-              <div className="flex justify-between">
-                <span>Development Tier</span>
-                <strong className="text-emerald-300">{tierInfo.tier}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Pitch Injury Risk</span>
-                <strong className="text-cyan-300">{(pitchRiskMultiplier * 100).toFixed(0)}%</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Pitch Morale Bonus</span>
-                <strong className="text-emerald-300">+{pitchMoraleBonus}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Superstar Influence</span>
-                <strong className="text-amber-300">+{superstarInfluence.totalCommercialInfluence}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>Museum Tourism / Wk</span>
-                <strong className="text-emerald-300">{formatMoney(museumIncome.weeklyTourismIncome)}</strong>
-              </div>
-            </div>
-          </div>
+      {/* =================================================================== */}
+      {/* 3. BOTTOM FLOATING ZONE NAVIGATION PILLS (Evony Category Tabs)      */}
+      {/* =================================================================== */}
+      <div className="absolute bottom-4 inset-x-4 z-20 pointer-events-none flex items-center justify-center">
+        <div className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-2xl bg-navy-950/90 border border-slate-800/90 shadow-2xl backdrop-blur-md overflow-x-auto max-w-full">
+          {[
+            { id: 'all', label: 'Overview', icon: Crown },
+            { id: 'stadium', label: 'Stadium', icon: Ticket },
+            { id: 'training', label: 'Pitches', icon: Dumbbell },
+            { id: 'medical', label: 'Medical & Pool', icon: HeartPulse },
+            { id: 'commercial', label: 'Megastore', icon: Landmark },
+            { id: 'youth', label: 'Youth Academy', icon: Users },
+            { id: 'land', label: 'Land Expansion', icon: MapPin },
+            { id: 'finances', label: 'Financials', icon: Coins },
+          ].map((z) => {
+            const Icon = z.icon;
+            const isActive = activeZone === z.id;
+            return (
+              <button
+                key={z.id}
+                type="button"
+                onClick={() => glideToZone(z.id as CampusZoneFilter)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'bg-pitch-500 text-navy-950 shadow-lg shadow-pitch-500/30'
+                    : 'text-slate-400 hover:text-white hover:bg-navy-900'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{z.label}</span>
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
 
-      {/* 2. STADIUM & TICKET PRICING */}
-      {activeSection === 'stadium' && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4">
-            {(['football_pitch', 'stadium_stands', 'vip_hospitality', 'stadium_roof', 'lighting_scoreboard', 'fan_plaza'] as ClubEmpireBuildingId[]).map(
-              renderBuildingCard
-            )}
+      {/* =================================================================== */}
+      {/* 4. CAMERA CONTROL INSTRUCTIONS (Bottom-Left - Image 2 Style)        */}
+      {/* =================================================================== */}
+      <div className="absolute bottom-4 left-4 z-10 pointer-events-none hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-navy-950/80 border border-slate-800 text-[10px] text-slate-400 backdrop-blur-md">
+        <div className="flex items-center gap-1 font-mono font-bold text-slate-300">
+          <span className="px-1 py-0.5 rounded bg-navy-900 border border-slate-800">W</span>
+          <span className="px-1 py-0.5 rounded bg-navy-900 border border-slate-800">A</span>
+          <span className="px-1 py-0.5 rounded bg-navy-900 border border-slate-800">S</span>
+          <span className="px-1 py-0.5 rounded bg-navy-900 border border-slate-800">D</span>
+        </div>
+        <span>&bull; Drag to Orbit &bull; Scroll to Zoom &bull; Tap Building to Inspect</span>
+      </div>
+
+      {/* =================================================================== */}
+      {/* 5. SLIDE-IN FACILITY & CONSTRUCTION DRAWER (Right Side)             */}
+      {/* =================================================================== */}
+      {(selectedBuildingId || selectedPlot) && (
+        <div className="absolute top-0 right-0 bottom-0 z-30 w-full sm:w-[420px] bg-navy-950/95 border-l border-slate-800 p-6 shadow-2xl backdrop-blur-xl overflow-y-auto space-y-5 animate-slide-left">
+          {/* Drawer Header */}
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <span className="text-[10px] font-black uppercase text-pitch-400 tracking-wider">
+                {selectedPlot && !selectedBuildingId ? 'Campus Land Plot' : 'Infrastructure Facility'}
+              </span>
+              <h2 className="text-xl font-black uppercase text-white">
+                {selectedBuildingDef?.name ?? selectedPlot?.name ?? 'Facility Manager'}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundManager.playUiClick();
+                setSelectedBuildingId(null);
+                setSelectedPlot(null);
+              }}
+              className="p-1.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-slate-400 hover:text-white border border-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <h3 className="flex items-center gap-2 text-lg font-bold text-white">
-              <Ticket className="h-5 w-5 text-emerald-400" />
-              Home-Match Ticket Pricing
-            </h3>
-            <p className="mt-1 text-xs text-slate-400">
-              Applies exclusively to home matches. Overpricing reduces attendance and fan satisfaction.
-            </p>
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="flex justify-between text-xs font-medium text-slate-300">
-                  <span>General Admission Price</span>
-                  <span className="text-emerald-300">€{ticketPriceDraft}</span>
-                </label>
-                <input
-                  type="range"
-                  min={10}
-                  max={180}
-                  value={ticketPriceDraft}
-                  onChange={(e) => setTicketPriceDraft(Number(e.target.value))}
-                  className="mt-2 w-full accent-emerald-500"
-                />
+          {/* A. UNOWNED LAND PLOT PURCHASE MODE */}
+          {selectedPlot && !selectedPlot.owned && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-navy-900 border border-slate-800 space-y-2">
+                <div className="text-xs font-bold text-slate-300">Plot Details</div>
+                <div className="text-xs text-slate-400">
+                  Zone: <strong className="text-white uppercase">{selectedPlot.zone}</strong> &bull; Size:{' '}
+                  <strong className="text-white uppercase">{selectedPlot.size}</strong>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Required Tier: <strong className="text-pitch-400">{selectedPlot.requiredTier}</strong>
+                </div>
               </div>
 
-              <div>
-                <label className="flex justify-between text-xs font-medium text-slate-300">
-                  <span>VIP / Hospitality Price</span>
-                  <span className="text-amber-300">€{vipPriceDraft}</span>
-                </label>
-                <input
-                  type="range"
-                  min={30}
-                  max={500}
-                  value={vipPriceDraft}
-                  onChange={(e) => setVipPriceDraft(Number(e.target.value))}
-                  className="mt-2 w-full accent-amber-500"
-                />
+              <div className="p-4 rounded-2xl bg-gold-500/10 border border-gold-500/30 text-center space-y-2">
+                <div className="text-xs uppercase font-extrabold text-gold-400">Acquisition Cost</div>
+                <div className="text-3xl font-black text-white">{formatMoney(selectedPlot.purchaseCost)}</div>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  runAction(
-                    updateEmpireTicketPricing({
-                      generalPrice: ticketPriceDraft,
-                      premiumPrice: Math.round((ticketPriceDraft + vipPriceDraft) / 2),
-                      vipPrice: vipPriceDraft,
-                    }),
-                    'Updated home ticket pricing'
-                  )
-                }
-                className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500"
+                onClick={() => {
+                  soundManager.playCoinCollect();
+                  runAction(buyEmpireLandPlot(selectedPlot.plotId), `Acquired ${selectedPlot.name}`);
+                  setSelectedPlot(null);
+                }}
+                className="w-full py-3 rounded-2xl bg-pitch-500 hover:bg-pitch-400 text-navy-950 font-black uppercase text-sm tracking-wide shadow-lg shadow-pitch-500/30 transition flex items-center justify-center gap-2"
               >
-                Save Home Ticket Pricing
+                <Plus className="w-4 h-4" />
+                <span>Purchase &amp; Expand Campus</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* 3. TRAINING CAMPUS */}
-      {activeSection === 'training' && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {(['training_complex', 'fitness_gym'] as ClubEmpireBuildingId[]).map(renderBuildingCard)}
-        </div>
-      )}
-
-      {/* 4. MEDICAL CAMPUS */}
-      {activeSection === 'medical' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-cyan-500/30 bg-slate-900/80 p-5">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-white">
-                  <HeartPulse className="h-5 w-5 text-cyan-400" />
-                  Hospital Offline Booster Production
-                </h3>
-                <p className="mt-1 text-xs text-slate-400">
-                  Individual & Team Recovery Boosters are produced separately and capped by Hospital level.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={empire.hospitalProduction.individualBoostersStored <= 0}
-                  onClick={() => runAction(claimEmpireHospitalBooster('individual'), 'Claimed Individual Booster')}
-                  className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-semibold text-white hover:bg-cyan-500 disabled:bg-slate-800 disabled:text-slate-500"
-                >
-                  Claim Individual ({empire.hospitalProduction.individualBoostersStored}/{empire.hospitalProduction.individualStorageCap})
-                </button>
-                <button
-                  type="button"
-                  disabled={empire.hospitalProduction.teamBoostersStored <= 0}
-                  onClick={() => runAction(claimEmpireHospitalBooster('team'), 'Claimed Team Booster')}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500"
-                >
-                  Claim Team ({empire.hospitalProduction.teamBoostersStored}/{empire.hospitalProduction.teamStorageCap})
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {(['club_hospital', 'rehabilitation_centre', 'sports_science_lab'] as ClubEmpireBuildingId[]).map(
-              renderBuildingCard
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 5. YOUTH DEVELOPMENT */}
-      {activeSection === 'youth' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-            Youth Academy Capacity: <strong className="text-emerald-300">{youthCapacity} prospects</strong>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {(['youth_academy', 'youth_residence', 'scouting_centre'] as ClubEmpireBuildingId[]).map(
-              renderBuildingCard
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 6. COMMERCIAL DISTRICT */}
-      {activeSection === 'commercial' && (
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Trophy className="h-4 w-4 text-amber-400" />
-                Trophy Museum
-              </div>
-              <div className="mt-1 text-lg font-bold text-white">
-                {empire.buildings.club_museum.level > 0 ? 'Open (2+ Trophies)' : 'Locked (Needs 2 Trophies)'}
-              </div>
-              <div className="text-xs text-emerald-300">Tourism: {formatMoney(museumIncome.weeklyTourismIncome)}/wk</div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Sparkles className="h-4 w-4 text-cyan-400" />
-                Superstar Commercial Influence
-              </div>
-              <div className="mt-1 text-lg font-bold text-white">
-                Score: {superstarInfluence.totalCommercialInfluence}
-              </div>
-              <div className="text-xs text-slate-400">
-                Merchandise x{superstarInfluence.merchandiseMultiplier.toFixed(2)} (diminishing returns)
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Building2 className="h-4 w-4 text-emerald-400" />
-                Active Sponsorships
-              </div>
-              <div className="mt-1 text-lg font-bold text-white">{empire.sponsorships.length} Contracts</div>
-              <div className="text-xs text-slate-400">Grows with reputation & superstars</div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {(
-              [
-                'club_headquarters',
-                'club_merchandise_store',
-                'sponsorship_centre',
-                'media_broadcast_centre',
-                'club_museum',
-                'parking_transport',
-                'supporters_club',
-                'community_centre',
-                'security_operations',
-              ] as ClubEmpireBuildingId[]
-            ).map(renderBuildingCard)}
-          </div>
-        </div>
-      )}
-
-      {/* 7. LAND & CONSTRUCTION + 3D CAMPUS */}
-      {activeSection === 'land' && (
-        <div className="space-y-6">
-          <ClubEmpire3DCampus
-            empire={empire}
-            selectedBuildingId={selectedBuildingId ?? 'stadium_stands'}
-            onSelectBuilding={setSelectedBuildingId}
-          />
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {empire.landPlots.map((plot) => (
-              <div key={plot.plotId} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-white">{plot.name}</h4>
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      plot.owned ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {plot.owned ? 'Owned' : 'Locked'}
-                  </span>
+          {/* B. BUILDING FACILITY INSPECTOR & UPGRADE CONTROLS */}
+          {selectedBuildingDef && selectedBuildingState && (
+            <div className="space-y-5">
+              {/* Current Level Badge & Category */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-navy-900 border border-slate-800">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Current Facility Level</div>
+                  <div className="text-lg font-black text-white">
+                    Level {selectedBuildingState.level} / {selectedBuildingDef.maxLevel}
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">{plot.zone}</p>
-                {!plot.owned && (
-                  <button
-                    type="button"
-                    onClick={() => runAction(buyEmpireLandPlot(plot.plotId), `Purchased ${plot.name}`)}
-                    className="mt-3 w-full rounded-lg bg-amber-600 py-2 text-xs font-semibold text-white hover:bg-amber-500"
-                  >
-                    Purchase Land ({formatMoney(plot.purchaseCost)})
-                  </button>
+                <span className="px-3 py-1 rounded-xl bg-pitch-500/15 border border-pitch-500/30 text-pitch-400 font-bold text-xs uppercase">
+                  {selectedBuildingDef.category}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed bg-navy-900/60 p-3 rounded-xl border border-slate-800/80">
+                {selectedBuildingDef.description}
+              </p>
+
+              {/* Active Construction Timer & Accelerators */}
+              {selectedBuildingProject && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs uppercase">
+                      <Clock className="w-4 h-4 animate-spin" />
+                      <span>Construction in Progress</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-white">
+                      {formatRemaining(Math.max(0, (selectedBuildingProject.completedAtMs ?? nowMs) - nowMs))}
+                    </span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="h-2 w-full rounded-full bg-navy-950 overflow-hidden">
+                    <div
+                      className="h-full bg-amber-400 transition-all duration-300"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(
+                            5,
+                            (1 -
+                              Math.max(0, (selectedBuildingProject.completedAtMs ?? nowMs) - nowMs) /
+                                (selectedBuildingDef.levels[nextLevel]?.durationMinutes * 60 * 1000 || 60000)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+
+                  {/* Speedup Buttons */}
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playUiClick();
+                        runAction(
+                          useEmpireConstructionBooster(selectedBuildingProject.projectId, 'common'),
+                          'Used 5% Construction Booster'
+                        );
+                      }}
+                      className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-slate-200 text-center font-bold"
+                    >
+                      5% Speedup ({empire.constructionBoosters.common})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playUiClick();
+                        runAction(
+                          useEmpireConstructionBooster(selectedBuildingProject.projectId, 'rare'),
+                          'Used 10% Construction Booster'
+                        );
+                      }}
+                      className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-cyan-300 text-center font-bold"
+                    >
+                      10% Speedup ({empire.constructionBoosters.rare})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playUiClick();
+                        runAction(
+                          useEmpireAdReduction(selectedBuildingProject.projectId),
+                          'Applied Watch Ad Speedup'
+                        );
+                      }}
+                      className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-navy-950 text-center font-black"
+                    >
+                      Watch Ad (-10%)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Facility Upgrade Benefit Matrix */}
+              <div className="p-4 rounded-2xl bg-navy-900 border border-slate-800 space-y-2 text-xs">
+                <div className="font-bold text-slate-300 uppercase text-[11px]">Facility Effect &amp; Output</div>
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Current Tier Effect:</span>
+                  <strong className="text-white">
+                    {selectedBuildingDef.levels[selectedBuildingState.level]?.benefitLabel ?? 'Base Tier'}
+                  </strong>
+                </div>
+                {nextLevel <= selectedBuildingDef.maxLevel && (
+                  <div className="flex items-center justify-between text-pitch-400 pt-1 border-t border-slate-800">
+                    <span>Next Level {nextLevel}:</span>
+                    <strong className="text-pitch-400">
+                      {selectedBuildingDef.levels[nextLevel]?.benefitLabel ?? 'Enhanced Performance'}
+                    </strong>
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* 8. CLUB FINANCES LEDGER */}
-      {activeSection === 'finances' && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-white">
-            <Coins className="h-5 w-5 text-emerald-400" />
-            Club Empire Financial Ledger
-          </h3>
-          {empire.transactions.length === 0 ? (
-            <p className="text-sm text-slate-400">No infrastructure transactions recorded yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {empire.transactions.slice(0, 20).map((tx, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-2.5 text-sm"
-                >
-                  <div>
-                    <div className="font-medium text-white">{tx.description}</div>
-                    <div className="text-xs text-slate-500">
-                      {tx.category}
-                    </div>
+              {/* SPECIAL FACILITY ACTIONS */}
+              {/* Medical Hospital Booster Claim */}
+              {selectedBuildingDef.id === 'club_hospital' && (
+                <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-300 uppercase">Hospital Booster Storage</span>
+                    <span className="text-xs font-black text-white">
+                      {empire.hospitalProduction.individualBoostersStored} /{' '}
+                      {empire.hospitalProduction.individualStorageCap}
+                    </span>
                   </div>
-                  <span className={`font-mono font-semibold ${tx.amount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {tx.amount >= 0 ? '+' : ''}
-                    {formatMoney(tx.amount)}
-                  </span>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playBoosterCollect();
+                        runAction(claimEmpireHospitalBooster('individual'), 'Collected Individual Recovery Booster');
+                      }}
+                      disabled={empire.hospitalProduction.individualBoostersStored === 0}
+                      className="py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold transition text-center"
+                    >
+                      Collect Ind ({empire.hospitalProduction.individualBoostersStored})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        soundManager.playBoosterCollect();
+                        runAction(claimEmpireHospitalBooster('team'), 'Collected Team Recovery Booster');
+                      }}
+                      disabled={empire.hospitalProduction.teamBoostersStored === 0}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold transition text-center"
+                    >
+                      Collect Team ({empire.hospitalProduction.teamBoostersStored})
+                    </button>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Stadium Ticket Pricing Controls */}
+              {selectedBuildingDef.id === 'stadium_stands' && (
+                <div className="p-4 rounded-2xl bg-navy-900 border border-slate-800 space-y-3">
+                  <div className="text-xs font-bold text-white uppercase">Matchday Ticket Pricing</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>General Admission</span>
+                      <strong className="text-white">€{ticketPriceDraft}</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={15}
+                      max={75}
+                      value={ticketPriceDraft}
+                      onChange={(e) => setTicketPriceDraft(Number(e.target.value))}
+                      className="w-full accent-pitch-400"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>VIP Executive Box</span>
+                      <strong className="text-gold-400">€{vipPriceDraft}</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={50}
+                      max={250}
+                      value={vipPriceDraft}
+                      onChange={(e) => setVipPriceDraft(Number(e.target.value))}
+                      className="w-full accent-gold-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundManager.playUiClick();
+                      runAction(
+                        updateEmpireTicketPricing({
+                          generalPrice: ticketPriceDraft,
+                          premiumPrice: Math.round((ticketPriceDraft + vipPriceDraft) / 2),
+                          vipPrice: vipPriceDraft,
+                        }),
+                        'Updated Matchday Ticket Pricing'
+                      );
+                    }}
+                    className="w-full py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-xs font-bold text-slate-200 border border-slate-700"
+                  >
+                    Confirm Ticket Pricing
+                  </button>
+                </div>
+              )}
+
+              {/* Upgrade Button / Construction Action */}
+              {!selectedBuildingProject && nextLevel <= selectedBuildingDef.maxLevel && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={!evalRes?.eligible}
+                    onClick={() => {
+                      soundManager.playUpgradeComplete();
+                      runAction(
+                        startEmpireConstruction(selectedBuildingDef.id),
+                        `Started ${selectedBuildingDef.name} upgrade to Lv.${nextLevel}`
+                      );
+                    }}
+                    className={`w-full py-3.5 rounded-2xl font-black uppercase text-sm tracking-wide shadow-xl transition-all flex items-center justify-center gap-2 ${
+                      evalRes?.eligible
+                        ? 'bg-pitch-500 hover:bg-pitch-400 text-navy-950 shadow-pitch-500/25 cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                    }`}
+                  >
+                    <ArrowUpRight className="w-4 h-4" />
+                    <span>
+                      {selectedBuildingState.level === 0 ? 'Construct Facility' : `Upgrade to Level ${nextLevel}`}{' '}
+                      ({formatMoney(evalRes?.cost ?? 0)})
+                    </span>
+                  </button>
+                  {!evalRes?.eligible && evalRes?.missingReasons && evalRes.missingReasons.length > 0 && (
+                    <p className="text-[11px] text-amber-400 text-center font-semibold">
+                      {evalRes.missingReasons[0]}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* 9. DEVELOPMENT MISSIONS */}
-      {activeSection === 'missions' && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {empire.missions.map((mission) => (
-            <div key={mission.missionId} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h4 className="font-semibold text-white">{mission.title}</h4>
-                  <p className="mt-1 text-xs text-slate-400">{mission.description}</p>
-                </div>
-                <span
-                  className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                    mission.completed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-amber-300'
-                  }`}
-                >
-                  {mission.completed ? 'Completed' : 'Active'}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                <span>
-                  Progress: {mission.currentValue} / {mission.targetValue}
-                </span>
-                <span className="text-emerald-300">
-                  Reward: {formatMoney(mission.rewardTreasury)}
-                </span>
-              </div>
-            </div>
-          ))}
         </div>
       )}
     </div>

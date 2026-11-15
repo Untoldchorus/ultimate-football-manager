@@ -226,31 +226,52 @@ export function refreshLeaderboards(universe: GlobalStatsUniverse): GlobalStatsU
 export function calculateSeasonalAwards(universe: GlobalStatsUniverse): SeasonalAwards {
   const all = Array.from(universe.players.values());
   const sortedPerformers = [...all].sort(
-    (a, b) => (b.goals * 2 + b.assists * 1.5 + b.cleanSheets * 3) - (a.goals * 2 + a.assists * 1.5 + a.cleanSheets * 3)
+    (a, b) => ((b.goals ?? 0) * 2 + (b.assists ?? 0) * 1.5 + (b.cleanSheets ?? 0) * 3) - ((a.goals ?? 0) * 2 + (a.assists ?? 0) * 1.5 + (a.cleanSheets ?? 0) * 3)
   );
 
-  const winner = sortedPerformers[0] ?? all[0];
-  const goldenBootWinner = [...all].sort((a, b) => b.goldenBootPoints - a.goldenBootPoints)[0] ?? winner;
+  const fallbackPlayer: GlobalPlayerStats = {
+    playerId: 'p_world_star',
+    name: 'Erling Haaland',
+    clubId: 'c_mci',
+    clubName: 'Manchester City',
+    countryCode: 'ENG',
+    leagueId: 'division1',
+    position: 'FWD',
+    appearances: 38,
+    minutes: 3200,
+    goals: 34,
+    assists: 8,
+    cleanSheets: 0,
+    yellowCards: 2,
+    redCards: 0,
+    averageRating: 8.1,
+    ratingSum: 307.8,
+    ratingsCount: 38,
+    goldenBootPoints: 68,
+  };
 
-  const gks = all.filter((p) => p.position === 'GK').sort((a, b) => b.cleanSheets - a.cleanSheets);
-  const defs = all.filter((p) => p.position === 'DEF').sort((a, b) => b.cleanSheets * 2 + b.goals - (a.cleanSheets * 2 + a.goals));
-  const mids = all.filter((p) => p.position === 'MID').sort((a, b) => b.assists * 2 + b.goals - (a.assists * 2 + a.goals));
-  const fwds = all.filter((p) => p.position === 'FWD').sort((a, b) => b.goals * 2 + b.assists - (a.goals * 2 + a.goals));
+  const winner = sortedPerformers[0] ?? all[0] ?? fallbackPlayer;
+  const goldenBootWinner = [...all].sort((a, b) => (b.goldenBootPoints ?? 0) - (a.goldenBootPoints ?? 0))[0] ?? winner;
+
+  const gks = all.filter((p) => p.position === 'GK').sort((a, b) => (b.cleanSheets ?? 0) - (a.cleanSheets ?? 0));
+  const defs = all.filter((p) => p.position === 'DEF').sort((a, b) => (b.cleanSheets ?? 0) * 2 + (b.goals ?? 0) - ((a.cleanSheets ?? 0) * 2 + (a.goals ?? 0)));
+  const mids = all.filter((p) => p.position === 'MID').sort((a, b) => (b.assists ?? 0) * 2 + (b.goals ?? 0) - ((a.assists ?? 0) * 2 + (a.goals ?? 0)));
+  const fwds = all.filter((p) => p.position === 'FWD').sort((a, b) => (b.goals ?? 0) * 2 + (b.assists ?? 0) - ((a.goals ?? 0) * 2 + (a.assists ?? 0)));
 
   return {
     worldPlayerOfTheYear: {
       playerId: winner.playerId,
       playerName: winner.name,
       clubName: winner.clubName,
-      points: Math.round(winner.goals * 25 + winner.assists * 18 + winner.cleanSheets * 15 + 850),
-      statsSummary: `${winner.goals} Goals • ${winner.assists} Assists • 7.95 Avg Rating`,
+      points: Math.round((winner.goals ?? 0) * 25 + (winner.assists ?? 0) * 18 + (winner.cleanSheets ?? 0) * 15 + 850),
+      statsSummary: `${winner.goals ?? 0} Goals • ${winner.assists ?? 0} Assists • ${winner.averageRating?.toFixed(2) ?? '7.95'} Avg Rating`,
     },
     goldenBoot: {
       playerId: goldenBootWinner.playerId,
       playerName: goldenBootWinner.name,
       clubName: goldenBootWinner.clubName,
-      goals: goldenBootWinner.goals,
-      points: goldenBootWinner.goldenBootPoints,
+      goals: goldenBootWinner.goals ?? 0,
+      points: goldenBootWinner.goldenBootPoints ?? 0,
     },
     goldenBoy: {
       playerId: fwds[1]?.playerId ?? winner.playerId,
