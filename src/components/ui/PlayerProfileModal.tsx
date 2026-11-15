@@ -314,12 +314,12 @@ export function PlayerProfileModal({
           </div>
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Season Apps</span>
-            <span className="font-extrabold text-white">{player.stats.appearances}</span>
+            <span className="font-extrabold text-white">{player.stats?.appearances ?? 0}</span>
           </div>
           <div>
             <span className="text-slate-400 block text-[10px] uppercase font-bold">Goals / Assists</span>
             <span className="font-extrabold text-white">
-              {player.stats.goals}G / {player.stats.assists}A
+              {player.stats?.goals ?? 0}G / {player.stats?.assists ?? 0}A
             </span>
           </div>
           <div>

@@ -372,20 +372,35 @@ export function CompetitionsScreen() {
   );
 
   const topScorers = [...compPlayers]
-    .sort((a, b) => b.stats.goals - a.stats.goals || b.overall - a.overall)
+    .sort(
+      (a, b) =>
+        (b.stats?.goals ?? 0) - (a.stats?.goals ?? 0) || b.overall - a.overall
+    )
     .slice(0, 5);
 
   const topAssists = [...compPlayers]
-    .sort((a, b) => b.stats.assists - a.stats.assists || b.attributes.passing - a.attributes.passing)
+    .sort(
+      (a, b) =>
+        (b.stats?.assists ?? 0) - (a.stats?.assists ?? 0) ||
+        b.attributes.passing - a.attributes.passing
+    )
     .slice(0, 5);
 
   const topCleanSheets = [...compPlayers]
     .filter((p) => p.primaryPosition === 'GK')
-    .sort((a, b) => b.stats.cleanSheets - a.stats.cleanSheets || b.overall - a.overall)
+    .sort(
+      (a, b) =>
+        (b.stats?.cleanSheets ?? 0) - (a.stats?.cleanSheets ?? 0) ||
+        b.overall - a.overall
+    )
     .slice(0, 5);
 
   const topRated = [...compPlayers]
-    .sort((a, b) => b.stats.averageRating - a.stats.averageRating || b.overall - a.overall)
+    .sort(
+      (a, b) =>
+        (b.stats?.averageRating ?? 6.5) - (a.stats?.averageRating ?? 6.5) ||
+        b.overall - a.overall
+    )
     .slice(0, 5);
 
   return (
@@ -906,7 +921,7 @@ export function CompetitionsScreen() {
                       <div className="text-[10px] text-slate-400">{c?.shortName}</div>
                     </div>
                   </div>
-                  <span className="font-black text-gold-400 text-sm">{p.stats.goals}G</span>
+                  <span className="font-black text-gold-400 text-sm">{p.stats?.goals ?? 0}G</span>
                 </button>
               );
             })}

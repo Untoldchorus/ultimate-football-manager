@@ -123,4 +123,15 @@ describe('Original Club Career & Free Agent Market', () => {
     const aiRes = runAiFreeAgentCompetition(MOCK_CLUBS, freeAgents, 'club-a', () => seeded.next());
     expect(aiRes.updatedPlayers).toHaveLength(freeAgents.length);
   });
+
+  it('guarantees hybrid squad players have valid stats objects preventing reading goals crash', () => {
+    const squad = generateHybridSquad('orig_test', 'England', 888, 66);
+    for (const player of squad) {
+      expect(player.stats).toBeDefined();
+      expect(typeof player.stats.goals).toBe('number');
+      expect(typeof player.stats.appearances).toBe('number');
+      expect(typeof player.stats.assists).toBe('number');
+      expect(player.stats.goals).toBe(0);
+    }
+  });
 });

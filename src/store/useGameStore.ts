@@ -163,9 +163,34 @@ interface GameStore {
   updateEmpireTicketPricing: (pricing: TicketPricingConfig) => Promise<void>;
 }
 
+export function sanitizeLoadedGameState(state: GameState | null): GameState | null {
+  if (!state || !state.players) return state;
+  const sanitizedPlayers = state.players.map((p) => {
+    if (!p.stats) {
+      const legacyStats = (p as any).seasonStats;
+      return {
+        ...p,
+        stats: {
+          appearances: legacyStats?.appearances ?? 0,
+          goals: legacyStats?.goals ?? 0,
+          assists: legacyStats?.assists ?? 0,
+          cleanSheets: legacyStats?.cleanSheets ?? 0,
+          yellowCards: legacyStats?.yellowCards ?? 0,
+          redCards: legacyStats?.redCards ?? 0,
+          averageRating: legacyStats?.averageRating ?? 6.5,
+          minutesPlayed: legacyStats?.minutesPlayed ?? 0,
+        },
+      };
+    }
+    return p;
+  });
+  return { ...state, players: sanitizedPlayers };
+}
+
 async function persistAutosave(state: GameState): Promise<SaveEnvelope[]> {
   try {
-    await defaultSaveRepository.save('autosave', state);
+    const sanitized = sanitizeLoadedGameState(state)!;
+    await defaultSaveRepository.save('autosave', sanitized);
     return await defaultSaveRepository.listSlots();
   } catch {
     return [];
@@ -210,7 +235,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       set({
-        gameState: outcome.loaded ? outcome.loaded.state : null,
+        gameState: outcome.loaded ? sanitizeLoadedGameState(outcome.loaded.state) : null,
         saveSlots: outcome.slots,
         hydrationError: null,
         isHydrated: true,
@@ -248,7 +273,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startNewCareer: async (manager, seed = 20261108) => {
     set({ isSaving: true });
-    const newState = generateInitialGameState(seed, manager);
+    const rawState = generateInitialGameState(seed, manager);
+    const newState = sanitizeLoadedGameState(rawState)!;
     const slots = await persistAutosave(newState);
     const userClub = newState.clubs.find((c) => c.id === newState.manager.clubId);
     set({
@@ -286,10 +312,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ isSaving: false });
       return false;
     }
-    await defaultSaveRepository.save('autosave', env.state);
+    const sanitizedState = sanitizeLoadedGameState(env.state)!;
+    await defaultSaveRepository.save('autosave', sanitizedState);
     const slots = await defaultSaveRepository.listSlots();
     set({
-      gameState: env.state,
+      gameState: sanitizedState,
       saveSlots: slots,
       isSaving: false,
       activeTab: 'home',

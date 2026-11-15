@@ -77,7 +77,12 @@ export function HomeDashboard() {
   // Star player spotlight (highest OVR or top goalscorer in user's squad)
   const clubSquad = gameState.players
     .filter((p) => p.clubId === userClub.id && !p.isYouth)
-    .sort((a, b) => b.overall + b.stats.goals * 2 - (a.overall + a.stats.goals * 2));
+    .sort(
+      (a, b) =>
+        b.overall +
+        (b.stats?.goals ?? 0) * 2 -
+        (a.overall + (a.stats?.goals ?? 0) * 2)
+    );
   const starPlayer = clubSquad[0] ?? null;
 
   const squadAvgOvr = Math.round(
@@ -378,15 +383,15 @@ export function HomeDashboard() {
               <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center text-xs">
                 <div className="p-1.5 rounded-lg bg-navy-900">
                   <div className="text-[10px] text-slate-400">Apps</div>
-                  <div className="font-black text-white">{starPlayer.stats.appearances}</div>
+                  <div className="font-black text-white">{starPlayer.stats?.appearances ?? 0}</div>
                 </div>
                 <div className="p-1.5 rounded-lg bg-navy-900">
                   <div className="text-[10px] text-slate-400">Goals</div>
-                  <div className="font-black text-pitch-400">{starPlayer.stats.goals}</div>
+                  <div className="font-black text-pitch-400">{starPlayer.stats?.goals ?? 0}</div>
                 </div>
                 <div className="p-1.5 rounded-lg bg-navy-900">
                   <div className="text-[10px] text-slate-400">Assists</div>
-                  <div className="font-black text-gold-400">{starPlayer.stats.assists}</div>
+                  <div className="font-black text-gold-400">{starPlayer.stats?.assists ?? 0}</div>
                 </div>
               </div>
             </div>

@@ -109,13 +109,15 @@ export function generateHybridSquad(
         handling: pos === 'GK' ? overall + 2 : 28,
         gkPositioning: pos === 'GK' ? overall + 2 : 28,
       },
-      seasonStats: {
+      stats: {
         appearances: 0,
         goals: 0,
         assists: 0,
         cleanSheets: 0,
-        minutesPlayed: 0,
+        yellowCards: 0,
+        redCards: 0,
         averageRating: 6.5,
+        minutesPlayed: 0,
       },
     } as unknown as Player;
   });
