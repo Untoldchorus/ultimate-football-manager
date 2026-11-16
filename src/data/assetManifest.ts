@@ -1,6 +1,7 @@
 import { AssetManifestEntry } from '@/engine/types';
 import { GLOBAL_CLUBS_REGISTRY } from './globalClubsRegistry';
 import { getPlayerImageRecord } from './playerImageDatabase';
+import { getClubBadgeRecord } from './clubBadgeDatabase';
 import WIKIDATA_PHOTOS from './wikidataPlayerPhotos.json';
 
 /**
@@ -303,16 +304,19 @@ export const VERIFIED_PLAYER_PHOTOS: Record<
  * licensing, attribution, and verification timestamps.
  */
 export const ASSET_MANIFEST: AssetManifestEntry[] = [
-  ...GLOBAL_CLUBS_REGISTRY.map((club) => ({
-    entityId: club.id,
-    entityType: 'club' as const,
-    assetPathOrUrl: `internal://svg-crest/${club.id}`,
-    assetType: 'svg-crest' as const,
-    license: 'CC0-1.0 / Original Vector Club Emblem',
-    attribution: `Ultimate Football Manager Vector Heraldry (${club.name})`,
-    verifiedDateIso: '2026-11-12',
-    isGeneratedFallback: false,
-  })),
+  ...GLOBAL_CLUBS_REGISTRY.map((club) => {
+    const manifest = getClubCrestManifest(club.id);
+    return {
+      entityId: club.id,
+      entityType: 'club' as const,
+      assetPathOrUrl: manifest.url || `internal://svg-crest/${club.id}`,
+      assetType: (manifest.sourceType === 'official-crest' ? 'official-crest' : 'svg-crest') as any,
+      license: manifest.license,
+      attribution: manifest.attribution,
+      verifiedDateIso: (manifest as any).verifiedDateIso ?? '2026-11-16',
+      isGeneratedFallback: manifest.isGeneratedFallback,
+    };
+  }),
   ...Object.entries(VERIFIED_PLAYER_PHOTOS).map(([fullName, meta]) => ({
     entityId: `photo-${fullName.toLowerCase().replace(/\s+/g, '-')}`,
     entityType: 'player' as const,
@@ -360,9 +364,27 @@ export function getPlayerPhotoManifest(firstName: string, lastName: string, stab
 }
 
 export function getClubCrestManifest(clubId: string) {
+  const rec = getClubBadgeRecord(clubId);
+  if (rec && rec.badge_status === 'verified' && rec.badge_url) {
+    return {
+      clubId,
+      sourceType: 'official-crest' as const,
+      url: rec.badge_url,
+      sourceName: rec.source_name,
+      sourceUrl: rec.source_url,
+      license: rec.license,
+      attribution: rec.attribution,
+      verifiedDateIso: rec.last_verified,
+      isGeneratedFallback: false,
+    };
+  }
   return {
     clubId,
-    sourceType: 'verified-svg' as const,
+    sourceType: 'neutral-fallback-crest' as const,
+    url: undefined,
+    sourceUrl: 'internal://svg-crest',
     license: 'CC0-1.0 / Original Vector Club Emblem',
+    attribution: rec?.attribution ?? 'Ultimate Football Manager Vector Heraldry',
+    isGeneratedFallback: true,
   };
 }

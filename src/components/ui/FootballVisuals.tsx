@@ -7,6 +7,7 @@ import { getPlayerPhotoManifest } from '@/data/assetManifest';
 import { buildStablePlayerImageId, markPlayerImageBroken } from '@/data/playerImageDatabase';
 import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
 import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
+import { getClubBadgeUrl } from '@/data/clubBadgeDatabase';
 import { FootballerAvatarSvg } from './FootballerAvatarSvg';
 
 const SKIN_TONES = ['#f8d5c2', '#e8b89a', '#d2996c', '#a86e44', '#6b3e26', '#4a2918'];
@@ -182,10 +183,35 @@ export function ClubCrest({
 }: {
   club: Pick<Club, 'id' | 'shortName' | 'primaryColor' | 'secondaryColor' | 'division'> & {
     foundedYear?: number;
+    crestUrl?: string;
   };
   size?: number;
   className?: string;
 }) {
+  const [imgError, setImgError] = useState(false);
+  const badgeUrl = !imgError ? (club.crestUrl || getClubBadgeUrl(club.id)) : null;
+
+  if (badgeUrl) {
+    return (
+      <div
+        className={`relative shrink-0 select-none flex items-center justify-center ${className}`}
+        style={{ width: size, height: size }}
+        title={`${club.shortName} official crest`}
+      >
+        <img
+          src={badgeUrl}
+          alt={`${club.shortName} crest`}
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setImgError(true)}
+          className="w-full h-full object-contain drop-shadow transition-transform hover:scale-105"
+        />
+      </div>
+    );
+  }
+
   const seedClub = REAL_WORLD_CLUBS.find((c) => c.id === club.id);
   const style = seedClub?.crestStyle ?? 'shield-stripes';
   const founded = club.foundedYear ?? seedClub?.foundedYear;

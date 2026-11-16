@@ -120,7 +120,13 @@ export function verifyGlobalDatabaseCompleteness(forceRecompute = false): Global
       }
 
       const crest = getClubCrestManifest(club.id);
-      if (crest && (crest.sourceType === 'verified-svg' || crest.sourceType === 'generated-svg')) {
+      if (
+        crest &&
+        (crest.sourceType === 'official-crest' ||
+          crest.sourceType === 'neutral-fallback-crest' ||
+          (crest as any).sourceType === 'verified-svg' ||
+          (crest as any).sourceType === 'generated-svg')
+      ) {
         clubsWithBadgesCount += 1;
       }
 

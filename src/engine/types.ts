@@ -129,6 +129,24 @@ export interface PlayerImageRecord {
   last_verified: string;
 }
 
+export type ClubBadgeStatus = 'verified' | 'fallback' | 'broken';
+
+export interface ClubBadgeRecord {
+  club_id: string;
+  club_name: string;
+  short_name: string;
+  league_id: string;
+  country_id: string;
+  division_tier: 1 | 2;
+  badge_url?: string;
+  source_name: string;
+  source_url: string;
+  license: string;
+  attribution: string;
+  last_verified: string;
+  badge_status: ClubBadgeStatus;
+}
+
 export interface AssetManifestEntry {
   entityId: string;
   entityType: 'club' | 'player' | 'competition' | 'stadium';
@@ -368,6 +386,7 @@ export interface Club {
   rivalClubIds?: string[];
   clubHistory?: string;
   badgeAssetId?: string;
+  crestUrl?: string;
   captainId?: string;
   viceCaptainId?: string;
   primaryColor: string;
