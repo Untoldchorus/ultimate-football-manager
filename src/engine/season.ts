@@ -132,9 +132,11 @@ export function applyMatchResultToState(
     }
 
     const matchRating = result.playerRatings[p.id] ?? 6.5;
-    const apps = p.stats.appearances + 1;
+    const prevApps = p.stats?.appearances ?? 0;
+    const prevRating = p.stats?.averageRating ?? 6.5;
+    const apps = prevApps + 1;
     const avgRating =
-      Math.round(((p.stats.averageRating * p.stats.appearances + matchRating) / apps) * 10) / 10;
+      Math.round(((prevRating * prevApps + matchRating) / apps) * 10) / 10;
 
     const cleanSheetInc =
       (isHomeStarter && homeCleanSheet && ['GK', 'CB', 'LB', 'RB'].includes(p.primaryPosition)) ||
@@ -378,7 +380,7 @@ export function simulateWeekMatches(state: GameState, weekSeed: number): GameSta
 /**
  * Generates next knockout rounds for Domestic Cup (Weeks 9, 14, 19) & Champions Cup (Week 14)
  */
-function advanceCupCompetitions(state: GameState, weekSeed: number): GameState {
+export function advanceCupCompetitions(state: GameState, weekSeed: number): GameState {
   const rng = createRng(weekSeed ^ 0x9999);
   const newFixtures: Fixture[] = [];
   const newTrophies: TrophyRecord[] = [...state.trophies];

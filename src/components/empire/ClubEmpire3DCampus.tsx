@@ -365,6 +365,33 @@ function RegulationFootballPitch({
         </group>
       ))}
 
+      {/* Tall Ball-Stop Safety Netting behind goals (Manchester Reference Style) */}
+      {[-halfW - 1.2, halfW + 1.2].map((xPos, idx) => (
+        <group key={`ball-stop-${idx}`} position={[xPos, 0, 0]}>
+          {/* Support Stanchions / Poles */}
+          {[-3.6, -1.8, 0, 1.8, 3.6].map((pz, pIdx) => (
+            <mesh key={pIdx} position={[0, 1.8, pz]} castShadow>
+              <cylinderGeometry args={[0.04, 0.04, 3.6, 6]} />
+              <meshStandardMaterial color="#e2e8f0" metalness={0.7} roughness={0.3} />
+            </mesh>
+          ))}
+          {/* Tension Cables */}
+          <mesh position={[0, 3.55, 0]}>
+            <boxGeometry args={[0.04, 0.04, 7.4]} />
+            <meshStandardMaterial color="#94a3b8" />
+          </mesh>
+          <mesh position={[0, 1.8, 0]}>
+            <boxGeometry args={[0.03, 0.03, 7.4]} />
+            <meshStandardMaterial color="#94a3b8" />
+          </mesh>
+          {/* Fine White Catch Netting */}
+          <mesh position={[0, 1.8, 0]}>
+            <boxGeometry args={[0.02, 3.5, 7.2]} />
+            <meshStandardMaterial color="#ffffff" wireframe transparent opacity={0.25} />
+          </mesh>
+        </group>
+      ))}
+
       {/* Team Dugouts / Covered Benches (along touchline) */}
       <group position={[0, 0, -halfL - 0.7]}>
         {[-2.8, 2.8].map((dx, i) => (
@@ -1082,31 +1109,49 @@ export function ClubEmpire3DScene({
         />
 
         {/* ================================================================= */}
-        {/* 2. CENTER CAMPUS: 4 REGULATION FOOTBALL TRAINING PITCHES          */}
+        {/* 2. CENTER CAMPUS: 4 REGULATION FOOTBALL TRAINING PITCHES (2x2 GRID) */}
         {/* ================================================================= */}
-        {/* Main 1st Team Training Pitch */}
+        {/* Central Interconnecting Paved Walkways */}
+        <mesh position={[0, 0.025, -5]} receiveShadow>
+          <boxGeometry args={[3.2, 0.02, 36]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.025, -5]} receiveShadow>
+          <boxGeometry args={[50, 0.02, 3.2]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+        </mesh>
+
+        {/* Pitch 1: Top-Left (First Team Training Pitch) */}
         <RegulationFootballPitch
-          position={[2, 0, -16]}
-          width={22}
-          length={15}
+          position={[-11, 0, -15]}
+          width={19}
+          length={13.5}
           label="First Team Pitch"
           isActive
         />
-        {/* Pitch 2 */}
+        {/* Pitch 2: Top-Right (Tactical Pitch) */}
         <RegulationFootballPitch
-          position={[2, 0, 4]}
-          width={22}
-          length={15}
+          position={[11, 0, -15]}
+          width={19}
+          length={13.5}
           label="Tactical Training Pitch"
           isActive
         />
-        {/* Pitch 3 (Foreground Left) */}
+        {/* Pitch 3: Bottom-Left (Set-Piece Pitch) */}
         <RegulationFootballPitch
-          position={[-6, 0, 25]}
-          width={22}
-          length={15}
+          position={[-11, 0, 5]}
+          width={19}
+          length={13.5}
           label="Set-Piece Pitch"
           isActive={false}
+        />
+        {/* Pitch 4: Bottom-Right (Youth Academy Pitch) */}
+        <RegulationFootballPitch
+          position={[11, 0, 5]}
+          width={19}
+          length={13.5}
+          label="Youth Academy Pitch"
+          isActive
         />
 
         {/* ================================================================= */}

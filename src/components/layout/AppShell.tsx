@@ -57,6 +57,8 @@ import {
 } from '../management/ClubFinanceHistorySettingsScreens';
 import { MatchdayScreen } from '../match/MatchdayScreen';
 import { WorldCompetitionsScreen } from '../competitions/WorldCompetitionsScreen';
+import { SeasonHubScreen } from '../season/SeasonHubScreen';
+import { CentralWorldCalendarScreen } from '../calendar/CentralWorldCalendarScreen';
 import { ClubCrest } from '../ui/FootballVisuals';
 
 interface NavItem {
@@ -95,8 +97,9 @@ export function AppShell() {
       title: 'Command & Match',
       items: [
         { id: 'home', label: 'Home Dashboard', icon: Home },
+        { id: 'seasonHub', label: 'Season Hub', icon: Trophy, badge: 'Hub', badgeColor: 'bg-gold-400 text-navy-950' },
         { id: 'matchday', label: 'Matchday Center', icon: Play, badge: 'Live', badgeColor: 'bg-lime-400 text-navy-950' },
-        { id: 'fixtures', label: 'Fixtures Calendar', icon: Calendar },
+        { id: 'fixtures', label: 'World Calendar', icon: Calendar },
       ],
     },
     {
@@ -156,9 +159,11 @@ export function AppShell() {
   // Quick Action Tabs for instant 1-click header navigation
   const quickHeaderTabs: { id: NavTab; label: string }[] = [
     { id: 'home', label: 'Home' },
+    { id: 'seasonHub', label: 'Season Hub' },
     { id: 'squad', label: 'Squad' },
     { id: 'tactics', label: 'Tactics' },
     { id: 'worldCompetitions', label: 'World (UEFA)' },
+    { id: 'fixtures', label: 'Calendar' },
     { id: 'transfers', label: 'Transfers' },
     ...(isOriginal ? [{ id: 'clubEmpire' as NavTab, label: '3D Campus' }] : []),
     { id: 'finances', label: 'Finances' },
@@ -379,6 +384,7 @@ export function AppShell() {
           }`}
         >
           {activeTab === 'home' && <HomeDashboard />}
+          {activeTab === 'seasonHub' && <SeasonHubScreen />}
           {activeTab === 'myClub' && <MyClubScreen />}
           {activeTab === 'clubEmpire' && isOriginal && <ClubEmpireScreen />}
           {activeTab === 'squad' && <SquadScreen />}
@@ -389,7 +395,7 @@ export function AppShell() {
           {activeTab === 'transfers' && <TransfersScreen />}
           {activeTab === 'scouting' && <ScoutingScreen />}
           {activeTab === 'training' && <TrainingScreen />}
-          {activeTab === 'fixtures' && <FixturesScreen />}
+          {activeTab === 'fixtures' && <CentralWorldCalendarScreen />}
           {activeTab === 'competitions' && <CompetitionsScreen />}
           {activeTab === 'worldCompetitions' && <WorldCompetitionsScreen />}
           {activeTab === 'finances' && <FinancesScreen />}

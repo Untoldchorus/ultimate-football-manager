@@ -1163,6 +1163,94 @@ export interface GameState {
   news: NewsItem[];
   economy?: EconomyState;
   clubEmpire?: ClubEmpireState;
+  currentDateIso?: string; // Authoritative Football World Simulation Date (e.g. "2026-08-15")
+  calendarState?: CalendarState;
+  loginStreak?: RealWorldLoginStreakState;
+  achievements?: FootballAchievement[];
+}
+
+export type CalendarEventCategory =
+  | 'match'
+  | 'transfer'
+  | 'training'
+  | 'operations'
+  | 'competition'
+  | 'player'
+  | 'milestone'
+  | 'streak';
+
+export type CalendarEventImportance = 'critical' | 'high' | 'medium' | 'low';
+
+export interface CalendarEvent {
+  id: string;
+  dateIso: string; // YYYY-MM-DD
+  time?: string; // e.g. "15:00"
+  category: CalendarEventCategory;
+  importance: CalendarEventImportance;
+  title: string;
+  description: string;
+  clubId?: string;
+  opponentClubId?: string;
+  competition?: string;
+  fixtureId?: string;
+  actionRequired?: boolean;
+  completed?: boolean;
+  autoPause?: boolean;
+}
+
+export interface CalendarState {
+  currentDateIso: string;
+  seasonStartDateIso: string;
+  seasonEndDateIso: string;
+  summerWindowOpenDateIso: string;
+  summerWindowDeadlineDateIso: string;
+  winterWindowOpenDateIso: string;
+  winterWindowDeadlineDateIso: string;
+  autoAdvancePaused: boolean;
+  autoPauseConditions: {
+    pauseOnUserMatch: boolean;
+    pauseOnTransferDeadline: boolean;
+    pauseOnMajorInjury: boolean;
+    pauseOnContractExpiry: boolean;
+    pauseOnCupDraw: boolean;
+  };
+  simulationSpeedMs: number;
+  scheduledEvents: CalendarEvent[];
+}
+
+export interface RealWorldLoginStreakState {
+  currentStreak: number; // 1..7
+  bestStreak: number;
+  lastClaimUtcDate: string; // "YYYY-MM-DD"
+  totalClaimsCount: number;
+  cycleCount: number;
+  claimHistory: {
+    streakDay: number;
+    claimedAtIso: string;
+    rewardLabel: string;
+  }[];
+}
+
+export interface FootballAchievement {
+  id: string;
+  title: string;
+  description: string;
+  category: 'matches' | 'trophies' | 'transfers' | 'youth' | 'empire' | 'career';
+  icon: string;
+  currentProgress: number;
+  targetProgress: number;
+  unlocked: boolean;
+  claimed: boolean;
+  unlockedAtIso?: string;
+  reward: {
+    coins?: number;
+    reputation?: number;
+    trainingTokens?: number;
+    scoutingPoints?: number;
+    materials?: number;
+    boosterItemId?: string;
+    boosterItemName?: string;
+  };
 }
 
 export interface SaveEnvelope {

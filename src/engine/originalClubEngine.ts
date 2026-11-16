@@ -96,6 +96,10 @@ export function generateHybridSquad(
       transferListed: false,
       transferRequested: false,
       attributes,
+      joinedClubSeason: 2026,
+      joinedClubWeek: 1,
+      spokenLanguages: ['English'],
+      positionalFamiliarity: { [pos]: 100 },
       stats: {
         appearances: 0,
         goals: 0,

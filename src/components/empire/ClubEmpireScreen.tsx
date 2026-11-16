@@ -489,81 +489,110 @@ export function ClubEmpireScreen() {
               </p>
 
               {/* Active Construction Timer & Accelerators */}
-              {selectedBuildingProject && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-amber-300 font-black text-xs uppercase">
-                      <Clock className="w-4 h-4 animate-spin" />
-                      <span>Construction in Progress</span>
+              {selectedBuildingProject && (() => {
+                const endMs =
+                  selectedBuildingProject.expectedCompletionMs ??
+                  selectedBuildingProject.completedAtMs ??
+                  (selectedBuildingProject.startTimestampMs + selectedBuildingProject.originalDurationMs);
+                const remainingMs = Math.max(0, endMs - nowMs);
+                const totalDurationMs =
+                  selectedBuildingProject.originalDurationMs ||
+                  (selectedBuildingDef.levels[nextLevel]?.durationMinutes * 60 * 1000) ||
+                  60000;
+                const elapsedRatio = Math.min(1, Math.max(0, 1 - remainingMs / totalDurationMs));
+                const isReady = remainingMs <= 0;
+
+                return (
+                  <div className={`p-4 rounded-2xl border space-y-3 ${
+                    isReady
+                      ? 'bg-emerald-500/10 border-emerald-500/40'
+                      : 'bg-amber-500/10 border-amber-500/30'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className={`flex items-center gap-2 font-black text-xs uppercase ${
+                        isReady ? 'text-emerald-400' : 'text-amber-300'
+                      }`}>
+                        <Clock className={`w-4 h-4 ${isReady ? '' : 'animate-spin'}`} />
+                        <span>{isReady ? 'Construction Finished' : 'Construction in Progress'}</span>
+                      </div>
+                      <span className={`text-xs font-mono font-bold ${
+                        isReady ? 'text-emerald-300' : 'text-white'
+                      }`}>
+                        {formatRemaining(remainingMs)}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-white">
-                      {formatRemaining(Math.max(0, (selectedBuildingProject.completedAtMs ?? nowMs) - nowMs))}
-                    </span>
-                  </div>
 
-                  {/* Progress Bar */}
-                  <div className="h-2 w-full rounded-full bg-navy-950 overflow-hidden">
-                    <div
-                      className="h-full bg-amber-400 transition-all duration-300"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.max(
-                            5,
-                            (1 -
-                              Math.max(0, (selectedBuildingProject.completedAtMs ?? nowMs) - nowMs) /
-                                (selectedBuildingDef.levels[nextLevel]?.durationMinutes * 60 * 1000 || 60000)) *
-                              100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
+                    {/* Progress Bar */}
+                    <div className="h-2.5 w-full rounded-full bg-navy-950 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isReady ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}
+                        style={{
+                          width: `${isReady ? 100 : Math.min(100, Math.max(5, Math.round(elapsedRatio * 100)))}%`,
+                        }}
+                      />
+                    </div>
 
-                  {/* Speedup Buttons */}
-                  <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundManager.playUiClick();
-                        runAction(
-                          useEmpireConstructionBooster(selectedBuildingProject.projectId, 'common'),
-                          'Used 5% Construction Booster'
-                        );
-                      }}
-                      className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-slate-200 text-center font-bold"
-                    >
-                      5% Speedup ({empire.constructionBoosters.common})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundManager.playUiClick();
-                        runAction(
-                          useEmpireConstructionBooster(selectedBuildingProject.projectId, 'rare'),
-                          'Used 10% Construction Booster'
-                        );
-                      }}
-                      className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-cyan-300 text-center font-bold"
-                    >
-                      10% Speedup ({empire.constructionBoosters.rare})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundManager.playUiClick();
-                        runAction(
-                          useEmpireAdReduction(selectedBuildingProject.projectId),
-                          'Applied Watch Ad Speedup'
-                        );
-                      }}
-                      className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-navy-950 text-center font-black"
-                    >
-                      Watch Ad (-10%)
-                    </button>
+                    {/* Ready Claim Button or Speedup Controls */}
+                    {isReady ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          soundManager.playUpgradeComplete();
+                          await syncClubEmpireTimers();
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-pitch-500 hover:from-emerald-400 hover:to-pitch-400 text-navy-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Complete &amp; Open Facility (Lv {selectedBuildingProject.targetLevel})</span>
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundManager.playUiClick();
+                            runAction(
+                              useEmpireConstructionBooster(selectedBuildingProject.projectId, 'common'),
+                              'Used 5% Construction Booster'
+                            );
+                          }}
+                          className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-slate-200 text-center font-bold"
+                        >
+                          5% Speedup ({empire.constructionBoosters.common})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundManager.playUiClick();
+                            runAction(
+                              useEmpireConstructionBooster(selectedBuildingProject.projectId, 'rare'),
+                              'Used 10% Construction Booster'
+                            );
+                          }}
+                          className="p-2 rounded-xl bg-navy-900 hover:bg-navy-800 border border-slate-800 text-cyan-300 text-center font-bold"
+                        >
+                          10% Speedup ({empire.constructionBoosters.rare})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundManager.playUiClick();
+                            runAction(
+                              useEmpireAdReduction(selectedBuildingProject.projectId),
+                              'Applied Watch Ad Speedup'
+                            );
+                          }}
+                          className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-navy-950 text-center font-black"
+                        >
+                          Watch Ad (-10%)
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Facility Upgrade Benefit Matrix */}
               <div className="p-4 rounded-2xl bg-navy-900 border border-slate-800 space-y-2 text-xs">

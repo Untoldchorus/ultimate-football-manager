@@ -192,26 +192,38 @@ export function recordMatchToGlobalStats(
 }
 
 export function refreshLeaderboards(universe: GlobalStatsUniverse): GlobalStatsUniverse {
-  const all = Array.from(universe.players.values());
+  const rawList =
+    universe.players instanceof Map
+      ? Array.from(universe.players.values())
+      : typeof universe.players === 'object' && universe.players !== null
+        ? Object.values(universe.players)
+        : [];
+  const all = (rawList as (GlobalPlayerStats | undefined)[]).filter(
+    (p): p is GlobalPlayerStats => Boolean(p && typeof p === 'object' && p.playerId)
+  );
 
   const topScorers = [...all]
-    .filter((p) => p.goals > 0)
-    .sort((a, b) => b.goldenBootPoints - a.goldenBootPoints || b.goals - a.goals)
+    .filter((p) => (p.goals ?? 0) > 0)
+    .sort((a, b) => (b.goldenBootPoints ?? 0) - (a.goldenBootPoints ?? 0) || (b.goals ?? 0) - (a.goals ?? 0))
     .slice(0, 30);
 
   const topAssists = [...all]
-    .filter((p) => p.assists > 0)
-    .sort((a, b) => b.assists - a.assists)
+    .filter((p) => (p.assists ?? 0) > 0)
+    .sort((a, b) => (b.assists ?? 0) - (a.assists ?? 0) || (b.goals ?? 0) - (a.goals ?? 0))
     .slice(0, 30);
 
   const topCleanSheets = [...all]
     .filter((p) => p.position === 'GK')
-    .sort((a, b) => b.cleanSheets - a.cleanSheets)
+    .sort((a, b) => (b.cleanSheets ?? 0) - (a.cleanSheets ?? 0))
     .slice(0, 20);
 
   const highestRated = [...all]
-    .filter((p) => p.goals + p.assists > 0 || p.cleanSheets > 0)
-    .sort((a, b) => (b.goals * 2 + b.assists * 1.5 + b.cleanSheets) - (a.goals * 2 + a.assists * 1.5 + a.cleanSheets))
+    .filter((p) => (p.goals ?? 0) + (p.assists ?? 0) > 0 || (p.cleanSheets ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        ((b.goals ?? 0) * 2 + (b.assists ?? 0) * 1.5 + (b.cleanSheets ?? 0)) -
+        ((a.goals ?? 0) * 2 + (a.assists ?? 0) * 1.5 + (a.cleanSheets ?? 0))
+    )
     .slice(0, 25);
 
   return {
@@ -224,7 +236,15 @@ export function refreshLeaderboards(universe: GlobalStatsUniverse): GlobalStatsU
 }
 
 export function calculateSeasonalAwards(universe: GlobalStatsUniverse): SeasonalAwards {
-  const all = Array.from(universe.players.values());
+  const rawList =
+    universe.players instanceof Map
+      ? Array.from(universe.players.values())
+      : typeof universe.players === 'object' && universe.players !== null
+        ? Object.values(universe.players)
+        : [];
+  const all = (rawList as (GlobalPlayerStats | undefined)[]).filter(
+    (p): p is GlobalPlayerStats => Boolean(p && typeof p === 'object' && p.playerId)
+  );
   const sortedPerformers = [...all].sort(
     (a, b) => ((b.goals ?? 0) * 2 + (b.assists ?? 0) * 1.5 + (b.cleanSheets ?? 0) * 3) - ((a.goals ?? 0) * 2 + (a.assists ?? 0) * 1.5 + (a.cleanSheets ?? 0) * 3)
   );

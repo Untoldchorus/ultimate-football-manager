@@ -31,13 +31,16 @@ import {
 import {
   ActiveCutscene,
   BalanceConfiguration,
+  CalendarState,
   ClubEmpireBuildingId,
   ConstructionBoosterGrade,
+  FootballAchievement,
   FormationCode,
   GameState,
   ManagerProfile,
   MatchResult,
   PositionCode,
+  RealWorldLoginStreakState,
   SaveEnvelope,
   TacticalPlayerRole,
   TacticsConfig,
@@ -46,9 +49,24 @@ import {
 } from '@/engine/types';
 import { defaultSaveRepository, SaveSlotId } from '@/services/saveRepository';
 import { runAdvanceWeekInWorker } from '@/services/workerClient';
+import { initializeCalendarState } from '@/engine/calendarEngine';
+import {
+  advanceOneDay,
+  advanceToNextMatch,
+  advanceToDate,
+  DailySimulationResult,
+  ensureCalendarState,
+} from '@/engine/dailySimulationEngine';
+import { claimSevenDayLoginReward } from '@/engine/loginStreakEngine';
+import {
+  initializeAchievements,
+  evaluateCareerAchievements,
+  claimAchievementReward,
+} from '@/engine/achievementEngine';
 
 export type NavTab =
   | 'home'
+  | 'seasonHub'
   | 'clubEmpire'
   | 'myClub'
   | 'squad'
@@ -163,6 +181,14 @@ interface GameStore {
   useEmpireAdReduction: (projectId: string) => Promise<{ success: boolean; message: string }>;
   claimEmpireHospitalBooster: (type: 'individual' | 'team') => Promise<{ success: boolean; message: string }>;
   updateEmpireTicketPricing: (pricing: TicketPricingConfig) => Promise<void>;
+
+  // Football World Calendar & Daily Simulation Engine
+  advanceSimulationDay: () => Promise<DailySimulationResult>;
+  advanceSimulationToMatch: () => Promise<{ daysAdvanced: number; pauseReason?: string }>;
+  advanceSimulationToDate: (targetDateIso: string) => Promise<{ daysAdvanced: number; pauseReason?: string }>;
+  claimDailyLoginStreakReward: () => Promise<{ success: boolean; message: string }>;
+  claimFootballAchievementReward: (achievementId: string) => Promise<{ success: boolean; message: string }>;
+  updateAutoPauseConfig: (patch: Partial<CalendarState['autoPauseConditions']>) => Promise<void>;
 }
 
 export function sanitizeLoadedGameState(state: GameState | null): GameState | null {
@@ -227,11 +253,28 @@ export function sanitizeLoadedGameState(state: GameState | null): GameState | nu
       }
     : undefined;
 
-  return {
+  const intermediateState: GameState = {
     ...state,
     players: sanitizedPlayers,
     clubs: sanitizedClubs,
     economy: sanitizedEconomy,
+  };
+
+  const ensuredState = ensureCalendarState(intermediateState);
+  const calendar = ensuredState.calendarState!;
+  const evalResult = evaluateCareerAchievements({
+    ...intermediateState,
+    achievements:
+      state.achievements && state.achievements.length > 0
+        ? state.achievements
+        : initializeAchievements(),
+  });
+
+  return {
+    ...intermediateState,
+    currentDateIso: calendar.currentDateIso,
+    calendarState: calendar,
+    achievements: evalResult.updatedAchievements,
   };
 }
 
@@ -1338,6 +1381,104 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const slots = await persistAutosave(res.updatedState);
       set({ saveSlots: slots });
     }
+  },
+
+  advanceSimulationDay: async () => {
+    const state = get().gameState;
+    if (!state) throw new Error('No active game state');
+    set({ isSaving: true });
+    const simResult = advanceOneDay(state);
+    let nextState = simResult.nextState;
+    nextState = {
+      ...nextState,
+      achievements: evaluateCareerAchievements(nextState).updatedAchievements,
+    };
+    set({ gameState: nextState, isSaving: false });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+    return simResult;
+  },
+
+  advanceSimulationToMatch: async () => {
+    const state = get().gameState;
+    if (!state) return { daysAdvanced: 0, pauseReason: 'No active save' };
+    set({ isSaving: true });
+    const res = advanceToNextMatch(state);
+    let nextState = res.nextState;
+    nextState = {
+      ...nextState,
+      achievements: evaluateCareerAchievements(nextState).updatedAchievements,
+    };
+    set({ gameState: nextState, isSaving: false });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+    return { daysAdvanced: res.daysAdvanced, pauseReason: res.pauseReason };
+  },
+
+  advanceSimulationToDate: async (targetDateIso: string) => {
+    const state = get().gameState;
+    if (!state) return { daysAdvanced: 0, pauseReason: 'No active save' };
+    set({ isSaving: true });
+    const res = advanceToDate(state, targetDateIso);
+    let nextState = res.nextState;
+    nextState = {
+      ...nextState,
+      achievements: evaluateCareerAchievements(nextState).updatedAchievements,
+    };
+    set({ gameState: nextState, isSaving: false });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
+    return { daysAdvanced: res.daysAdvanced, pauseReason: res.pauseReason };
+  },
+
+  claimDailyLoginStreakReward: async () => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = claimSevenDayLoginReward(state);
+    if (res.success) {
+      let nextState = res.updatedState;
+      nextState = {
+        ...nextState,
+        achievements: evaluateCareerAchievements(nextState).updatedAchievements,
+      };
+      set({ gameState: nextState });
+      const slots = await persistAutosave(nextState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  claimFootballAchievementReward: async (achievementId: string) => {
+    const state = get().gameState;
+    if (!state) return { success: false, message: 'No active career.' };
+    const res = claimAchievementReward(state, achievementId);
+    if (res.success) {
+      set({ gameState: res.updatedState });
+      const slots = await persistAutosave(res.updatedState);
+      set({ saveSlots: slots });
+    }
+    return { success: res.success, message: res.message };
+  },
+
+  updateAutoPauseConfig: async (patch) => {
+    const state = get().gameState;
+    if (!state) return;
+    const ensured = ensureCalendarState(state);
+    const calendar = ensured.calendarState!;
+    const updatedCalendar: CalendarState = {
+      ...calendar,
+      autoPauseConditions: {
+        ...calendar.autoPauseConditions,
+        ...patch,
+      },
+    };
+    const nextState: GameState = {
+      ...ensured,
+      calendarState: updatedCalendar,
+    };
+    set({ gameState: nextState });
+    const slots = await persistAutosave(nextState);
+    set({ saveSlots: slots });
   },
 }));
 
