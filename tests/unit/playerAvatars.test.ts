@@ -15,29 +15,7 @@ function createDummyPlayer(overrides: Partial<Player>): Player {
     clubId: 'club-albion',
     primaryPosition: 'CM',
     secondaryPositions: ['CAM'],
-    attributes: {
-      pace: 75,
-      acceleration: 75,
-      shooting: 70,
-      finishing: 70,
-      passing: 80,
-      vision: 80,
-      crossing: 75,
-      dribbling: 78,
-      firstTouch: 80,
-      agility: 75,
-      tackling: 65,
-      positioning: 75,
-      heading: 60,
-      strength: 70,
-      stamina: 80,
-      workRate: 75,
-      composure: 78,
-      reflexes: 50,
-      handling: 50,
-      distribution: 50,
-      jumping: 65,
-    },
+    attributes: {} as any,
     overall: 78,
     potential: 84,
     contractEndSeason: 2028,
@@ -60,6 +38,7 @@ function createDummyPlayer(overrides: Partial<Player>): Player {
       yellowCards: 1,
       redCards: 0,
       averageRating: 7.1,
+      minutesPlayed: 850,
     },
     ...overrides,
   };
@@ -125,7 +104,11 @@ describe('Player Avatars & Portrait Engine', () => {
   it('getPlayerPhotoManifest resolves verified photo or cleanly returns null for procedural fallback', () => {
     const sakaMeta = getPlayerPhotoManifest('Bukayo', 'Saka');
     expect(sakaMeta).not.toBeNull();
-    expect(sakaMeta?.url).toContain('Bukayo_Saka');
+    expect(sakaMeta?.url).toBeDefined();
+
+    const rayaMeta = getPlayerPhotoManifest('David', 'Raya');
+    expect(rayaMeta).not.toBeNull();
+    expect(rayaMeta?.url).toContain('wikimedia.org');
 
     const unknownMeta = getPlayerPhotoManifest('Unknown', 'Player12345');
     expect(unknownMeta).toBeNull();

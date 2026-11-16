@@ -1,6 +1,7 @@
 import { AssetManifestEntry } from '@/engine/types';
 import { GLOBAL_CLUBS_REGISTRY } from './globalClubsRegistry';
 import { getPlayerImageRecord } from './playerImageDatabase';
+import WIKIDATA_PHOTOS from './wikidataPlayerPhotos.json';
 
 /**
  * Verified Open-Licensed Wikimedia Commons Player Photographs (CC-BY-SA / CC-BY / Public Domain).
@@ -341,7 +342,21 @@ export function getPlayerPhotoManifest(firstName: string, lastName: string, stab
     }
   }
   const fullName = `${firstName} ${lastName}`;
-  return VERIFIED_PLAYER_PHOTOS[fullName] ?? null;
+  if (VERIFIED_PLAYER_PHOTOS[fullName]) {
+    return VERIFIED_PLAYER_PHOTOS[fullName];
+  }
+
+  const wikidataUrl = (WIKIDATA_PHOTOS as Record<string, string>)[fullName];
+  if (wikidataUrl) {
+    return {
+      url: wikidataUrl,
+      license: 'CC BY / CC BY-SA / Public Domain',
+      attribution: 'Wikimedia Commons / Wikidata Open License',
+      verifiedDateIso: '2026-11-16',
+    };
+  }
+
+  return null;
 }
 
 export function getClubCrestManifest(clubId: string) {
