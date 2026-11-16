@@ -6,6 +6,8 @@ import { hashStringToSeed } from '@/engine/rng';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
 import { buildStablePlayerImageId, markPlayerImageBroken } from '@/data/playerImageDatabase';
 import { REAL_WORLD_CLUBS } from '@/data/realWorldDatabase';
+import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
+import { FootballerAvatarSvg } from './FootballerAvatarSvg';
 
 const SKIN_TONES = ['#f8d5c2', '#e8b89a', '#d2996c', '#a86e44', '#6b3e26', '#4a2918'];
 const HAIR_COLORS = ['#111827', '#292524', '#451a03', '#78350f', '#b45309', '#d97706', '#e5e7eb'];
@@ -101,12 +103,19 @@ export function PlayerAvatar({
   const resolvedPhotoUrl = player.photoUrl ?? photoMeta?.url;
 
   const isGK = player.primaryPosition === 'GK';
+
+  // Automatically lookup club colors if not explicitly provided
+  const resolvedClub =
+    club ??
+    GLOBAL_CLUBS_REGISTRY.find((c) => c.id === player.clubId) ??
+    REAL_WORLD_CLUBS.find((c) => c.id === player.clubId);
+
   const resolvedPrimary =
-    clubColor ?? (isGK ? '#f59e0b' : club?.primaryColor ?? '#10b981');
+    clubColor ?? (isGK ? '#f59e0b' : resolvedClub?.primaryColor ?? '#10b981');
+  const resolvedSecondary =
+    secondaryColor ?? resolvedClub?.secondaryColor ?? '#ffffff';
 
-  const initials = `${player.firstName?.[0] ?? ''}${player.lastName?.[0] ?? ''}`.toUpperCase();
   const shirtNum = getPlayerShirtNumber(player);
-
   const useRealPhoto = Boolean(resolvedPhotoUrl && !imgError);
 
   return (
@@ -116,9 +125,19 @@ export function PlayerAvatar({
       title={
         useRealPhoto && photoMeta
           ? `${player.firstName} ${player.lastName} • Verified Real Photo (${photoMeta.license}, ${photoMeta.attribution})`
-          : `${player.firstName} ${player.lastName} • Real Photograph Missing (Pending Acquisition)`
+          : `${player.firstName} ${player.lastName} • #${shirtNum} (${player.primaryPosition})`
       }
     >
+      {/* 1. Procedural Footballer Avatar (Instant Base, Skeleton & Offline / Unlicensed Fallback) */}
+      <FootballerAvatarSvg
+        player={player}
+        primaryColor={resolvedPrimary}
+        secondaryColor={resolvedSecondary}
+        size={size}
+        className="w-full h-full object-cover"
+      />
+
+      {/* 2. Verified Real Photograph Layer (fades in smoothly over procedural base) */}
       {useRealPhoto && (
         <img
           src={resolvedPhotoUrl}
@@ -129,46 +148,22 @@ export function PlayerAvatar({
             setImgError(true);
             markPlayerImageBroken(stableId);
           }}
-          className={`w-full h-full object-cover object-top transition-opacity duration-200 ${
+          className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-300 ${
             imgLoaded ? 'opacity-100' : 'opacity-0'
           }`}
         />
       )}
 
-      {(!useRealPhoto || !imgLoaded) && (
-        <div
-          className="w-full h-full flex flex-col items-center justify-center text-center"
-          style={{
-            background: `linear-gradient(135deg, ${resolvedPrimary}33 0%, #090d16 80%)`,
-          }}
-          aria-label={`${player.firstName} ${player.lastName} photo missing`}
-        >
-          <span
-            className="font-black tracking-tight text-white leading-none"
-            style={{ fontSize: Math.max(11, Math.round(size * 0.34)) }}
-          >
-            {initials}
-          </span>
-          {size >= 40 && (
-            <span
-              className="font-bold text-slate-400 uppercase mt-0.5 leading-none"
-              style={{ fontSize: Math.max(7, Math.round(size * 0.14)) }}
-            >
-              #{shirtNum}
-            </span>
-          )}
-        </div>
-      )}
-
+      {/* 3. Badge (Optional, e.g. for inspection / profile cards) */}
       {showBadge && (
         <span
-          className={`absolute bottom-0.5 left-0.5 right-0.5 text-center py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${
-            useRealPhoto
+          className={`absolute bottom-0.5 left-0.5 right-0.5 text-center py-0.5 rounded text-[8px] font-black uppercase tracking-tighter shadow-md ${
+            useRealPhoto && imgLoaded
               ? 'bg-pitch-600/90 text-white'
-              : 'bg-amber-950/90 text-amber-300 border border-amber-500/40'
+              : 'bg-slate-900/90 text-gold-300 border border-gold-500/40'
           }`}
         >
-          {useRealPhoto ? 'Verified Photo' : 'Photo Missing'}
+          {useRealPhoto && imgLoaded ? 'Verified Photo' : `${player.primaryPosition} • OVR ${player.overall}`}
         </span>
       )}
     </div>

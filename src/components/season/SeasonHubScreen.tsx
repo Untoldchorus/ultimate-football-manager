@@ -23,7 +23,7 @@ import {
 import { useGameStore } from '@/store/useGameStore';
 import { formatDateDisplay, isTransferWindowOpen } from '@/engine/calendarEngine';
 import { soundManager } from '@/lib/audio';
-import { ClubCrest } from '../ui/FootballVisuals';
+import { ClubCrest, PlayerAvatar } from '../ui/FootballVisuals';
 import { LoginStreakModal } from '../rewards/LoginStreakModal';
 import { AchievementModal } from '../rewards/AchievementModal';
 import { calculateStandings } from '@/engine/standings';
@@ -382,13 +382,16 @@ export function SeasonHubScreen() {
                     key={p.id}
                     className="p-3 rounded-2xl bg-slate-950 border border-rose-500/30 flex items-center justify-between text-xs"
                   >
-                    <div>
-                      <h4 className="font-bold text-white">
-                        {p.firstName} {p.lastName}
-                      </h4>
-                      <p className="text-[10px] text-slate-400">
-                        {p.primaryPosition} &bull; OVR {p.overall}
-                      </p>
+                    <div className="flex items-center gap-2.5">
+                      <PlayerAvatar player={p} club={userClub} size={36} />
+                      <div>
+                        <h4 className="font-bold text-white">
+                          {p.firstName} {p.lastName}
+                        </h4>
+                        <p className="text-[10px] text-slate-400">
+                          {p.primaryPosition} &bull; OVR {p.overall}
+                        </p>
+                      </div>
                     </div>
                     <span className="px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 font-black text-[10px]">
                       {p.injuryWeeks} wk(s) left
@@ -421,9 +424,10 @@ export function SeasonHubScreen() {
                   className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="w-6 h-6 rounded-full bg-slate-800 text-[11px] font-black text-gold-400 flex items-center justify-center">
+                    <span className="w-6 h-6 rounded-full bg-slate-800 text-[11px] font-black text-gold-400 flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
+                    <PlayerAvatar player={p} club={userClub} size={36} />
                     <div>
                       <h4 className="font-bold text-white">
                         {p.firstName} {p.lastName}

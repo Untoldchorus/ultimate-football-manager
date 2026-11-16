@@ -932,6 +932,7 @@ export function MatchdayScreen() {
                         className="px-2 py-1 rounded bg-navy-900/90 border border-slate-800/80 flex items-center justify-between text-[11px]"
                       >
                         <div className="flex items-center gap-1.5 truncate">
+                          <PlayerAvatar player={p} club={club} size={24} />
                           <span className="text-[9px] font-black text-slate-500 w-4">
                             #{getPlayerShirtNumber(p, idx)}
                           </span>
@@ -1063,6 +1064,7 @@ export function MatchdayScreen() {
                     className="px-2.5 py-1 rounded-lg bg-navy-950 hover:bg-pitch-600/20 border border-gold-500/40 text-white font-bold flex items-center gap-1.5 transition"
                   >
                     <span className="text-gold-400">{g.minute}&apos;</span>
+                    {scorer && <PlayerAvatar player={scorer} size={20} />}
                     <span>{scorer ? scorer.lastName : 'Goal'}</span>
                   </button>
                 );
@@ -1307,8 +1309,10 @@ export function MatchdayScreen() {
                       key={`${outP.id}-${inP.id}`}
                       className="flex items-center justify-between gap-2 text-[11px]"
                     >
-                      <div className="truncate text-slate-300">
+                      <div className="flex items-center gap-1.5 truncate text-slate-300">
+                        <PlayerAvatar player={outP} size={20} />
                         <strong className="text-rose-300">{outP.lastName}</strong> &rarr;{' '}
+                        <PlayerAvatar player={inP} size={20} />
                         <strong className="text-emerald-300">{inP.lastName}</strong>{' '}
                         <span className="text-[10px] text-slate-400">({rec.reason})</span>
                       </div>
