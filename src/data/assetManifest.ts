@@ -365,11 +365,11 @@ export function getPlayerPhotoManifest(firstName: string, lastName: string, stab
 
 export function getClubCrestManifest(clubId: string) {
   const rec = getClubBadgeRecord(clubId);
-  if (rec && rec.badge_status === 'verified' && rec.badge_url) {
+  if (rec && rec.badge_status === 'verified' && (rec.local_image_path || rec.badge_url)) {
     return {
       clubId,
       sourceType: 'official-crest' as const,
-      url: rec.badge_url,
+      url: rec.local_image_path || rec.badge_url,
       sourceName: rec.source_name,
       sourceUrl: rec.source_url,
       license: rec.license,

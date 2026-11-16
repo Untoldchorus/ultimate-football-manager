@@ -17,10 +17,10 @@ export function getClubBadgeRecord(clubId: string): ClubBadgeRecord | null {
 
 export function getClubBadgeUrl(clubId: string): string | null {
   const rec = CLUB_BADGE_MAP[clubId];
-  if (!rec || rec.badge_status === 'broken' || !rec.badge_url) {
+  if (!rec || rec.badge_status === 'broken') {
     return null;
   }
-  return rec.badge_url;
+  return rec.local_image_path || rec.badge_url || null;
 }
 
 export function getAllClubBadgeRecords(): ClubBadgeRecord[] {

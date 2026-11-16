@@ -139,6 +139,7 @@ export interface ClubBadgeRecord {
   country_id: string;
   division_tier: 1 | 2;
   badge_url?: string;
+  local_image_path?: string;
   source_name: string;
   source_url: string;
   license: string;

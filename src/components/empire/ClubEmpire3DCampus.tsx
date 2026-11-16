@@ -196,15 +196,16 @@ function AnimatedTowerCrane({
 }
 
 // ============================================================================
-// REGULATION FOOTBALL TRAINING PITCH (Center Campus)
+// REGULATION FOOTBALL TRAINING PITCH (North-South Oriented, Flat Striped Grass)
 // ============================================================================
 function RegulationFootballPitch({
   position,
-  width = 24,
-  length = 16,
+  width = 14,
+  length = 21,
   rotation = 0,
   label = 'Training Pitch 1',
   isActive = true,
+  dugoutSide = 'right',
 }: {
   position: [number, number, number];
   width?: number;
@@ -212,208 +213,270 @@ function RegulationFootballPitch({
   rotation?: number;
   label?: string;
   isActive?: boolean;
+  dugoutSide?: 'left' | 'right';
 }) {
   const halfW = width / 2;
   const halfL = length / 2;
-  const numBands = 8;
-  const bandW = width / numBands;
+  const numBands = 10;
+  const bandL = length / numBands;
+  const apron = 1.2; // Lush grass runoff margin around white lines
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Perimeter Concrete Curb */}
-      <mesh position={[0, 0.02, 0]} receiveShadow>
-        <boxGeometry args={[width + 0.8, 0.04, length + 0.8]} />
-        <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+      {/* Perimeter Paved Concrete Curb Border */}
+      <mesh position={[0, 0.015, 0]} receiveShadow>
+        <boxGeometry args={[width + apron * 2 + 0.6, 0.03, length + apron * 2 + 0.6]} />
+        <meshStandardMaterial color="#94a3b8" roughness={0.75} />
       </mesh>
 
-      {/* Striped Mown Grass Surface (Flat on ground) */}
+      {/* Lush Green Grass Apron (Runoff Zone) */}
+      <mesh position={[0, 0.035, 0]} receiveShadow>
+        <boxGeometry args={[width + apron * 2, 0.02, length + apron * 2]} />
+        <meshStandardMaterial color="#2d7833" roughness={0.9} />
+      </mesh>
+
+      {/* Striped Mown Grass Surface (Flat on ground across pitch length) */}
       {Array.from({ length: numBands }).map((_, i) => {
-        const xOffset = -halfW + bandW * i + bandW / 2;
+        const zOffset = -halfL + bandL * i + bandL / 2;
         const isDark = i % 2 === 0;
         return (
-          <mesh key={i} position={[xOffset, 0.05, 0]} receiveShadow>
-            <boxGeometry args={[bandW, 0.03, length]} />
+          <mesh key={i} position={[0, 0.048, zOffset]} receiveShadow>
+            <boxGeometry args={[width, 0.012, bandL]} />
             <meshStandardMaterial
-              color={isDark ? '#236b28' : '#2e8b35'}
-              roughness={0.88}
-              metalness={0.05}
+              color={isDark ? '#236e28' : '#2e8633'}
+              roughness={0.86}
+              metalness={0.04}
             />
           </mesh>
         );
       })}
 
-      {/* Regulation White Pitch Markings (Sitting right on top of grass) */}
-      <group position={[0, 0.072, 0]}>
-        {/* Outer Boundary Touchlines (Top & Bottom) */}
-        <mesh position={[0, 0, halfL - 0.4]}>
-          <boxGeometry args={[width - 0.8, 0.015, 0.1]} />
+      {/* Regulation White Pitch Markings (Flicker-free, sitting on top of grass) */}
+      <group position={[0, 0.065, 0]}>
+        {/* Touchlines (Left & Right along Z) */}
+        <mesh position={[-halfW, 0, 0]}>
+          <boxGeometry args={[0.1, 0.012, length]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        <mesh position={[0, 0, -halfL + 0.4]}>
-          <boxGeometry args={[width - 0.8, 0.015, 0.1]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-
-        {/* Goal Lines (Left & Right) */}
-        <mesh position={[halfW - 0.4, 0, 0]}>
-          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-        <mesh position={[-halfW + 0.4, 0, 0]}>
-          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
+        <mesh position={[halfW, 0, 0]}>
+          <boxGeometry args={[0.1, 0.012, length]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
 
-        {/* Halfway Line */}
+        {/* Goal Lines (North & South along X) */}
+        <mesh position={[0, 0, -halfL]}>
+          <boxGeometry args={[width, 0.012, 0.1]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+        <mesh position={[0, 0, halfL]}>
+          <boxGeometry args={[width, 0.012, 0.1]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+
+        {/* Halfway Line (Middle across X) */}
         <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
+          <boxGeometry args={[width, 0.012, 0.1]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
 
         {/* Center Circle */}
         <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.4, 2.52, 32]} />
+          <ringGeometry args={[2.1, 2.22, 32]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
 
         {/* Center Kickoff Spot */}
         <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.22, 16]} />
+          <circleGeometry args={[0.18, 16]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
 
-        {/* 18-Yard Penalty Boxes & 6-Yard Goal Areas (Left & Right) */}
-        {[-halfW + 0.4, halfW - 0.4].map((edgeX, idx) => {
-          const dir = idx === 0 ? 1 : -1;
-          const boxDepth = 3.8;
+        {/* 18-Yard Penalty Boxes, 6-Yard Goal Areas, Spots & Arcs (North & South) */}
+        {[-halfL, halfL].map((goalZ, idx) => {
+          const dir = idx === 0 ? 1 : -1; // 1 = facing South into pitch, -1 = facing North into pitch
+          const boxDepth = 3.6;
           const boxWidth = 7.0;
+          const areaDepth = 1.3;
+          const areaWidth = 3.6;
+
           return (
             <group key={idx}>
-              {/* 18-Yard Front line parallel to goal line */}
-              <mesh position={[edgeX + dir * boxDepth, 0, 0]}>
-                <boxGeometry args={[0.1, 0.015, boxWidth]} />
+              {/* 18-Yard Box Front Line (Parallel to goal line) */}
+              <mesh position={[0, 0, goalZ + dir * boxDepth]}>
+                <boxGeometry args={[boxWidth, 0.012, 0.1]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
-              {/* 18-Yard Top side line */}
-              <mesh position={[edgeX + dir * (boxDepth / 2), 0, boxWidth / 2]}>
-                <boxGeometry args={[boxDepth, 0.015, 0.1]} />
+              {/* 18-Yard Box Left Line */}
+              <mesh position={[-boxWidth / 2, 0, goalZ + dir * (boxDepth / 2)]}>
+                <boxGeometry args={[0.1, 0.012, boxDepth]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
-              {/* 18-Yard Bottom side line */}
-              <mesh position={[edgeX + dir * (boxDepth / 2), 0, -boxWidth / 2]}>
-                <boxGeometry args={[boxDepth, 0.015, 0.1]} />
+              {/* 18-Yard Box Right Line */}
+              <mesh position={[boxWidth / 2, 0, goalZ + dir * (boxDepth / 2)]}>
+                <boxGeometry args={[0.1, 0.012, boxDepth]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
 
-              {/* 6-Yard Goal Area Front line */}
-              <mesh position={[edgeX + dir * 1.5, 0, 0]}>
-                <boxGeometry args={[0.1, 0.015, 3.4]} />
+              {/* 6-Yard Goal Area Front Line */}
+              <mesh position={[0, 0, goalZ + dir * areaDepth]}>
+                <boxGeometry args={[areaWidth, 0.012, 0.1]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
-              {/* 6-Yard Top side line */}
-              <mesh position={[edgeX + dir * 0.75, 0, 1.7]}>
-                <boxGeometry args={[1.5, 0.015, 0.1]} />
+              {/* 6-Yard Goal Area Left Line */}
+              <mesh position={[-areaWidth / 2, 0, goalZ + dir * (areaDepth / 2)]}>
+                <boxGeometry args={[0.1, 0.012, areaDepth]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
-              {/* 6-Yard Bottom side line */}
-              <mesh position={[edgeX + dir * 0.75, 0, -1.7]}>
-                <boxGeometry args={[1.5, 0.015, 0.1]} />
+              {/* 6-Yard Goal Area Right Line */}
+              <mesh position={[areaWidth / 2, 0, goalZ + dir * (areaDepth / 2)]}>
+                <boxGeometry args={[0.1, 0.012, areaDepth]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
 
               {/* Penalty Spot */}
-              <mesh position={[edgeX + dir * 2.6, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[0.16, 16]} />
+              <mesh position={[0, 0.005, goalZ + dir * 2.5]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.15, 16]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+
+              {/* Penalty Arc ("D" outside the 18-yard box) */}
+              <mesh
+                position={[0, 0.004, goalZ + dir * 2.5]}
+                rotation={[-Math.PI / 2, 0, dir > 0 ? 0 : Math.PI]}
+              >
+                <ringGeometry args={[1.5, 1.62, 24, 1, Math.PI * 0.28, Math.PI * 0.44]} />
                 <meshBasicMaterial color="#ffffff" />
               </mesh>
             </group>
           );
         })}
+
+        {/* 4 Corner Arcs */}
+        {[
+          [-halfW, -halfL, 0],
+          [halfW, -halfL, Math.PI / 2],
+          [halfW, halfL, Math.PI],
+          [-halfW, halfL, -Math.PI / 2],
+        ].map(([cx, cz, cRot], cIdx) => (
+          <mesh key={cIdx} position={[cx, 0.004, cz]} rotation={[-Math.PI / 2, 0, cRot]}>
+            <ringGeometry args={[0.45, 0.55, 12, 1, 0, Math.PI / 2]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+        ))}
       </group>
 
-      {/* 3D Goalposts (Left & Right) */}
-      {[-halfW + 0.4, halfW - 0.4].map((xPos, idx) => (
-        <group key={idx} position={[xPos, 0, 0]} rotation={[0, idx === 0 ? 0 : Math.PI, 0]}>
+      {/* 4 Corner Flags with Flexible Poles and Red/Yellow Banners */}
+      {[
+        [-halfW, -halfL],
+        [halfW, -halfL],
+        [-halfW, halfL],
+        [halfW, halfL],
+      ].map(([fx, fz], fIdx) => (
+        <group key={fIdx} position={[fx, 0.06, fz]}>
+          {/* White Flagpole */}
+          <mesh position={[0, 0.55, 0]}>
+            <cylinderGeometry args={[0.02, 0.02, 1.1, 6]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} />
+          </mesh>
+          {/* Bright Corner Flag */}
+          <mesh position={[0.11, 1.0, 0]}>
+            <boxGeometry args={[0.22, 0.16, 0.015]} />
+            <meshStandardMaterial color={fIdx % 2 === 0 ? '#ef4444' : '#f59e0b'} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 3D Goalposts (North & South Ends) */}
+      {[-halfL, halfL].map((zPos, idx) => (
+        <group key={idx} position={[0, 0.05, zPos]} rotation={[0, idx === 0 ? 0 : Math.PI, 0]}>
           {/* Goal Uprights */}
-          <mesh position={[0, 0.85, 1.4]} castShadow>
-            <cylinderGeometry args={[0.06, 0.06, 1.7, 8]} />
+          <mesh position={[-1.4, 0.85, 0]} castShadow>
+            <cylinderGeometry args={[0.055, 0.055, 1.7, 8]} />
             <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
-          <mesh position={[0, 0.85, -1.4]} castShadow>
-            <cylinderGeometry args={[0.06, 0.06, 1.7, 8]} />
+          <mesh position={[1.4, 0.85, 0]} castShadow>
+            <cylinderGeometry args={[0.055, 0.055, 1.7, 8]} />
             <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
           {/* Crossbar */}
           <mesh position={[0, 1.7, 0]} castShadow>
-            <boxGeometry args={[0.1, 0.1, 2.9]} />
+            <boxGeometry args={[2.9, 0.1, 0.1]} />
             <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
-          {/* Netting Support Bars */}
-          <mesh position={[-0.45, 0.85, 1.4]}>
+          {/* Netting Rear Stanchions */}
+          <mesh position={[-1.4, 0.85, -0.65]}>
             <cylinderGeometry args={[0.03, 0.03, 1.7, 6]} />
             <meshStandardMaterial color="#ffffff" roughness={0.3} />
           </mesh>
-          <mesh position={[-0.45, 0.85, -1.4]}>
+          <mesh position={[1.4, 0.85, -0.65]}>
             <cylinderGeometry args={[0.03, 0.03, 1.7, 6]} />
             <meshStandardMaterial color="#ffffff" roughness={0.3} />
           </mesh>
           {/* Net Box with semi-transparent wireframe */}
-          <mesh position={[-0.35, 0.85, 0]}>
-            <boxGeometry args={[0.7, 1.65, 2.8]} />
-            <meshStandardMaterial color="#f1f5f9" wireframe transparent opacity={0.25} />
+          <mesh position={[0, 0.85, -0.35]}>
+            <boxGeometry args={[2.8, 1.65, 0.7]} />
+            <meshStandardMaterial color="#f8fafc" wireframe transparent opacity={0.3} />
           </mesh>
         </group>
       ))}
 
       {/* Tall Ball-Stop Safety Netting behind goals (Manchester Reference Style) */}
-      {[-halfW - 1.2, halfW + 1.2].map((xPos, idx) => (
-        <group key={`ball-stop-${idx}`} position={[xPos, 0, 0]}>
+      {[-halfL - 1.1, halfL + 1.1].map((zPos, idx) => (
+        <group key={`ball-stop-${idx}`} position={[0, 0.05, zPos]}>
           {/* Support Stanchions / Poles */}
-          {[-3.6, -1.8, 0, 1.8, 3.6].map((pz, pIdx) => (
-            <mesh key={pIdx} position={[0, 1.8, pz]} castShadow>
+          {[-3.6, -1.8, 0, 1.8, 3.6].map((px, pIdx) => (
+            <mesh key={pIdx} position={[px, 1.8, 0]} castShadow>
               <cylinderGeometry args={[0.04, 0.04, 3.6, 6]} />
-              <meshStandardMaterial color="#e2e8f0" metalness={0.7} roughness={0.3} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.7} roughness={0.3} />
             </mesh>
           ))}
           {/* Tension Cables */}
           <mesh position={[0, 3.55, 0]}>
-            <boxGeometry args={[0.04, 0.04, 7.4]} />
+            <boxGeometry args={[7.4, 0.04, 0.04]} />
             <meshStandardMaterial color="#94a3b8" />
           </mesh>
           <mesh position={[0, 1.8, 0]}>
-            <boxGeometry args={[0.03, 0.03, 7.4]} />
+            <boxGeometry args={[7.4, 0.03, 0.03]} />
             <meshStandardMaterial color="#94a3b8" />
           </mesh>
           {/* Fine White Catch Netting */}
           <mesh position={[0, 1.8, 0]}>
-            <boxGeometry args={[0.02, 3.5, 7.2]} />
+            <boxGeometry args={[7.2, 3.5, 0.02]} />
             <meshStandardMaterial color="#ffffff" wireframe transparent opacity={0.25} />
           </mesh>
         </group>
       ))}
 
-      {/* Team Dugouts / Covered Benches (along touchline) */}
-      <group position={[0, 0, -halfL - 0.7]}>
-        {[-2.8, 2.8].map((dx, i) => (
+      {/* Team Dugouts / Covered Benches along Touchline (facing central avenue) */}
+      <group
+        position={[
+          dugoutSide === 'right' ? halfW + 1.1 : -halfW - 1.1,
+          0.05,
+          0,
+        ]}
+        rotation={[0, dugoutSide === 'right' ? -Math.PI / 2 : Math.PI / 2, 0]}
+      >
+        {[-2.2, 2.2].map((dx, i) => (
           <group key={i} position={[dx, 0, 0]}>
             {/* Shelter Base Platform */}
             <mesh position={[0, 0.08, 0]} receiveShadow>
-              <boxGeometry args={[3.2, 0.16, 1.1]} />
+              <boxGeometry args={[2.8, 0.14, 1.0]} />
               <meshStandardMaterial color="#334155" roughness={0.7} />
             </mesh>
-            {/* Shelter Metal Frame */}
-            <mesh position={[0, 0.8, -0.45]} castShadow>
-              <boxGeometry args={[3.2, 1.4, 0.1]} />
+            {/* Shelter Metal Backing Frame */}
+            <mesh position={[0, 0.75, -0.42]} castShadow>
+              <boxGeometry args={[2.8, 1.3, 0.08]} />
               <meshStandardMaterial color="#1e293b" roughness={0.5} />
             </mesh>
-            <mesh position={[0, 1.45, 0]} castShadow>
-              <boxGeometry args={[3.2, 0.08, 1.0]} />
-              <meshStandardMaterial color="#0f172a" roughness={0.5} />
+            {/* Curved Overhead Canopy */}
+            <mesh position={[0, 1.38, 0]} castShadow>
+              <boxGeometry args={[2.8, 0.06, 0.95]} />
+              <meshStandardMaterial color="#0ea5e9" roughness={0.3} metalness={0.4} />
             </mesh>
             {/* Team Bucket Seats */}
-            {[-1.0, -0.33, 0.33, 1.0].map((sx, sIdx) => (
-              <mesh key={sIdx} position={[sx, 0.4, -0.15]} castShadow>
-                <boxGeometry args={[0.42, 0.45, 0.42]} />
+            {[-0.9, -0.3, 0.3, 0.9].map((sx, sIdx) => (
+              <mesh key={sIdx} position={[sx, 0.36, -0.15]} castShadow>
+                <boxGeometry args={[0.38, 0.4, 0.38]} />
                 <meshStandardMaterial color={i === 0 ? '#0284c7' : '#dc2626'} roughness={0.6} />
               </mesh>
             ))}
@@ -423,26 +486,44 @@ function RegulationFootballPitch({
 
       {/* Pitch Corner Floodlight Towers */}
       {[
-        [-halfW, -halfL],
-        [halfW, -halfL],
-        [-halfW, halfL],
-        [halfW, halfL],
+        [-halfW - 0.7, -halfL - 0.7],
+        [halfW + 0.7, -halfL - 0.7],
+        [-halfW - 0.7, halfL + 0.7],
+        [halfW + 0.7, halfL + 0.7],
       ].map(([fx, fz], fIdx) => (
-        <group key={fIdx} position={[fx, 0, fz]}>
-          <mesh position={[0, 3.5, 0]} castShadow>
-            <cylinderGeometry args={[0.08, 0.14, 7.0, 6]} />
+        <group key={fIdx} position={[fx, 0.05, fz]}>
+          <mesh position={[0, 3.2, 0]} castShadow>
+            <cylinderGeometry args={[0.07, 0.12, 6.4, 6]} />
             <meshStandardMaterial color="#94a3b8" metalness={0.8} />
           </mesh>
-          <mesh position={[0, 7.1, 0]} castShadow>
-            <boxGeometry args={[0.8, 0.45, 0.35]} />
+          <mesh position={[0, 6.45, 0]} castShadow>
+            <boxGeometry args={[0.7, 0.4, 0.3]} />
             <meshStandardMaterial
               color="#f8fafc"
               emissive="#ffffff"
-              emissiveIntensity={isActive ? 0.35 : 0}
+              emissiveIntensity={isActive ? 0.4 : 0}
             />
           </mesh>
         </group>
       ))}
+
+      {/* Sideline Training Equipment (Image 2 style: cones, hurdles & mini-goal) */}
+      <group position={[dugoutSide === 'right' ? -halfW - 0.6 : halfW + 0.6, 0.05, 0]}>
+        {/* Bright Orange Cones */}
+        {[-3, -1.5, 1.5, 3].map((cz, cIdx) => (
+          <mesh key={cIdx} position={[0, 0.12, cz]} castShadow>
+            <coneGeometry args={[0.12, 0.24, 8]} />
+            <meshStandardMaterial color="#ea580c" roughness={0.5} />
+          </mesh>
+        ))}
+        {/* Yellow Agility Hurdles */}
+        {[-4.5, 4.5].map((hz, hIdx) => (
+          <mesh key={hIdx} position={[0, 0.18, hz]} castShadow>
+            <boxGeometry args={[0.05, 0.35, 0.7]} />
+            <meshStandardMaterial color="#eab308" roughness={0.4} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -504,24 +585,35 @@ function GrandStadiumComplex({
         </mesh>
       </group>
 
-      {/* 4 Corner Floodlight Pylon Towers */}
-      {[
-        [-17, -12],
-        [17, -12],
-        [-17, 12],
-        [17, 12],
-      ].map(([px, pz], pIdx) => (
-        <group key={pIdx} position={[px, 0, pz]} rotation={[0, 0, px > 0 ? -0.15 : 0.15]}>
-          <mesh position={[0, 7.5, 0]} castShadow>
-            <cylinderGeometry args={[0.2, 0.45, 15, 6]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-          </mesh>
-          <mesh position={[0, 15.2, 0]} castShadow>
-            <boxGeometry args={[2.4, 1.2, 0.6]} />
-            <meshStandardMaterial color="#f8fafc" emissive="#ffffff" emissiveIntensity={0.6} />
-          </mesh>
-        </group>
-      ))}
+      {/* 12 Iconic Angled Sky-Blue Suspension Masts & Stay-Cables (Etihad Stadium Manchester Style) */}
+      {Array.from({ length: 12 }).map((_, mIdx) => {
+        const angle = (mIdx / 12) * Math.PI * 2;
+        const radX = 20.0;
+        const radZ = 24.0;
+        const mx = Math.cos(angle) * radX;
+        const mz = Math.sin(angle) * radZ;
+        const leanAngle = Math.atan2(mz, mx);
+
+        return (
+          <group key={`pylon-${mIdx}`} position={[mx, 0, mz]} rotation={[0, -leanAngle, 0.16]}>
+            {/* Main Sky-Blue Structural Pylon Mast */}
+            <mesh position={[0, 8.5, 0]} castShadow>
+              <cylinderGeometry args={[0.22, 0.42, 17, 8]} />
+              <meshStandardMaterial color="#0284c7" metalness={0.85} roughness={0.25} />
+            </mesh>
+            {/* Mast Tip Beacon Light */}
+            <mesh position={[0, 17.2, 0]}>
+              <sphereGeometry args={[0.25, 8, 8]} />
+              <meshStandardMaterial color="#f8fafc" emissive="#38bdf8" emissiveIntensity={0.8} />
+            </mesh>
+            {/* Steel Stay-Cable to Stadium Roof Edge */}
+            <mesh position={[-2.4, 11.5, 0]} rotation={[0, 0, 0.45]}>
+              <cylinderGeometry args={[0.02, 0.02, 7.5, 4]} />
+              <meshStandardMaterial color="#e2e8f0" metalness={0.9} />
+            </mesh>
+          </group>
+        );
+      })}
 
       {/* Modern Stadium Entrance Glass Concourse */}
       <mesh position={[0, 1.8, 19.5]} castShadow>
@@ -626,12 +718,44 @@ function MedicalCampusWithPool({
             opacity={0.85}
           />
         </mesh>
-        {/* Lounging Chairs & Parasols along the pool */}
-        {[-3.0, 0, 3.0].map((lz, idx) => (
+        {/* Swimming Pool Lane Divider Float Ropes */}
+        {[-1.8, 0, 1.8].map((lx, idx) => (
+          <mesh key={`lane-${idx}`} position={[lx, -0.06, 0]}>
+            <boxGeometry args={[0.04, 0.04, 10.6]} />
+            <meshStandardMaterial color={idx % 2 === 0 ? '#ef4444' : '#ffffff'} roughness={0.3} />
+          </mesh>
+        ))}
+
+        {/* Stainless Steel Pool Ladders */}
+        {[-2.8, 2.8].map((px, idx) => (
+          <group key={`ladder-${idx}`} position={[px, 0.15, -5.3]}>
+            <mesh position={[-0.2, 0.25, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, 0.5, 6]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+            </mesh>
+            <mesh position={[0.2, 0.25, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, 0.5, 6]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Lounging Chairs & Parasols along the pool (Image 2 style) */}
+        {[-3.2, 0, 3.2].map((lz, idx) => (
           <group key={idx} position={[4.0, 0.15, lz]}>
+            {/* Sun Lounger Chair */}
             <mesh castShadow>
               <boxGeometry args={[0.8, 0.2, 1.5]} />
               <meshStandardMaterial color="#ffffff" roughness={0.5} />
+            </mesh>
+            {/* Parasol / Sun Umbrella */}
+            <mesh position={[0, 1.6, -0.7]} castShadow>
+              <coneGeometry args={[1.1, 0.45, 8]} />
+              <meshStandardMaterial color="#38bdf8" roughness={0.6} />
+            </mesh>
+            <mesh position={[0, 0.8, -0.7]}>
+              <cylinderGeometry args={[0.03, 0.03, 1.6, 6]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.8} />
             </mesh>
           </group>
         ))}
@@ -1111,47 +1235,83 @@ export function ClubEmpire3DScene({
         {/* ================================================================= */}
         {/* 2. CENTER CAMPUS: 4 REGULATION FOOTBALL TRAINING PITCHES (2x2 GRID) */}
         {/* ================================================================= */}
-        {/* Central Interconnecting Paved Walkways */}
-        <mesh position={[0, 0.025, -5]} receiveShadow>
-          <boxGeometry args={[3.2, 0.02, 36]} />
-          <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+        {/* Central North-South Grand Avenue towards Stadium */}
+        <mesh position={[0, 0.025, 0]} receiveShadow>
+          <boxGeometry args={[4.5, 0.02, 64]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.65} />
         </mesh>
-        <mesh position={[0, 0.025, -5]} receiveShadow>
-          <boxGeometry args={[50, 0.02, 3.2]} />
-          <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+        {/* Central East-West Boulevard connecting West & East Campus Wings */}
+        <mesh position={[0, 0.025, 0]} receiveShadow>
+          <boxGeometry args={[68, 0.02, 4.5]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.65} />
         </mesh>
+        {/* Center Intersection Crosswalk White Pavers */}
+        <mesh position={[0, 0.036, 0]}>
+          <boxGeometry args={[4.8, 0.005, 4.8]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+        </mesh>
+
+        {/* Street Lamps along Central Avenue */}
+        {[-24, -14, -4, 6, 16, 26].map((sz, sIdx) => (
+          <group key={`lamp-w-${sIdx}`} position={[-2.6, 0.02, sz]}>
+            <mesh position={[0, 1.8, 0]}>
+              <cylinderGeometry args={[0.04, 0.04, 3.6, 6]} />
+              <meshStandardMaterial color="#475569" metalness={0.8} />
+            </mesh>
+            <mesh position={[0.2, 3.5, 0]}>
+              <boxGeometry args={[0.4, 0.2, 0.2]} />
+              <meshStandardMaterial color="#fef08a" emissive="#fef08a" emissiveIntensity={0.6} />
+            </mesh>
+          </group>
+        ))}
+        {[-24, -14, -4, 6, 16, 26].map((sz, sIdx) => (
+          <group key={`lamp-e-${sIdx}`} position={[2.6, 0.02, sz]}>
+            <mesh position={[0, 1.8, 0]}>
+              <cylinderGeometry args={[0.04, 0.04, 3.6, 6]} />
+              <meshStandardMaterial color="#475569" metalness={0.8} />
+            </mesh>
+            <mesh position={[-0.2, 3.5, 0]}>
+              <boxGeometry args={[0.4, 0.2, 0.2]} />
+              <meshStandardMaterial color="#fef08a" emissive="#fef08a" emissiveIntensity={0.6} />
+            </mesh>
+          </group>
+        ))}
 
         {/* Pitch 1: Top-Left (First Team Training Pitch) */}
         <RegulationFootballPitch
-          position={[-11, 0, -15]}
-          width={19}
-          length={13.5}
+          position={[-12.5, 0, -14]}
+          width={14}
+          length={21}
           label="First Team Pitch"
           isActive
+          dugoutSide="right"
         />
         {/* Pitch 2: Top-Right (Tactical Pitch) */}
         <RegulationFootballPitch
-          position={[11, 0, -15]}
-          width={19}
-          length={13.5}
+          position={[12.5, 0, -14]}
+          width={14}
+          length={21}
           label="Tactical Training Pitch"
           isActive
+          dugoutSide="left"
         />
         {/* Pitch 3: Bottom-Left (Set-Piece Pitch) */}
         <RegulationFootballPitch
-          position={[-11, 0, 5]}
-          width={19}
-          length={13.5}
+          position={[-12.5, 0, 14]}
+          width={14}
+          length={21}
           label="Set-Piece Pitch"
           isActive={false}
+          dugoutSide="right"
         />
         {/* Pitch 4: Bottom-Right (Youth Academy Pitch) */}
         <RegulationFootballPitch
-          position={[11, 0, 5]}
-          width={19}
-          length={13.5}
+          position={[12.5, 0, 14]}
+          width={14}
+          length={21}
           label="Youth Academy Pitch"
           isActive
+          dugoutSide="left"
         />
 
         {/* ================================================================= */}
