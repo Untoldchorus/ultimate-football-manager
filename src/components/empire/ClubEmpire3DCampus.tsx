@@ -213,123 +213,193 @@ function RegulationFootballPitch({
   label?: string;
   isActive?: boolean;
 }) {
+  const halfW = width / 2;
+  const halfL = length / 2;
+  const numBands = 8;
+  const bandW = width / numBands;
+
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       {/* Perimeter Concrete Curb */}
-      <mesh position={[0, 0.04, 0]} receiveShadow>
-        <boxGeometry args={[width + 1.2, 0.08, length + 1.2]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.8} />
+      <mesh position={[0, 0.02, 0]} receiveShadow>
+        <boxGeometry args={[width + 0.8, 0.04, length + 0.8]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
       </mesh>
-      {/* Striped Mown Grass Surface (alternating bands) */}
-      {Array.from({ length: 8 }).map((_, i) => {
-        const bandW = width / 8;
-        const xOffset = -width / 2 + bandW * i + bandW / 2;
+
+      {/* Striped Mown Grass Surface (Flat on ground) */}
+      {Array.from({ length: numBands }).map((_, i) => {
+        const xOffset = -halfW + bandW * i + bandW / 2;
         const isDark = i % 2 === 0;
         return (
-          <mesh key={i} position={[xOffset, 0.09, 0]} receiveShadow>
-            <planeGeometry args={[bandW, length]} />
+          <mesh key={i} position={[xOffset, 0.05, 0]} receiveShadow>
+            <boxGeometry args={[bandW, 0.03, length]} />
             <meshStandardMaterial
-              color={isDark ? '#2e7d32' : '#388e3c'}
-              roughness={0.9}
+              color={isDark ? '#236b28' : '#2e8b35'}
+              roughness={0.88}
+              metalness={0.05}
             />
           </mesh>
         );
       })}
 
-      {/* Regulation White Pitch Markings */}
-      {/* Touchline Borders */}
-      <mesh position={[0, 0.11, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0, 0.05, 4]} />
-      </mesh>
-      {/* Outer Boundary Line */}
-      <group position={[0, 0.11, 0]}>
-        {/* Top & Bottom Touchlines */}
-        <mesh position={[0, 0, length / 2 - 0.4]}>
-          <boxGeometry args={[width - 0.8, 0.02, 0.12]} />
+      {/* Regulation White Pitch Markings (Sitting right on top of grass) */}
+      <group position={[0, 0.072, 0]}>
+        {/* Outer Boundary Touchlines (Top & Bottom) */}
+        <mesh position={[0, 0, halfL - 0.4]}>
+          <boxGeometry args={[width - 0.8, 0.015, 0.1]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        <mesh position={[0, 0, -length / 2 + 0.4]}>
-          <boxGeometry args={[width - 0.8, 0.02, 0.12]} />
+        <mesh position={[0, 0, -halfL + 0.4]}>
+          <boxGeometry args={[width - 0.8, 0.015, 0.1]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Goal Lines */}
-        <mesh position={[width / 2 - 0.4, 0, 0]}>
-          <boxGeometry args={[0.12, 0.02, length - 0.8]} />
+
+        {/* Goal Lines (Left & Right) */}
+        <mesh position={[halfW - 0.4, 0, 0]}>
+          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        <mesh position={[-width / 2 + 0.4, 0, 0]}>
-          <boxGeometry args={[0.12, 0.02, length - 0.8]} />
+        <mesh position={[-halfW + 0.4, 0, 0]}>
+          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
+
         {/* Halfway Line */}
         <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.12, 0.02, length - 0.8]} />
+          <boxGeometry args={[0.1, 0.015, length - 0.8]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
+
         {/* Center Circle */}
-        <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.5, 2.62, 32]} />
+        <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[2.4, 2.52, 32]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Penalty Boxes (Left & Right) */}
-        <mesh position={[-width / 2 + 2.4, 0, 0]}>
-          <boxGeometry args={[4.0, 0.02, 6.5]} />
-          <meshBasicMaterial color="#ffffff" wireframe />
+
+        {/* Center Kickoff Spot */}
+        <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.22, 16]} />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
-        <mesh position={[width / 2 - 2.4, 0, 0]}>
-          <boxGeometry args={[4.0, 0.02, 6.5]} />
-          <meshBasicMaterial color="#ffffff" wireframe />
-        </mesh>
+
+        {/* 18-Yard Penalty Boxes & 6-Yard Goal Areas (Left & Right) */}
+        {[-halfW + 0.4, halfW - 0.4].map((edgeX, idx) => {
+          const dir = idx === 0 ? 1 : -1;
+          const boxDepth = 3.8;
+          const boxWidth = 7.0;
+          return (
+            <group key={idx}>
+              {/* 18-Yard Front line parallel to goal line */}
+              <mesh position={[edgeX + dir * boxDepth, 0, 0]}>
+                <boxGeometry args={[0.1, 0.015, boxWidth]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              {/* 18-Yard Top side line */}
+              <mesh position={[edgeX + dir * (boxDepth / 2), 0, boxWidth / 2]}>
+                <boxGeometry args={[boxDepth, 0.015, 0.1]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              {/* 18-Yard Bottom side line */}
+              <mesh position={[edgeX + dir * (boxDepth / 2), 0, -boxWidth / 2]}>
+                <boxGeometry args={[boxDepth, 0.015, 0.1]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+
+              {/* 6-Yard Goal Area Front line */}
+              <mesh position={[edgeX + dir * 1.5, 0, 0]}>
+                <boxGeometry args={[0.1, 0.015, 3.4]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              {/* 6-Yard Top side line */}
+              <mesh position={[edgeX + dir * 0.75, 0, 1.7]}>
+                <boxGeometry args={[1.5, 0.015, 0.1]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              {/* 6-Yard Bottom side line */}
+              <mesh position={[edgeX + dir * 0.75, 0, -1.7]}>
+                <boxGeometry args={[1.5, 0.015, 0.1]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+
+              {/* Penalty Spot */}
+              <mesh position={[edgeX + dir * 2.6, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.16, 16]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+            </group>
+          );
+        })}
       </group>
 
       {/* 3D Goalposts (Left & Right) */}
-      {[-width / 2 + 0.4, width / 2 - 0.4].map((xPos, idx) => (
+      {[-halfW + 0.4, halfW - 0.4].map((xPos, idx) => (
         <group key={idx} position={[xPos, 0, 0]} rotation={[0, idx === 0 ? 0 : Math.PI, 0]}>
-          {/* Uprights */}
+          {/* Goal Uprights */}
           <mesh position={[0, 0.85, 1.4]} castShadow>
             <cylinderGeometry args={[0.06, 0.06, 1.7, 8]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.6} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
           <mesh position={[0, 0.85, -1.4]} castShadow>
             <cylinderGeometry args={[0.06, 0.06, 1.7, 8]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.6} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
           {/* Crossbar */}
           <mesh position={[0, 1.7, 0]} castShadow>
-            <boxGeometry args={[0.1, 0.1, 2.8]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.6} />
+            <boxGeometry args={[0.1, 0.1, 2.9]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.4} />
           </mesh>
-          {/* Netting Back Box */}
-          <mesh position={[-0.45, 0.85, 0]}>
-            <boxGeometry args={[0.9, 1.7, 2.8]} />
-            <meshStandardMaterial
-              color="#ffffff"
-              wireframe
-              transparent
-              opacity={0.35}
-            />
+          {/* Netting Support Bars */}
+          <mesh position={[-0.45, 0.85, 1.4]}>
+            <cylinderGeometry args={[0.03, 0.03, 1.7, 6]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} />
+          </mesh>
+          <mesh position={[-0.45, 0.85, -1.4]}>
+            <cylinderGeometry args={[0.03, 0.03, 1.7, 6]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} />
+          </mesh>
+          {/* Net Box with semi-transparent wireframe */}
+          <mesh position={[-0.35, 0.85, 0]}>
+            <boxGeometry args={[0.7, 1.65, 2.8]} />
+            <meshStandardMaterial color="#f1f5f9" wireframe transparent opacity={0.25} />
           </mesh>
         </group>
       ))}
 
       {/* Team Dugouts / Covered Benches (along touchline) */}
-      <group position={[0, 0, -length / 2 - 0.8]}>
-        <mesh position={[-2.5, 0.5, 0]} castShadow>
-          <boxGeometry args={[3.4, 1.0, 1.0]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.5} />
-        </mesh>
-        <mesh position={[2.5, 0.5, 0]} castShadow>
-          <boxGeometry args={[3.4, 1.0, 1.0]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.5} />
-        </mesh>
+      <group position={[0, 0, -halfL - 0.7]}>
+        {[-2.8, 2.8].map((dx, i) => (
+          <group key={i} position={[dx, 0, 0]}>
+            {/* Shelter Base Platform */}
+            <mesh position={[0, 0.08, 0]} receiveShadow>
+              <boxGeometry args={[3.2, 0.16, 1.1]} />
+              <meshStandardMaterial color="#334155" roughness={0.7} />
+            </mesh>
+            {/* Shelter Metal Frame */}
+            <mesh position={[0, 0.8, -0.45]} castShadow>
+              <boxGeometry args={[3.2, 1.4, 0.1]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.5} />
+            </mesh>
+            <mesh position={[0, 1.45, 0]} castShadow>
+              <boxGeometry args={[3.2, 0.08, 1.0]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.5} />
+            </mesh>
+            {/* Team Bucket Seats */}
+            {[-1.0, -0.33, 0.33, 1.0].map((sx, sIdx) => (
+              <mesh key={sIdx} position={[sx, 0.4, -0.15]} castShadow>
+                <boxGeometry args={[0.42, 0.45, 0.42]} />
+                <meshStandardMaterial color={i === 0 ? '#0284c7' : '#dc2626'} roughness={0.6} />
+              </mesh>
+            ))}
+          </group>
+        ))}
       </group>
 
       {/* Pitch Corner Floodlight Towers */}
       {[
-        [-width / 2, -length / 2],
-        [width / 2, -length / 2],
-        [-width / 2, length / 2],
-        [width / 2, length / 2],
+        [-halfW, -halfL],
+        [halfW, -halfL],
+        [-halfW, halfL],
+        [halfW, halfL],
       ].map(([fx, fz], fIdx) => (
         <group key={fIdx} position={[fx, 0, fz]}>
           <mesh position={[0, 3.5, 0]} castShadow>
@@ -338,7 +408,11 @@ function RegulationFootballPitch({
           </mesh>
           <mesh position={[0, 7.1, 0]} castShadow>
             <boxGeometry args={[0.8, 0.45, 0.35]} />
-            <meshStandardMaterial color="#f8fafc" emissive="#ffffff" emissiveIntensity={isActive ? 0.35 : 0} />
+            <meshStandardMaterial
+              color="#f8fafc"
+              emissive="#ffffff"
+              emissiveIntensity={isActive ? 0.35 : 0}
+            />
           </mesh>
         </group>
       ))}
