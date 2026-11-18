@@ -649,14 +649,10 @@ export function resolveExtendedPlayerAttributes(player: Player): ExtendedPlayerA
   return {
     ...a,
     // Technical extensions
-    shortPassing: clamp(Math.round(a.passing * 0.65 + a.firstTouch * 0.25 + a.vision * 0.1), 1, 100),
-    longPassing: clamp(Math.round(a.passing * 0.6 + a.vision * 0.25 + a.crossing * 0.15), 1, 100),
-    throughBalls: clamp(Math.round(a.vision * 0.5 + a.passing * 0.35 + a.decisions * 0.15), 1, 100),
+    throughBalls: clamp(Math.round(a.vision * 0.5 + (a.shortPassing ?? a.passing) * 0.35 + a.decisions * 0.15), 1, 100),
     setPieces: clamp(Math.round(a.freeKicks * 0.6 + a.crossing * 0.25 + a.shooting * 0.15), 1, 100),
-    technique: clamp(Math.round(a.ballControl * 0.45 + a.firstTouch * 0.35 + a.dribbling * 0.2), 1, 100),
-    curve: clamp(Math.round(a.freeKicks * 0.45 + a.crossing * 0.35 + a.longShots * 0.2), 1, 100),
+    technique: clamp(Math.round(a.ballControl * 0.45 + (a.firstTouch ?? a.ballControl) * 0.35 + a.dribbling * 0.2), 1, 100),
     // Physical extensions
-    sprintSpeed: clamp(Math.round(a.pace * 0.75 + a.acceleration * 0.25), 1, 100),
     naturalFitness: clamp(
       Math.round(a.stamina * 0.65 + a.balance * 0.2 + (player.age <= 27 ? 12 : player.age >= 33 ? 4 : 8)),
       25,
@@ -670,21 +666,17 @@ export function resolveExtendedPlayerAttributes(player: Player): ExtendedPlayerA
     // Mental extensions
     concentration: clamp(Math.round(a.composure * 0.45 + a.decisions * 0.35 + a.positioning * 0.2 + personalityBonus), 1, 100),
     determination: clamp(Math.round(a.workRate * 0.45 + a.aggression * 0.25 + a.leadership * 0.3 + personalityBonus), 1, 100),
-    teamwork: clamp(Math.round(a.workRate * 0.5 + a.passing * 0.25 + a.decisions * 0.25 + personalityBonus), 1, 100),
+    teamwork: clamp(Math.round(a.workRate * 0.5 + (a.shortPassing ?? a.passing) * 0.25 + a.decisions * 0.25 + personalityBonus), 1, 100),
     offTheBall: clamp(Math.round(a.positioning * 0.45 + a.anticipation * 0.35 + a.acceleration * 0.2), 1, 100),
-    bravery: clamp(Math.round(a.aggression * 0.5 + a.strength * 0.3 + a.heading * 0.2), 1, 100),
+    bravery: clamp(Math.round(a.aggression * 0.5 + a.strength * 0.3 + (a.headingAccuracy ?? a.heading) * 0.2), 1, 100),
     tacticalIntelligence: clamp(Math.round(a.decisions * 0.4 + a.vision * 0.3 + a.positioning * 0.3), 1, 100),
     consistency: clamp(Math.round(a.composure * 0.5 + a.workRate * 0.3 + a.decisions * 0.2 + personalityBonus), 1, 100),
     // Defensive extensions
-    interceptions: clamp(Math.round(a.anticipation * 0.45 + a.marking * 0.3 + a.positioning * 0.25), 1, 100),
-    defensivePositioning: clamp(Math.round(a.positioning * 0.5 + a.marking * 0.35 + a.decisions * 0.15), 1, 100),
-    defensiveAwareness: clamp(Math.round(a.marking * 0.45 + a.anticipation * 0.35 + a.tackling * 0.2), 1, 100),
-    slidingTackles: clamp(Math.round(a.tackling * 0.65 + a.agility * 0.2 + a.aggression * 0.15), 1, 100),
+    defensivePositioning: clamp(Math.round(a.positioning * 0.5 + (a.defensiveAwareness ?? a.marking) * 0.35 + a.decisions * 0.15), 1, 100),
     // Goalkeeping extensions
     oneOnOnes: clamp(Math.round(a.reflexes * 0.45 + a.composure * 0.3 + a.agility * 0.25), 1, 100),
     commandOfArea: clamp(Math.round(a.aerialAbility * 0.5 + a.handling * 0.3 + a.leadership * 0.2), 1, 100),
     communication: clamp(Math.round(a.leadership * 0.5 + a.gkPositioning * 0.3 + a.distribution * 0.2), 1, 100),
-    kicking: clamp(Math.round(a.distribution * 0.65 + a.passing * 0.35), 1, 100),
   };
 }
 

@@ -37,6 +37,7 @@ import {
   processWeeklyScouting,
   processWeeklyTraining,
 } from './transfers';
+import { evolvePlayerSeasonEnd } from './playerEvolutionEngine';
 import {
   Club,
   Fixture,
@@ -653,7 +654,7 @@ export function performSeasonRollover(state: GameState): GameState {
   const relegatedIds = new Set(div1Standings.slice(-2).map((r) => r.clubId));
   const promotedIds = new Set(div2Standings.slice(0, 2).map((r) => r.clubId));
 
-  // Age players, return loans, handle retirements & contract expiries
+  // Age players, return loans, handle retirements & dynamic player ability evolution
   const survivingPlayers: Player[] = [];
   for (const p of state.players) {
     const newAge = p.age + 1;
@@ -663,31 +664,13 @@ export function performSeasonRollover(state: GameState): GameState {
     }
 
     const returnedClubId = p.loanedFromClubId ?? p.clubId;
-    const ageDecline = newAge >= 31 ? -1 : 0;
-    const newOvr = Math.max(45, Math.min(p.potential, p.overall + ageDecline));
+    const evolved = evolvePlayerSeasonEnd(p, nextSeason, rng);
 
     survivingPlayers.push({
-      ...p,
-      age: newAge,
+      ...evolved,
       clubId: returnedClubId,
       loanedFromClubId: null,
-      overall: newOvr,
-      marketValue: calculateMarketValue(newOvr, newAge, p.potential),
-      weeklyWage: calculateWeeklyWage(newOvr, newAge),
       contractEndSeason: p.contractEndSeason <= nextSeason ? nextSeason + 2 : p.contractEndSeason,
-      fitness: 100,
-      injuryWeeks: 0,
-      seasonGrowth: 0,
-      stats: {
-        appearances: 0,
-        goals: 0,
-        assists: 0,
-        cleanSheets: 0,
-        yellowCards: 0,
-        redCards: 0,
-        averageRating: 0,
-        minutesPlayed: 0,
-      },
     });
   }
 

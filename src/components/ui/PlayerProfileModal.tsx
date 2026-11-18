@@ -12,6 +12,11 @@ import {
   History,
   FileSignature,
   CheckCircle2,
+  Star,
+  Zap,
+  Sparkles,
+  ShieldCheck,
+  Flame,
 } from 'lucide-react';
 import { Club, Player } from '@/engine/types';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
@@ -242,6 +247,41 @@ export function PlayerProfileModal({
                 <span className="text-xs text-slate-400">
                   &bull; {player.heightCm ?? 181} cm &bull; {player.preferredFoot ?? 'Right'} Foot
                 </span>
+                {/* EA FC Abilities: Weak Foot, Skill Moves, Work Rates, Rating Origin */}
+                <div className="flex flex-wrap items-center gap-1.5 ml-1">
+                  <span className="px-2 py-0.5 rounded-md bg-navy-950 border border-slate-700 text-[10px] font-bold text-amber-300 flex items-center gap-1" title="Weak Foot Rating">
+                    <span>WF:</span>
+                    <span className="text-amber-400">{'★'.repeat(player.weakFoot ?? 3)}{'☆'.repeat(5 - (player.weakFoot ?? 3))}</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-navy-950 border border-slate-700 text-[10px] font-bold text-sky-300 flex items-center gap-1" title="Skill Moves Rating">
+                    <span>SM:</span>
+                    <span className="text-sky-400">{'★'.repeat(player.skillMoves ?? 3)}{'☆'.repeat(5 - (player.skillMoves ?? 3))}</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-navy-950 border border-slate-700 text-[10px] font-bold text-slate-300" title="Attacking / Defensive Work Rates">
+                    WR: <strong className="text-white">{player.attackingWorkRate?.[0] ?? 'M'}/{player.defensiveWorkRate?.[0] ?? 'M'}</strong>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 ${
+                    player.ratingDataSource === 'verified_scouted'
+                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-600/40'
+                      : player.ratingDataSource === 'calibrated_model'
+                      ? 'bg-sky-950 text-sky-300 border border-sky-600/40'
+                      : 'bg-slate-900 text-slate-300 border border-slate-700'
+                  }`} title="Data Sourcing Model">
+                    {player.ratingDataSource === 'verified_scouted' ? (
+                      <>
+                        <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                        <span>Verified Scouted</span>
+                      </>
+                    ) : player.ratingDataSource === 'calibrated_model' ? (
+                      <>
+                        <Sparkles className="w-3 h-3 text-sky-400" />
+                        <span>Calibrated Model</span>
+                      </>
+                    ) : (
+                      <span>Estimated</span>
+                    )}
+                  </span>
+                </div>
               </div>
 
               <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
@@ -298,6 +338,47 @@ export function PlayerProfileModal({
           </div>
         </div>
 
+        {/* EA FC Face Card Macro Attributes Banner */}
+        <div className="bg-navy-950/90 px-6 py-3.5 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase text-gold-400 tracking-wider flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-gold-400" />
+              <span>FC Card Face Ratings:</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3 md:gap-4 overflow-x-auto pb-1 md:pb-0">
+            {player.primaryPosition === 'GK' ? (
+              [
+                ['DIV', a.diving ?? radarStats.PAC, 'Diving'],
+                ['HAN', a.handling ?? radarStats.SHO, 'Handling'],
+                ['KIC', a.kicking ?? radarStats.PAS, 'Kicking'],
+                ['REF', a.reflexes ?? radarStats.DRI, 'Reflexes'],
+                ['SPD', radarStats.DEF, 'Speed'],
+                ['POS', a.gkPositioning ?? radarStats.PHY, 'Positioning'],
+              ] as const
+            ).map(([label, val, fullName]) => (
+              <div key={label} className="flex flex-col items-center px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-700/80 min-w-[54px]" title={fullName}>
+                <span className="text-[10px] font-extrabold uppercase text-slate-400">{label}</span>
+                <span className={`text-base font-black ${attrColor(val)}`}>{val}</span>
+              </div>
+            )) : (
+              [
+                ['PAC', radarStats.PAC, 'Pace'],
+                ['SHO', radarStats.SHO, 'Shooting'],
+                ['PAS', radarStats.PAS, 'Passing'],
+                ['DRI', radarStats.DRI, 'Dribbling'],
+                ['DEF', radarStats.DEF, 'Defending'],
+                ['PHY', radarStats.PHY, 'Physicality'],
+              ] as const
+            ).map(([label, val, fullName]) => (
+              <div key={label} className="flex flex-col items-center px-3 py-1.5 rounded-xl bg-navy-900 border border-slate-700/80 min-w-[54px]" title={fullName}>
+                <span className="text-[10px] font-extrabold uppercase text-slate-400">{label}</span>
+                <span className={`text-base font-black ${attrColor(val)}`}>{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Status Bar: Fitness, Morale, Form, Season Stats, International Caps */}
         <div className="bg-navy-950 px-6 py-3 border-b border-slate-800 grid grid-cols-2 sm:grid-cols-7 gap-3 text-xs">
           <div>
@@ -334,9 +415,9 @@ export function PlayerProfileModal({
           </div>
         </div>
 
-        {/* Main Body: Radar & Career History + Full 31 Attributes across 4 Categories */}
+        {/* Main Body: Radar & Career History + Full EA FC Attributes Breakdown */}
         <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-h-[65vh] overflow-y-auto">
-          {/* Left: Radar Chart, Comparison & Career History */}
+          {/* Left: Radar Chart, PlayStyles & Career History */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -388,7 +469,51 @@ export function PlayerProfileModal({
               )}
             </div>
 
-            {/* Career History & Image Attribution Box */}
+            {/* PlayStyles & Traits Showcase */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div className="font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>PlayStyles &amp; Traits</span>
+              </div>
+              {player.playStyles && player.playStyles.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {player.playStyles.map((ps) => {
+                    const isPlus = ps.tier === 'plus';
+                    return (
+                      <span
+                        key={ps.id}
+                        title={ps.description}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-help transition-all ${
+                          isPlus
+                            ? 'bg-gradient-to-r from-amber-500/30 to-gold-500/30 text-amber-300 border border-amber-400 shadow-md shadow-amber-500/10'
+                            : 'bg-navy-900 text-slate-300 border border-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        {isPlus ? <Zap className="w-3 h-3 text-amber-400 fill-amber-400" /> : <Sparkles className="w-3 h-3 text-slate-400" />}
+                        <span>{ps.name}{isPlus ? '+' : ''}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-slate-400 text-[11px]">No signature PlayStyles unlocked.</div>
+              )}
+
+              {player.traits && player.traits.length > 0 && (
+                <div className="pt-2 border-t border-slate-800/80">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Player Traits:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {player.traits.map((tr) => (
+                      <span key={tr} className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                        {tr}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Career History & Photo Attribution Box */}
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-4 space-y-2.5 text-xs">
               <div className="font-extrabold uppercase tracking-wider text-gold-400 flex items-center gap-1.5">
                 <History className="w-3.5 h-3.5" />
@@ -423,33 +548,57 @@ export function PlayerProfileModal({
                   <CheckCircle2 className="w-3 h-3 text-sky-400" />
                   {photoMeta
                     ? `Photo: ${photoMeta.license}`
-                    : 'Photo: Missing (Pending Acquisition)'}
+                    : 'Photo: Sourced Open-License'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Right: Complete 31-Attribute Breakdown (Technical 10, Mental 8, Physical 7, GK 6) */}
-          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {/* Technical (10) */}
+          {/* Right: Detailed EA SPORTS FC Attributes (Pace, Shooting, Passing, Dribbling, Defending, Physicality, GK) */}
+          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* 1. Pace (2) */}
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5" />
-                <span>Technical (10)</span>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Pace</span>
+                </span>
+                <span className={`text-xs font-black ${attrColor(radarStats.PAC)}`}>{radarStats.PAC}</span>
               </div>
               {(
                 [
+                  ['Acceleration', a.acceleration, ca?.acceleration],
+                  ['Sprint Speed', a.sprintSpeed ?? a.pace, ca?.sprintSpeed],
+                ] as const
+              ).map(([label, val, cmp]) => (
+                <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
+                  <span className="text-slate-400">{label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={attrColor(val)}>{val}</span>
+                    {typeof cmp === 'number' && (
+                      <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 2. Shooting (6) */}
+            <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>Shooting</span>
+                </span>
+                <span className={`text-xs font-black ${attrColor(radarStats.SHO)}`}>{radarStats.SHO}</span>
+              </div>
+              {(
+                [
+                  ['Att. Positioning', a.positioning, ca?.positioning],
                   ['Finishing', a.finishing, ca?.finishing],
-                  ['Passing', a.passing, ca?.passing],
-                  ['Crossing', a.crossing, ca?.crossing],
-                  ['Dribbling', a.dribbling, ca?.dribbling],
-                  ['Ball Control', a.ballControl ?? a.firstTouch, ca?.ballControl],
-                  ['First Touch', a.firstTouch, ca?.firstTouch],
-                  ['Tackling', a.tackling, ca?.tackling],
-                  ['Marking', a.marking ?? a.tackling, ca?.marking],
-                  ['Heading', a.heading, ca?.heading],
+                  ['Shot Power', a.shotPower ?? a.shooting, ca?.shotPower],
                   ['Long Shots', a.longShots ?? a.shooting, ca?.longShots],
-                  ['Free Kicks', a.freeKicks ?? a.passing, ca?.freeKicks],
+                  ['Volleys', a.volleys ?? a.shooting, ca?.volleys],
                   ['Penalties', a.penalties ?? a.finishing, ca?.penalties],
                 ] as const
               ).map(([label, val, cmp]) => (
@@ -465,22 +614,23 @@ export function PlayerProfileModal({
               ))}
             </div>
 
-            {/* Mental (8) */}
+            {/* 3. Passing (6) */}
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-sky-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5" />
-                <span>Mental (8)</span>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-sky-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Passing</span>
+                </span>
+                <span className={`text-xs font-black ${attrColor(radarStats.PAS)}`}>{radarStats.PAS}</span>
               </div>
               {(
                 [
-                  ['Decisions', a.decisions, ca?.decisions],
                   ['Vision', a.vision, ca?.vision],
-                  ['Positioning', a.positioning, ca?.positioning],
-                  ['Anticipation', a.anticipation ?? a.positioning, ca?.anticipation],
-                  ['Composure', a.composure, ca?.composure],
-                  ['Leadership', a.leadership, ca?.leadership],
-                  ['Aggression', a.aggression, ca?.aggression],
-                  ['Work Rate', a.workRate, ca?.workRate],
+                  ['Crossing', a.crossing, ca?.crossing],
+                  ['Free Kick Acc', a.freeKicks ?? a.passing, ca?.freeKicks],
+                  ['Short Passing', a.shortPassing ?? a.passing, ca?.shortPassing],
+                  ['Long Passing', a.longPassing ?? a.passing, ca?.longPassing],
+                  ['Curve', a.curve ?? a.crossing, ca?.curve],
                 ] as const
               ).map(([label, val, cmp]) => (
                 <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
@@ -495,21 +645,23 @@ export function PlayerProfileModal({
               ))}
             </div>
 
-            {/* Physical (7) */}
+            {/* 4. Dribbling (6) */}
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-gold-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Physical (7)</span>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-pitch-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Dribbling</span>
+                </span>
+                <span className={`text-xs font-black ${attrColor(radarStats.DRI)}`}>{radarStats.DRI}</span>
               </div>
               {(
                 [
-                  ['Pace', a.pace, ca?.pace],
-                  ['Acceleration', a.acceleration, ca?.acceleration],
-                  ['Strength', a.strength, ca?.strength],
-                  ['Stamina', a.stamina, ca?.stamina],
-                  ['Jumping', a.jumping, ca?.jumping],
-                  ['Balance', a.balance ?? a.agility, ca?.balance],
                   ['Agility', a.agility, ca?.agility],
+                  ['Balance', a.balance ?? a.agility, ca?.balance],
+                  ['Reactions', a.reactions ?? a.composure, ca?.reactions],
+                  ['Ball Control', a.ballControl ?? a.firstTouch, ca?.ballControl],
+                  ['Dribbling', a.dribbling, ca?.dribbling],
+                  ['Composure', a.composure, ca?.composure],
                 ] as const
               ).map(([label, val, cmp]) => (
                 <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
@@ -524,20 +676,22 @@ export function PlayerProfileModal({
               ))}
             </div>
 
-            {/* Goalkeeping (6) */}
+            {/* 5. Defending (5) */}
             <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
-              <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5" />
-                <span>Goalkeeping (6)</span>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Defending</span>
+                </span>
+                <span className={`text-xs font-black ${attrColor(radarStats.DEF)}`}>{radarStats.DEF}</span>
               </div>
               {(
                 [
-                  ['Reflexes', a.reflexes, ca?.reflexes],
-                  ['Handling', a.handling, ca?.handling],
-                  ['GK Positioning', a.gkPositioning ?? a.positioning, ca?.gkPositioning],
-                  ['Diving', a.diving ?? a.reflexes, ca?.diving],
-                  ['Distribution', a.distribution, ca?.distribution],
-                  ['Aerial Ability', a.aerialAbility ?? a.jumping, ca?.aerialAbility],
+                  ['Interceptions', a.interceptions ?? a.anticipation, ca?.interceptions],
+                  ['Heading Accuracy', a.headingAccuracy ?? a.heading, ca?.headingAccuracy],
+                  ['Def. Awareness', a.defensiveAwareness ?? a.marking, ca?.defensiveAwareness],
+                  ['Standing Tackle', a.standingTackle ?? a.tackling, ca?.standingTackle],
+                  ['Sliding Tackle', a.slidingTackle ?? a.tackling, ca?.slidingTackle],
                 ] as const
               ).map(([label, val, cmp]) => (
                 <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
@@ -551,6 +705,66 @@ export function PlayerProfileModal({
                 </div>
               ))}
             </div>
+
+            {/* 6. Physicality (4) or Goalkeeping (5) */}
+            {player.primaryPosition === 'GK' ? (
+              <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-yellow-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" />
+                    <span>Goalkeeping</span>
+                  </span>
+                  <span className={`text-xs font-black ${attrColor(player.overall)}`}>{player.overall}</span>
+                </div>
+                {(
+                  [
+                    ['Diving', a.diving ?? a.reflexes, ca?.diving],
+                    ['Handling', a.handling, ca?.handling],
+                    ['Kicking', a.kicking ?? a.distribution, ca?.kicking],
+                    ['Reflexes', a.reflexes, ca?.reflexes],
+                    ['GK Positioning', a.gkPositioning ?? a.positioning, ca?.gkPositioning],
+                  ] as const
+                ).map(([label, val, cmp]) => (
+                  <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
+                    <span className="text-slate-400">{label}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={attrColor(val)}>{val}</span>
+                      {typeof cmp === 'number' && (
+                        <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-navy-950 border border-slate-800 rounded-2xl p-3.5 space-y-1.5">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-gold-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span>Physicality</span>
+                  </span>
+                  <span className={`text-xs font-black ${attrColor(radarStats.PHY)}`}>{radarStats.PHY}</span>
+                </div>
+                {(
+                  [
+                    ['Jumping', a.jumping, ca?.jumping],
+                    ['Stamina', a.stamina, ca?.stamina],
+                    ['Strength', a.strength, ca?.strength],
+                    ['Aggression', a.aggression, ca?.aggression],
+                  ] as const
+                ).map(([label, val, cmp]) => (
+                  <div key={label} className="flex items-center justify-between text-[11px] py-0.5">
+                    <span className="text-slate-400">{label}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={attrColor(val)}>{val}</span>
+                      {typeof cmp === 'number' && (
+                        <span className="text-[10px] text-amber-400 font-bold">({cmp})</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

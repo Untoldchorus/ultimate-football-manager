@@ -19,6 +19,10 @@ import {
   TrainingFocus,
   TransferRecord,
 } from './types';
+import {
+  CoachingQualityInput,
+  evolvePlayerWeeklyTraining,
+} from './playerEvolutionEngine';
 
 const FOCUS_ATTR_MAP: Record<TrainingFocus, (keyof PlayerAttributes)[]> = {
   attacking: ['finishing', 'shooting', 'dribbling', 'positioning', 'composure'],
@@ -91,64 +95,28 @@ export function processWeeklyTraining(state: GameState, weekSeed: number): GameS
       return { ...p, injuryWeeks, fitness };
     }
 
-    // Check attribute growth eligibility
-    if (p.overall >= p.potential || p.seasonGrowth >= MAX_SEASON_ATTRIBUTE_GROWTH || p.age >= 31) {
-      return { ...p, fitness, injuryWeeks };
-    }
+    const coaching: CoachingQualityInput = {
+      trainingQuality:
+        p.clubId === state.manager.clubId
+          ? (state.manager.attributes?.trainingQuality ?? 75)
+          : Math.round(club.reputation * 0.85 + 10),
+      playerDevelopment:
+        p.clubId === state.manager.clubId
+          ? (state.manager.attributes?.playerDevelopment ?? 75)
+          : Math.round(club.reputation * 0.85 + 10),
+    };
 
-    // Active training booster multiplier for this player
-    const playerTrainingBoosts = activeBoosters.filter(
-      (b) => b.category === 'training' && b.targetPlayerId === p.id
+    const { updatedPlayer } = evolvePlayerWeeklyTraining(
+      { ...p, fitness, injuryWeeks },
+      focuses,
+      sched.intensity,
+      state.currentWeek,
+      coaching,
+      rng,
+      attrCap
     );
-    const boosterMult =
-      playerTrainingBoosts.length > 0
-        ? 1 +
-          playerTrainingBoosts.reduce(
-            (s, b) => s + (b.effectStrength * balCfg.boosterGlobalStrengthMultiplier) / 100,
-            0
-          )
-        : 1.0;
 
-    const chosenFocus =
-      p.primaryPosition === 'GK' ? 'goalkeeping' : rng.pick(focuses);
-    const targetAttrs = FOCUS_ATTR_MAP[chosenFocus];
-    const attrToGrow = rng.pick(targetAttrs);
-    const currentAttrVal = p.attributes[attrToGrow];
-    const diminishingEfficiency = getAttributeTrainingEfficiency(currentAttrVal, balCfg);
-
-    const ageDevFactor = p.age <= 20 ? 0.24 : p.age <= 24 ? 0.16 : p.age <= 27 ? 0.09 : 0.04;
-    if (
-      currentAttrVal < attrCap &&
-      rng.chance(ageDevFactor * intensityMult * diminishingEfficiency * boosterMult)
-    ) {
-      const newAttrs: PlayerAttributes = {
-        ...p.attributes,
-        [attrToGrow]: Math.min(attrCap, p.attributes[attrToGrow] + 1),
-      };
-      const newOverall = Math.min(
-        attrCap,
-        Math.min(
-          p.potential,
-          p.overall + (calculateOverallRating(newAttrs, p.primaryPosition) > p.overall ? 1 : 0)
-        )
-      );
-      const seasonGrowth = Math.min(
-        MAX_SEASON_ATTRIBUTE_GROWTH,
-        p.seasonGrowth + (newOverall > p.overall ? 1 : 0.5)
-      );
-
-      return {
-        ...p,
-        attributes: newAttrs,
-        overall: newOverall,
-        marketValue: calculateMarketValue(newOverall, p.age, p.potential),
-        seasonGrowth,
-        fitness,
-        injuryWeeks,
-      };
-    }
-
-    return { ...p, fitness, injuryWeeks };
+    return updatedPlayer;
   });
 
   return {

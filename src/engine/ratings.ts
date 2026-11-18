@@ -6,93 +6,168 @@ import { FormationCode, Player, PlayerAttributes, PositionCode } from './types';
  */
 export const POSITION_WEIGHTS: Record<PositionCode, Partial<Record<keyof PlayerAttributes, number>>> = {
   GK: {
-    reflexes: 0.30,
-    handling: 0.28,
-    distribution: 0.14,
-    positioning: 0.14,
-    Agility: 0, // handled via agility key below
-    agility: 0.08,
-    composure: 0.06,
-  } as Partial<Record<keyof PlayerAttributes, number>>,
+    diving: 0.21,
+    reflexes: 0.21,
+    handling: 0.21,
+    gkPositioning: 0.21,
+    kicking: 0.11,
+    reactions: 0.05,
+  },
   CB: {
-    tackling: 0.25,
-    positioning: 0.20,
-    strength: 0.16,
-    heading: 0.14,
-    jumping: 0.10,
-    decisions: 0.08,
-    pace: 0.07,
+    standingTackle: 0.17,
+    defensiveAwareness: 0.15,
+    slidingTackle: 0.13,
+    interceptions: 0.12,
+    strength: 0.11,
+    headingAccuracy: 0.10,
+    jumping: 0.07,
+    reactions: 0.06,
+    sprintSpeed: 0.05,
+    shortPassing: 0.04,
   },
   RB: {
-    pace: 0.18,
-    tackling: 0.20,
-    stamina: 0.15,
-    crossing: 0.15,
-    positioning: 0.14,
+    sprintSpeed: 0.12,
+    standingTackle: 0.11,
+    slidingTackle: 0.10,
+    defensiveAwareness: 0.10,
+    interceptions: 0.11,
+    crossing: 0.10,
+    stamina: 0.10,
     acceleration: 0.10,
-    workRate: 0.08,
+    shortPassing: 0.08,
+    reactions: 0.08,
   },
   LB: {
-    pace: 0.18,
-    tackling: 0.20,
-    stamina: 0.15,
-    crossing: 0.15,
-    positioning: 0.14,
+    sprintSpeed: 0.12,
+    standingTackle: 0.11,
+    slidingTackle: 0.10,
+    defensiveAwareness: 0.10,
+    interceptions: 0.11,
+    crossing: 0.10,
+    stamina: 0.10,
     acceleration: 0.10,
-    workRate: 0.08,
+    shortPassing: 0.08,
+    reactions: 0.08,
   },
   CDM: {
-    tackling: 0.22,
-    positioning: 0.18,
-    passing: 0.16,
-    decisions: 0.14,
-    stamina: 0.12,
+    standingTackle: 0.15,
+    interceptions: 0.14,
+    shortPassing: 0.12,
+    defensiveAwareness: 0.12,
     strength: 0.10,
-    workRate: 0.08,
+    stamina: 0.10,
+    longPassing: 0.08,
+    slidingTackle: 0.07,
+    reactions: 0.07,
+    aggression: 0.05,
   },
   CM: {
-    passing: 0.24,
-    vision: 0.18,
-    firstTouch: 0.14,
-    decisions: 0.14,
-    stamina: 0.12,
-    workRate: 0.10,
-    tackling: 0.08,
+    shortPassing: 0.16,
+    longPassing: 0.13,
+    vision: 0.12,
+    ballControl: 0.12,
+    standingTackle: 0.09,
+    interceptions: 0.08,
+    reactions: 0.08,
+    stamina: 0.08,
+    dribbling: 0.06,
+    positioning: 0.05,
+    composure: 0.03,
   },
   CAM: {
-    vision: 0.24,
-    passing: 0.22,
-    dribbling: 0.18,
-    firstTouch: 0.14,
-    shooting: 0.12,
-    agility: 0.10,
+    shortPassing: 0.16,
+    vision: 0.14,
+    ballControl: 0.14,
+    dribbling: 0.13,
+    positioning: 0.09,
+    longShots: 0.08,
+    longPassing: 0.08,
+    finishing: 0.07,
+    reactions: 0.06,
+    composure: 0.05,
   },
   RW: {
-    pace: 0.20,
-    acceleration: 0.18,
-    dribbling: 0.20,
-    crossing: 0.16,
-    finishing: 0.14,
-    agility: 0.12,
+    dribbling: 0.16,
+    ballControl: 0.12,
+    crossing: 0.12,
+    acceleration: 0.10,
+    sprintSpeed: 0.10,
+    finishing: 0.10,
+    positioning: 0.08,
+    agility: 0.08,
+    shortPassing: 0.07,
+    reactions: 0.07,
   },
   LW: {
-    pace: 0.20,
-    acceleration: 0.18,
-    dribbling: 0.20,
-    crossing: 0.16,
-    finishing: 0.14,
-    agility: 0.12,
+    dribbling: 0.16,
+    ballControl: 0.12,
+    crossing: 0.12,
+    acceleration: 0.10,
+    sprintSpeed: 0.10,
+    finishing: 0.10,
+    positioning: 0.08,
+    agility: 0.08,
+    shortPassing: 0.07,
+    reactions: 0.07,
   },
   ST: {
-    finishing: 0.28,
-    shooting: 0.20,
-    positioning: 0.14,
-    composure: 0.12,
-    pace: 0.10,
-    heading: 0.08,
-    firstTouch: 0.08,
+    finishing: 0.18,
+    positioning: 0.13,
+    headingAccuracy: 0.10,
+    shotPower: 0.10,
+    ballControl: 0.10,
+    reactions: 0.08,
+    composure: 0.08,
+    dribbling: 0.07,
+    sprintSpeed: 0.06,
+    acceleration: 0.05,
+    volleys: 0.05,
   },
 };
+
+/**
+ * Resolves an attribute value from PlayerAttributes with legacy fallbacks.
+ */
+function resolveAttrValue(attributes: PlayerAttributes, key: keyof PlayerAttributes): number {
+  const direct = attributes[key];
+  if (typeof direct === 'number' && !isNaN(direct)) return direct;
+
+  // Fallbacks for legacy/mock data objects
+  switch (key) {
+    case 'standingTackle':
+    case 'slidingTackle':
+      return attributes.tackling ?? 50;
+    case 'defensiveAwareness':
+      return attributes.marking ?? attributes.tackling ?? 50;
+    case 'headingAccuracy':
+      return attributes.heading ?? 50;
+    case 'sprintSpeed':
+    case 'acceleration':
+      return attributes.pace ?? 50;
+    case 'shortPassing':
+    case 'longPassing':
+      return attributes.passing ?? 50;
+    case 'shotPower':
+    case 'longShots':
+    case 'volleys':
+    case 'penalties':
+      return attributes.shooting ?? attributes.finishing ?? 50;
+    case 'ballControl':
+      return attributes.firstTouch ?? attributes.dribbling ?? 50;
+    case 'reactions':
+      return attributes.composure ?? attributes.decisions ?? 50;
+    case 'interceptions':
+      return attributes.anticipation ?? attributes.marking ?? 50;
+    case 'gkPositioning':
+      return attributes.positioning ?? 20;
+    case 'kicking':
+      return attributes.distribution ?? attributes.passing ?? 20;
+    case 'diving':
+      return attributes.reflexes ?? 20;
+    default:
+      return 50;
+  }
+}
 
 export function calculateOverallRating(
   attributes: PlayerAttributes,
@@ -103,8 +178,8 @@ export function calculateOverallRating(
   let totalWeight = 0;
 
   for (const [attrKey, weight] of Object.entries(weights)) {
-    if (typeof weight === 'number' && weight > 0 && attrKey in attributes) {
-      const val = attributes[attrKey as keyof PlayerAttributes];
+    if (typeof weight === 'number' && weight > 0) {
+      const val = resolveAttrValue(attributes, attrKey as keyof PlayerAttributes);
       weightedSum += val * weight;
       totalWeight += weight;
     }

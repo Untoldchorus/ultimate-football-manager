@@ -872,10 +872,10 @@ export function ensureEconomyState(state: GameState): EconomyState {
       },
     };
   }
-  const userClub = state.clubs.find((c) => c.id === state.manager.clubId) ?? state.clubs[0];
-  const clubPlayers = state.players.filter((p) => p.clubId === userClub.id);
+  const userClub = state.clubs?.find((c) => c.id === state.manager?.clubId) ?? state.clubs?.[0];
+  const clubPlayers = userClub ? (state.players ?? []).filter((p) => p.clubId === userClub.id) : [];
   return createInitialEconomyState(
-    userClub,
+    userClub ?? ({ id: state.manager?.clubId ?? 'club-default', name: 'Club' } as Club),
     clubPlayers,
     state.worldSeed,
     state.currentSeason,

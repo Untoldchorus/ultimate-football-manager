@@ -14,12 +14,12 @@ function backfillPlayerAttributes(raw: Partial<PlayerAttributes>): PlayerAttribu
   const shooting = raw.shooting ?? 65;
   const finishing = raw.finishing ?? 65;
   const dribbling = raw.dribbling ?? 65;
-  const firstTouch = raw.firstTouch ?? 65;
+  const firstTouch = raw.firstTouch ?? raw.ballControl ?? 65;
   const crossing = raw.crossing ?? 60;
-  const tackling = raw.tackling ?? 60;
-  const heading = raw.heading ?? 60;
-  const pace = raw.pace ?? 68;
-  const acceleration = raw.acceleration ?? 68;
+  const tackling = raw.tackling ?? raw.standingTackle ?? 60;
+  const heading = raw.heading ?? raw.headingAccuracy ?? 60;
+  const pace = raw.pace ?? raw.sprintSpeed ?? 68;
+  const acceleration = raw.acceleration ?? pace;
   const strength = raw.strength ?? 65;
   const stamina = raw.stamina ?? 68;
   const jumping = raw.jumping ?? 64;
@@ -33,43 +33,79 @@ function backfillPlayerAttributes(raw: Partial<PlayerAttributes>): PlayerAttribu
   const aggression = raw.aggression ?? 60;
   const reflexes = raw.reflexes ?? 35;
   const handling = raw.handling ?? 35;
-  const distribution = raw.distribution ?? 40;
+  const distribution = raw.distribution ?? raw.kicking ?? 40;
+
+  // EA FC 28 Outfield Attributes + 5 GK Attributes
+  const sprintSpeed = raw.sprintSpeed ?? pace;
+  const shotPower = raw.shotPower ?? shooting;
+  const longShots = raw.longShots ?? shooting;
+  const volleys = raw.volleys ?? Math.round((shooting + finishing) / 2);
+  const penalties = raw.penalties ?? Math.round((finishing + composure) / 2);
+  const freeKicks = raw.freeKicks ?? Math.round((passing + shooting) / 2);
+  const shortPassing = raw.shortPassing ?? passing;
+  const longPassing = raw.longPassing ?? Math.round((passing * 0.9 + vision * 0.1));
+  const curve = raw.curve ?? Math.round((crossing * 0.6 + freeKicks * 0.4));
+  const balance = raw.balance ?? Math.round((agility + strength) / 2);
+  const reactions = raw.reactions ?? Math.round((composure * 0.6 + decisions * 0.4));
+  const ballControl = raw.ballControl ?? Math.round((firstTouch + dribbling) / 2);
+  const interceptions = raw.interceptions ?? Math.round((positioning * 0.5 + tackling * 0.5));
+  const headingAccuracy = raw.headingAccuracy ?? heading;
+  const defensiveAwareness = raw.defensiveAwareness ?? raw.marking ?? Math.round((tackling + positioning) / 2);
+  const standingTackle = raw.standingTackle ?? tackling;
+  const slidingTackle = raw.slidingTackle ?? Math.round(tackling * 0.9);
+
+  const diving = raw.diving ?? reflexes;
+  const kicking = raw.kicking ?? distribution;
+  const gkPositioning = raw.gkPositioning ?? positioning;
 
   return {
-    passing,
-    shooting,
-    finishing,
-    dribbling,
-    ballControl: raw.ballControl ?? Math.round((firstTouch + dribbling) / 2),
-    crossing,
-    tackling,
-    marking: raw.marking ?? Math.round((tackling + positioning) / 2),
-    firstTouch,
-    heading,
-    longShots: raw.longShots ?? shooting,
-    freeKicks: raw.freeKicks ?? Math.round((passing + shooting) / 2),
-    penalties: raw.penalties ?? Math.round((finishing + composure) / 2),
-    pace,
     acceleration,
-    strength,
-    stamina,
-    jumping,
-    balance: raw.balance ?? Math.round((agility + strength) / 2),
-    agility,
-    vision,
+    sprintSpeed,
+    pace,
     positioning,
-    decisions,
+    finishing,
+    shotPower,
+    longShots,
+    volleys,
+    penalties,
+    shooting,
+    vision,
+    crossing,
+    freeKicks,
+    shortPassing,
+    longPassing,
+    curve,
+    passing,
+    agility,
+    balance,
+    reactions,
+    ballControl,
+    dribbling,
     composure,
+    firstTouch,
+    interceptions,
+    headingAccuracy,
+    heading,
+    defensiveAwareness,
+    marking: defensiveAwareness,
+    standingTackle,
+    slidingTackle,
+    tackling,
+    jumping,
+    stamina,
+    strength,
+    aggression,
+    decisions,
     leadership,
     workRate,
-    aggression,
     anticipation: raw.anticipation ?? Math.round((positioning + decisions) / 2),
-    reflexes,
+    diving,
     handling,
-    distribution,
-    diving: raw.diving ?? reflexes,
+    kicking,
+    reflexes,
+    gkPositioning,
+    distribution: kicking,
     aerialAbility: raw.aerialAbility ?? Math.round((handling + jumping) / 2),
-    gkPositioning: raw.gkPositioning ?? positioning,
   };
 }
 
@@ -146,13 +182,46 @@ export function migrateSaveEnvelope(raw: unknown): SaveEnvelope {
     };
   }
 
-  // Ensure all players have personality, spokenLanguages, and tacticalRole, and state has EconomyState
-  const enrichedPlayers = (state.players ?? []).map((p) => ({
-    ...p,
-    spokenLanguages: p.spokenLanguages ?? deriveSpokenLanguagesForNationality(p.nationality),
-    personality: p.personality ?? resolvePlayerPersonality(p),
-    tacticalRole: p.tacticalRole ?? resolvePlayerTacticalRole(p, p.primaryPosition),
-  }));
+  // Ensure all players have personality, spokenLanguages, tacticalRole, and complete EA FC abilities
+  const enrichedPlayers = (state.players ?? []).map((p) => {
+    const isW = p.primaryPosition === 'LW' || p.primaryPosition === 'RW';
+    const isM = p.primaryPosition === 'CAM' || p.primaryPosition === 'CM';
+    const isD =
+      p.primaryPosition === 'CB' ||
+      p.primaryPosition === 'CDM' ||
+      p.primaryPosition === 'LB' ||
+      p.primaryPosition === 'RB';
+    const isG = p.primaryPosition === 'GK';
+
+    const weakFoot = p.weakFoot ?? 3;
+    const skillMoves = p.skillMoves ?? (isW || isM ? 4 : isD ? 2 : isG ? 1 : 3);
+    const attackingWorkRate =
+      p.attackingWorkRate ??
+      (isW || p.primaryPosition === 'ST' || p.primaryPosition === 'CAM'
+        ? 'High'
+        : isD
+        ? 'Medium'
+        : 'Medium');
+    const defensiveWorkRate =
+      p.defensiveWorkRate ??
+      (isD ? 'High' : isW || p.primaryPosition === 'ST' ? 'Low' : 'Medium');
+
+    return {
+      ...p,
+      spokenLanguages: p.spokenLanguages ?? deriveSpokenLanguagesForNationality(p.nationality),
+      personality: p.personality ?? resolvePlayerPersonality(p),
+      tacticalRole: p.tacticalRole ?? resolvePlayerTacticalRole(p, p.primaryPosition),
+      weakFoot,
+      skillMoves,
+      attackingWorkRate,
+      defensiveWorkRate,
+      workRates: p.workRates ?? { attacking: attackingWorkRate, defensive: defensiveWorkRate },
+      traits: Array.isArray(p.traits) ? p.traits : [],
+      playStyles: Array.isArray(p.playStyles) ? p.playStyles : [],
+      ratingDataSource: p.ratingDataSource ?? 'calibrated_model',
+      attributes: backfillPlayerAttributes(p.attributes ?? {}),
+    };
+  });
 
   state = {
     ...state,

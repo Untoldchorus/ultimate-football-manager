@@ -28,16 +28,42 @@ export type TacticalPlayingStyle =
 
 export type TacticalMatchupOutcome = 'Strong' | 'Neutral' | 'Weak';
 
+export type PlayStyleCategory =
+  | 'Shooting'
+  | 'Passing'
+  | 'Ball Control'
+  | 'Defending'
+  | 'Physical'
+  | 'Goalkeeping';
+
+export type PlayStyleTier = 'standard' | 'plus';
+
+export interface PlayerPlayStyle {
+  id: string;
+  name: string;
+  category: PlayStyleCategory;
+  tier: PlayStyleTier;
+  description: string;
+}
+
+export type WorkRateLevel = 'Low' | 'Medium' | 'High';
+
+export interface PlayerWorkRates {
+  attacking: WorkRateLevel;
+  defensive: WorkRateLevel;
+}
+
+export type RatingDataSource =
+  | 'verified_scouted'
+  | 'calibrated_model'
+  | 'procedural_estimated';
+
 export interface ExtendedPlayerAttributes extends PlayerAttributes {
   // Additional Technical
-  shortPassing: number;
-  longPassing: number;
   throughBalls: number;
   setPieces: number;
   technique: number;
-  curve: number;
   // Additional Physical
-  sprintSpeed: number;
   naturalFitness: number;
   recovery: number;
   // Additional Mental
@@ -49,56 +75,77 @@ export interface ExtendedPlayerAttributes extends PlayerAttributes {
   tacticalIntelligence: number;
   consistency: number;
   // Additional Defensive
-  interceptions: number;
   defensivePositioning: number;
-  defensiveAwareness: number;
-  slidingTackles: number;
   // Additional Goalkeeping
   oneOnOnes: number;
   commandOfArea: number;
   communication: number;
-  kicking: number;
 }
 
 export interface PlayerAttributes {
-  // Technical (11)
-  passing: number;
-  shooting: number;
-  finishing: number;
-  dribbling: number;
-  ballControl: number;
-  crossing: number;
-  tackling: number;
-  marking: number;
-  firstTouch: number;
-  heading: number;
-  longShots: number;
-  freeKicks: number;
-  penalties: number;
-  // Physical (7)
-  pace: number;
+  // === EA SPORTS FC 28 OUTFIELD ATTRIBUTES ===
+  // Pace (2)
   acceleration: number;
-  strength: number;
-  stamina: number;
-  jumping: number;
-  balance: number;
-  agility: number;
-  // Mental (8)
+  sprintSpeed: number;
+  pace: number; // Macro / legacy alias: round((acceleration + sprintSpeed) / 2)
+
+  // Shooting (6)
+  positioning: number; // Attacking Positioning
+  finishing: number;
+  shotPower: number;
+  longShots: number;
+  volleys: number;
+  penalties: number;
+  shooting: number; // Macro / legacy alias
+
+  // Passing (6)
   vision: number;
-  positioning: number;
-  decisions: number;
+  crossing: number;
+  freeKicks: number; // Free Kick Accuracy
+  shortPassing: number;
+  longPassing: number;
+  curve: number;
+  passing: number; // Macro / legacy alias
+
+  // Dribbling (6)
+  agility: number;
+  balance: number;
+  reactions: number;
+  ballControl: number;
+  dribbling: number;
   composure: number;
+  firstTouch: number; // Legacy alias: ballControl
+
+  // Defending (5)
+  interceptions: number;
+  headingAccuracy: number;
+  heading: number; // Legacy alias: headingAccuracy
+  defensiveAwareness: number; // Marking
+  marking: number; // Legacy alias: defensiveAwareness
+  standingTackle: number;
+  slidingTackle: number;
+  tackling: number; // Legacy alias: standingTackle
+
+  // Physicality (4)
+  jumping: number;
+  stamina: number;
+  strength: number;
+  aggression: number;
+
+  // Mental / Legacy Tactical
+  decisions: number;
   leadership: number;
   workRate: number;
-  aggression: number;
   anticipation: number;
-  // Goalkeeper (6)
-  reflexes: number;
-  handling: number;
-  distribution: number;
+
+  // === EA SPORTS FC 5 GOALKEEPER ATTRIBUTES ===
   diving: number;
-  aerialAbility: number;
-  gkPositioning: number;
+  handling: number;
+  kicking: number;
+  reflexes: number;
+  gkPositioning: number; // Goalkeeper Positioning
+  distribution: number; // Legacy alias: kicking
+  aerialAbility: number; // Legacy alias: jumping / handling
 }
 
 export interface PlayerCareerHistoryEntry {
@@ -255,6 +302,15 @@ export interface Player {
   dateOfBirth?: string;
   heightCm?: number;
   preferredFoot?: 'Right' | 'Left' | 'Both';
+  weakFoot?: number; // 1..5 stars (EA FC Weak Foot)
+  skillMoves?: number; // 1..5 stars (EA FC Skill Moves)
+  attackingWorkRate?: WorkRateLevel; // 'Low' | 'Medium' | 'High'
+  defensiveWorkRate?: WorkRateLevel; // 'Low' | 'Medium' | 'High'
+  workRates?: PlayerWorkRates;
+  traits?: string[]; // e.g. ['Finesse Shot', 'Outside Foot Shot', 'Power Header', 'Long Throw-In']
+  playStyles?: PlayerPlayStyle[]; // EA FC PlayStyles & PlayStyle+
+  ratingDataSource?: RatingDataSource; // 'verified_scouted' | 'calibrated_model' | 'procedural_estimated'
+  scoutingAccuracy?: number; // 0..100% confidence level
   shirtNumber?: number;
   nationality: string;
   spokenLanguages?: string[];

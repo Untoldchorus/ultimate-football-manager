@@ -21,14 +21,22 @@ import {
   ManagerProfile,
   Player,
   PlayerAttributes,
+  PlayerPlayStyle,
   PositionCode,
+  RatingDataSource,
   Scout,
+  WorkRateLevel,
 } from './types';
 import { generateSeasonFixtures } from './fixtures';
 import { REAL_WORLD_CLUBS, RealClubSeed } from '@/data/realWorldDatabase';
 import { GLOBAL_CLUBS_REGISTRY } from '@/data/globalClubsRegistry';
 import { COMPETITIONS_REGISTRY } from '@/data/competitionsRegistry';
 import { getPlayerPhotoManifest } from '@/data/assetManifest';
+import {
+  generateCalibratedAbilityProfile,
+  VERIFIED_STAR_PROFILES,
+} from '@/data/playerAbilityDatabase';
+import { createPlayStyle } from '@/data/playStylesCatalog';
 
 export interface ClubPreset {
   id: string;
@@ -170,83 +178,187 @@ export function generatePlayerAttributes(
   position: PositionCode,
   targetSkill: number
 ): PlayerAttributes {
-  const base = (offset: number, spread = 5) =>
+  const base = (offset: number, spread = 4) =>
     clampAttr(targetSkill + offset + rng.nextInt(-spread, spread));
 
   const isGK = position === 'GK';
-  const isDef = position === 'CB' || position === 'LB' || position === 'RB';
-  const isFullback = position === 'LB' || position === 'RB';
-  const isMid = position === 'CDM' || position === 'CM' || position === 'CAM';
+  const isCB = position === 'CB';
+  const isFB = position === 'LB' || position === 'RB';
+  const isDM = position === 'CDM';
+  const isCM = position === 'CM';
+  const isAM = position === 'CAM';
   const isWing = position === 'LW' || position === 'RW';
-  const isSt = position === 'ST';
+  const isST = position === 'ST';
 
-  const passing = base(isMid ? 5 : isGK ? -16 : 0);
-  const shooting = base(isSt ? 6 : isWing || position === 'CAM' ? 3 : isDef ? -15 : isGK ? -30 : -2);
-  const finishing = base(isSt ? 7 : isWing ? 3 : isDef ? -18 : isGK ? -32 : -4);
-  const dribbling = base(isWing ? 6 : position === 'CAM' || isSt ? 4 : isDef ? -10 : isGK ? -28 : 2);
-  const firstTouch = base(isMid || isWing || isSt ? 4 : isGK ? -15 : 0);
-  const crossing = base(isWing || isFullback ? 6 : isMid ? 2 : -12);
-  const tackling = base(isDef || position === 'CDM' ? 6 : isMid ? 2 : isGK ? -25 : -15);
-  const heading = base(position === 'CB' || isSt ? 5 : isGK ? -15 : -2);
+  let acceleration: number;
+  let sprintSpeed: number;
+  let positioning: number;
+  let finishing: number;
+  let shotPower: number;
+  let longShots: number;
+  let volleys: number;
+  let penalties: number;
+  let vision: number;
+  let crossing: number;
+  let freeKicks: number;
+  let shortPassing: number;
+  let longPassing: number;
+  let curve: number;
+  let agility: number;
+  let balance: number;
+  let reactions: number;
+  let ballControl: number;
+  let dribbling: number;
+  let composure: number;
+  let interceptions: number;
+  let headingAccuracy: number;
+  let defensiveAwareness: number;
+  let standingTackle: number;
+  let slidingTackle: number;
+  let jumping: number;
+  let stamina: number;
+  let strength: number;
+  let aggression: number;
 
-  const pace = base(isWing || isFullback ? 6 : isSt ? 4 : position === 'CB' ? -2 : 2);
-  const acceleration = base(isWing || isFullback ? 6 : isSt ? 4 : 1);
-  const strength = base(position === 'CB' || position === 'CDM' || isSt ? 5 : isWing ? -4 : 0);
-  const stamina = base(isFullback || isMid ? 5 : 2);
-  const jumping = base(position === 'CB' || isGK || isSt ? 5 : 0);
-  const agility = base(isWing || position === 'CAM' || isGK ? 5 : 0);
+  let diving = 20;
+  let handling = 20;
+  let kicking = 20;
+  let reflexes = 20;
+  let gkPositioning = 20;
 
-  const vision = base(position === 'CAM' || position === 'CM' ? 6 : isSt ? 0 : -4);
-  const positioning = base(isDef || position === 'CDM' || isSt || isGK ? 5 : 2);
-  const decisions = base(3);
-  const composure = base(isSt || position === 'CB' || isGK ? 4 : 2);
+  if (isGK) {
+    diving = base(1);
+    handling = base(0);
+    kicking = base(-2);
+    reflexes = base(2);
+    gkPositioning = base(1);
+
+    acceleration = clampAttr(42 + rng.nextInt(-10, 10));
+    sprintSpeed = clampAttr(44 + rng.nextInt(-10, 10));
+    positioning = base(-40);
+    finishing = base(-50);
+    shotPower = base(-20);
+    longShots = base(-50);
+    volleys = base(-50);
+    penalties = base(-40);
+    vision = base(-25);
+    crossing = base(-45);
+    freeKicks = base(-45);
+    shortPassing = base(-20);
+    longPassing = base(-15);
+    curve = base(-45);
+    agility = base(-30);
+    balance = base(-30);
+    reactions = base(2);
+    ballControl = base(-35);
+    dribbling = base(-40);
+    composure = base(-10);
+    interceptions = base(-45);
+    headingAccuracy = base(-30);
+    defensiveAwareness = base(-45);
+    standingTackle = base(-45);
+    slidingTackle = base(-50);
+    jumping = base(2);
+    stamina = base(-25);
+    strength = base(0);
+    aggression = base(-20);
+  } else {
+    // Pace
+    const paceBonus = isWing ? 7 : isFB ? 5 : isST ? 4 : isCB ? -3 : 0;
+    acceleration = base(paceBonus);
+    sprintSpeed = base(paceBonus);
+
+    // Shooting
+    positioning = base(isST ? 6 : isWing || isAM ? 4 : isCB ? -20 : -5);
+    finishing = base(isST ? 7 : isWing ? 3 : isAM ? 2 : isCB ? -25 : -8);
+    shotPower = base(isST ? 5 : isAM || isWing ? 4 : isCB ? -6 : 0);
+    longShots = base(isAM ? 6 : isST || isWing ? 4 : isCM ? 3 : -10);
+    volleys = base(isST ? 5 : isWing || isAM ? 2 : -10);
+    penalties = base(isST ? 5 : isAM ? 2 : -8);
+
+    // Passing
+    vision = base(isAM ? 7 : isCM ? 5 : isWing ? 2 : isCB ? -12 : 0);
+    crossing = base(isWing ? 7 : isFB ? 6 : isCM ? 0 : -15);
+    freeKicks = base(isAM || isWing ? 3 : -10);
+    shortPassing = base(isCM || isAM ? 7 : isDM ? 5 : isFB || isWing ? 2 : isCB ? -3 : 0);
+    longPassing = base(isCM ? 6 : isDM || isAM ? 4 : isCB ? 2 : -8);
+    curve = base(isWing || isAM ? 5 : -8);
+
+    // Dribbling
+    agility = base(isWing ? 7 : isAM ? 4 : isCB ? -6 : 0);
+    balance = base(isWing ? 5 : isCB ? -6 : 0);
+    reactions = base(2);
+    ballControl = base(isAM || isWing || isST ? 6 : isCM ? 4 : isCB ? -4 : 0);
+    dribbling = base(isWing ? 7 : isAM ? 5 : isST ? 3 : isCB ? -14 : 0);
+    composure = base(isST || isAM || isCB ? 4 : 2);
+
+    // Defending
+    interceptions = base(isDM ? 7 : isCB ? 6 : isFB ? 4 : isCM ? 0 : -20);
+    headingAccuracy = base(isCB ? 7 : isST ? 5 : -8);
+    defensiveAwareness = base(isCB ? 7 : isDM ? 6 : isFB ? 5 : -20);
+    standingTackle = base(isCB ? 8 : isDM ? 7 : isFB ? 6 : -20);
+    slidingTackle = base(isCB ? 7 : isFB ? 6 : isDM ? 5 : -22);
+
+    // Physicality
+    jumping = base(isCB ? 6 : isST ? 4 : 0);
+    stamina = base(isFB || isCM || isDM ? 6 : 2);
+    strength = base(isCB || isST ? 7 : isDM ? 5 : isWing ? -6 : 0);
+    aggression = base(isCB || isDM ? 6 : -4);
+  }
+
+  const decisions = base(2);
   const leadership = clampAttr(45 + rng.nextInt(0, 46));
   const workRate = clampAttr(58 + rng.nextInt(-8, 34));
-  const aggression = clampAttr(50 + rng.nextInt(-12, 36));
-
-  const reflexes = isGK ? base(7) : clampAttr(20 + rng.nextInt(0, 20));
-  const handling = isGK ? base(6) : clampAttr(20 + rng.nextInt(0, 20));
-  const distribution = isGK ? base(4) : clampAttr(20 + rng.nextInt(0, 20));
+  const anticipation = clampAttr((positioning + decisions) / 2);
 
   return {
-    // Technical (10)
-    passing,
-    shooting,
-    finishing,
-    dribbling,
-    ballControl: clampAttr((firstTouch + dribbling) / 2),
-    crossing,
-    tackling,
-    marking: clampAttr((tackling + positioning) / 2),
-    firstTouch,
-    heading,
-    longShots: base(position === 'CAM' || position === 'CM' || isSt ? 4 : isGK ? -30 : -6),
-    freeKicks: base(position === 'CAM' || isWing ? 3 : -10, 8),
-    penalties: base(isSt ? 6 : isMid ? 2 : -10, 7),
-    // Physical (7)
-    pace,
     acceleration,
-    strength,
-    stamina,
-    jumping,
-    balance: clampAttr((agility + strength) / 2),
-    agility,
-    // Mental (8)
-    vision,
+    sprintSpeed,
+    pace: Math.round((acceleration + sprintSpeed) / 2),
     positioning,
-    decisions,
+    finishing,
+    shotPower,
+    longShots,
+    volleys,
+    penalties,
+    shooting: Math.round((finishing * 0.45 + shotPower * 0.25 + longShots * 0.3)),
+    vision,
+    crossing,
+    freeKicks,
+    shortPassing,
+    longPassing,
+    curve,
+    passing: Math.round((shortPassing * 0.5 + vision * 0.3 + longPassing * 0.2)),
+    agility,
+    balance,
+    reactions,
+    ballControl,
+    dribbling,
     composure,
+    firstTouch: ballControl,
+    interceptions,
+    headingAccuracy,
+    heading: headingAccuracy,
+    defensiveAwareness,
+    marking: defensiveAwareness,
+    standingTackle,
+    slidingTackle,
+    tackling: standingTackle,
+    jumping,
+    stamina,
+    strength,
+    aggression,
+    decisions,
     leadership,
     workRate,
-    aggression,
-    anticipation: clampAttr((positioning + decisions) / 2),
-    // Goalkeeping (6)
-    reflexes,
+    anticipation,
+    diving,
     handling,
-    distribution,
-    diving: isGK ? base(6) : clampAttr(18 + rng.nextInt(0, 18)),
-    aerialAbility: isGK ? base(5) : clampAttr((jumping + heading) / 2),
-    gkPositioning: isGK ? positioning : clampAttr(18 + rng.nextInt(0, 18)),
+    kicking,
+    reflexes,
+    gkPositioning,
+    distribution: kicking,
+    aerialAbility: Math.round((handling + jumping) / 2),
   };
 }
 
@@ -285,6 +397,15 @@ export function generatePlayer(
     possibleSecondaries.length > 0 && rng.chance(0.6) ? [rng.pick(possibleSecondaries)] : [];
 
   const birthYear = currentSeason - age;
+  const isW = position === 'LW' || position === 'RW';
+  const isM = position === 'CAM' || position === 'CM';
+  const isD = position === 'CB' || position === 'CDM' || position === 'LB' || position === 'RB';
+  const isG = position === 'GK';
+
+  const weakFoot = rng.chance(0.12) ? 5 : rng.chance(0.38) ? 4 : rng.chance(0.18) ? 2 : 3;
+  const skillMoves = isG ? 1 : isW || isM ? (rng.chance(0.25) ? 5 : rng.chance(0.5) ? 4 : 3) : position === 'ST' ? (rng.chance(0.35) ? 4 : 3) : isD ? 2 : 3;
+  const attackingWorkRate: WorkRateLevel = isW || position === 'ST' || position === 'CAM' ? 'High' : isD ? 'Low' : 'Medium';
+  const defensiveWorkRate: WorkRateLevel = isD ? 'High' : isW || position === 'ST' ? 'Low' : 'Medium';
 
   return {
     id,
@@ -294,6 +415,15 @@ export function generatePlayer(
     dateOfBirth: `${birthYear}-05-14`,
     heightCm: position === 'GK' || position === 'CB' ? rng.nextInt(185, 197) : rng.nextInt(171, 187),
     preferredFoot: position === 'LB' || position === 'LW' ? 'Left' : 'Right',
+    weakFoot,
+    skillMoves,
+    attackingWorkRate,
+    defensiveWorkRate,
+    workRates: { attacking: attackingWorkRate, defensive: defensiveWorkRate },
+    traits: [],
+    playStyles: [],
+    ratingDataSource: 'procedural_estimated',
+    scoutingAccuracy: 70,
     shirtNumber: isYouth ? rng.nextInt(41, 89) : rng.nextInt(1, 39),
     nationality,
     clubId,
@@ -537,18 +667,60 @@ export function generateInitialGameState(
       const pId = `player-${playerCounter++}`;
       const pRng = createRng((worldSeed ^ hashStringToSeed(`${clubSeed.id}-${firstName}-${lastName}`)) >>> 0);
 
-      const rawAttrs = generatePlayerAttributes(pRng, pos, targetOvr - 4);
-      const computedOvr = calculateOverallRating(rawAttrs, pos);
-      const ovrDelta = targetOvr - computedOvr;
+      const fullName = `${firstName} ${lastName}`.trim();
+      const verifiedProfile = VERIFIED_STAR_PROFILES[fullName];
 
-      // Fine-tune attributes so overall matches the real footballer's calibrated rating
-      const attributes = { ...rawAttrs };
-      for (const k of Object.keys(attributes) as (keyof PlayerAttributes)[]) {
-        attributes[k] = clampAttr(attributes[k] + ovrDelta);
+      let attributes: PlayerAttributes;
+      let overall: number;
+      let potential: number;
+      let weakFoot: number;
+      let skillMoves: number;
+      let preferredFoot: 'Right' | 'Left' | 'Both' = foot;
+      let attWr: WorkRateLevel;
+      let defWr: WorkRateLevel;
+      let traits: string[];
+      let playStyles: PlayerPlayStyle[];
+      let ratingDataSource: RatingDataSource;
+      let scoutingAccuracy: number;
+
+      if (verifiedProfile) {
+        attributes = { ...verifiedProfile.attributes };
+        overall = verifiedProfile.overall;
+        potential = verifiedProfile.potential;
+        weakFoot = verifiedProfile.weakFoot;
+        skillMoves = verifiedProfile.skillMoves;
+        preferredFoot = verifiedProfile.preferredFoot;
+        attWr = verifiedProfile.attackingWorkRate;
+        defWr = verifiedProfile.defensiveWorkRate;
+        traits = [...verifiedProfile.traits];
+        playStyles = verifiedProfile.playStyles
+          .map((ps) => createPlayStyle(ps.id, ps.tier))
+          .filter((p): p is PlayerPlayStyle => !!p);
+        ratingDataSource = 'verified_scouted';
+        scoutingAccuracy = 99;
+      } else {
+        const calibrated = generateCalibratedAbilityProfile(
+          pos,
+          targetOvr,
+          age,
+          foot,
+          heightCm,
+          pRng
+        );
+        attributes = calibrated.attributes;
+        overall = calculateOverallRating(attributes, pos);
+        const agePotentialBonus = age <= 20 ? 9 : age <= 23 ? 5 : age <= 26 ? 2 : 0;
+        potential = Math.min(95, Math.max(overall, targetOvr + agePotentialBonus));
+        weakFoot = calibrated.weakFoot;
+        skillMoves = calibrated.skillMoves;
+        preferredFoot = calibrated.preferredFoot;
+        attWr = calibrated.attackingWorkRate;
+        defWr = calibrated.defensiveWorkRate;
+        traits = calibrated.traits;
+        playStyles = calibrated.playStyles;
+        ratingDataSource = 'calibrated_model';
+        scoutingAccuracy = calibrated.scoutingAccuracy;
       }
-      const overall = calculateOverallRating(attributes, pos);
-      const agePotentialBonus = age <= 20 ? 9 : age <= 23 ? 5 : age <= 26 ? 2 : 0;
-      const potential = Math.min(95, Math.max(overall, targetOvr + agePotentialBonus));
 
       const marketValue = calculateMarketValue(overall, age, potential);
       const weeklyWage = calculateWeeklyWage(overall, age);
@@ -566,7 +738,16 @@ export function generateInitialGameState(
         age,
         dateOfBirth: `${currentSeason - age}-${birthMonth}-${birthDay}`,
         heightCm,
-        preferredFoot: foot,
+        preferredFoot,
+        weakFoot,
+        skillMoves,
+        attackingWorkRate: attWr,
+        defensiveWorkRate: defWr,
+        workRates: { attacking: attWr, defensive: defWr },
+        traits,
+        playStyles,
+        ratingDataSource,
+        scoutingAccuracy,
         shirtNumber,
         nationality,
         clubId: clubSeed.id,

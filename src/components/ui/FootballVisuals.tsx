@@ -49,21 +49,59 @@ export function computeRadarStats(player: Player): {
   const a = player.attributes;
   if (player.primaryPosition === 'GK') {
     return {
-      PAC: a.reflexes,
+      PAC: a.diving ?? a.reflexes,
       SHO: a.handling,
-      PAS: a.distribution,
-      DRI: a.agility,
-      DEF: a.positioning,
-      PHY: a.jumping,
+      PAS: a.kicking ?? a.distribution,
+      DRI: a.reflexes,
+      DEF: Math.round(((a.acceleration ?? 42) + (a.sprintSpeed ?? 44)) / 2),
+      PHY: a.gkPositioning ?? a.positioning,
     };
   }
+
+  const pac = Math.round((a.acceleration ?? a.pace ?? 65) * 0.45 + (a.sprintSpeed ?? a.pace ?? 65) * 0.55);
+  const sho = Math.round(
+    (a.finishing ?? a.shooting ?? 60) * 0.45 +
+    (a.shotPower ?? a.shooting ?? 60) * 0.2 +
+    (a.longShots ?? a.shooting ?? 60) * 0.2 +
+    (a.positioning ?? 60) * 0.05 +
+    (a.volleys ?? a.shooting ?? 60) * 0.05 +
+    (a.penalties ?? a.finishing ?? 60) * 0.05
+  );
+  const pas = Math.round(
+    (a.shortPassing ?? a.passing ?? 60) * 0.35 +
+    (a.vision ?? a.passing ?? 60) * 0.2 +
+    (a.crossing ?? 60) * 0.2 +
+    (a.longPassing ?? a.passing ?? 60) * 0.15 +
+    (a.curve ?? 60) * 0.1
+  );
+  const dri = Math.round(
+    (a.dribbling ?? 60) * 0.45 +
+    (a.ballControl ?? a.firstTouch ?? 60) * 0.3 +
+    (a.agility ?? 60) * 0.1 +
+    (a.reactions ?? a.composure ?? 60) * 0.1 +
+    (a.balance ?? 60) * 0.05
+  );
+  const def = Math.round(
+    (a.defensiveAwareness ?? a.marking ?? a.tackling ?? 50) * 0.3 +
+    (a.standingTackle ?? a.tackling ?? 50) * 0.3 +
+    (a.interceptions ?? 50) * 0.2 +
+    (a.headingAccuracy ?? a.heading ?? 50) * 0.1 +
+    (a.slidingTackle ?? 50) * 0.1
+  );
+  const phy = Math.round(
+    (a.strength ?? 60) * 0.5 +
+    (a.stamina ?? 60) * 0.25 +
+    (a.aggression ?? 60) * 0.15 +
+    (a.jumping ?? 60) * 0.1
+  );
+
   return {
-    PAC: Math.round((a.pace + a.acceleration) / 2),
-    SHO: Math.round((a.shooting + a.finishing + a.composure) / 3),
-    PAS: Math.round((a.passing + a.vision + a.crossing) / 3),
-    DRI: Math.round((a.dribbling + a.firstTouch + a.agility) / 3),
-    DEF: Math.round((a.tackling + a.positioning + a.heading) / 3),
-    PHY: Math.round((a.strength + a.stamina + a.workRate) / 3),
+    PAC: Math.max(15, Math.min(99, pac)),
+    SHO: Math.max(15, Math.min(99, sho)),
+    PAS: Math.max(15, Math.min(99, pas)),
+    DRI: Math.max(15, Math.min(99, dri)),
+    DEF: Math.max(15, Math.min(99, def)),
+    PHY: Math.max(15, Math.min(99, phy)),
   };
 }
 
