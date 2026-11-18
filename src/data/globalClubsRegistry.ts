@@ -16,6 +16,7 @@ import { EUROPE_AND_AMERICAS_LEAGUE_CLUBS } from './leagues/europeAndAmericas';
 import { CompactClubTuple, EUROPE_TOP5_LEAGUE_CLUBS } from './leagues/europeTop5';
 import { GLOBAL_CONTENDERS_LEAGUE_CLUBS } from './leagues/globalContenders';
 import { REAL_WORLD_CLUBS, RealClubSeed } from './realWorldDatabase';
+import { KNOWN_PLAYER_POSITIONS, RETIRED_PLAYERS_REGISTRY } from './transfers2026Snapshot';
 
 const REGIONAL_NAME_POOLS: Record<string, { nationality: string; first: string[]; last: string[] }> = {
   ENG: {
@@ -120,30 +121,44 @@ const REGIONAL_NAME_POOLS: Record<string, { nationality: string; first: string[]
   },
 };
 
-const SQUAD_23_POSITIONS: PositionCode[] = [
-  'GK', 'GK', 'GK',
-  'LB', 'LB',
-  'CB', 'CB', 'CB', 'CB',
-  'RB', 'RB',
-  'CDM', 'CDM',
-  'CM', 'CM', 'CM',
-  'CAM', 'CAM',
-  'LW', 'LW',
-  'RW', 'RW',
-  'ST', 'ST', 'ST',
-]; // 25 senior players per club
+const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-const SHIRT_NUMBERS_25 = [
-  1, 13, 25,
-  3, 12,
-  4, 5, 6, 15,
-  2, 22,
-  14, 16,
-  8, 18, 20,
-  10, 21,
-  11, 17,
-  7, 19,
-  9, 23, 24,
+const KNOWN_STAR_NAMES_LOWER = new Set(
+  Object.keys(KNOWN_PLAYER_POSITIONS).map((n) => n.trim().toLowerCase())
+);
+const RETIRED_NAMES_LOWER = new Set(
+  Object.keys(RETIRED_PLAYERS_REGISTRY).map((n) => n.trim().toLowerCase())
+);
+
+const POSITION_TARGETS_25: Record<PositionCode, number> = {
+  GK: 3,
+  LB: 2,
+  CB: 4,
+  RB: 2,
+  CDM: 2,
+  CM: 3,
+  CAM: 2,
+  LW: 2,
+  RW: 2,
+  ST: 3,
+};
+
+const LINEUP_TACTICAL_SLOTS: PositionCode[] = [
+  'GK',   // 0
+  'CB',   // 1
+  'CB',   // 2
+  'LB',   // 3
+  'RB',   // 4
+  'CDM',  // 5
+  'CM',   // 6
+  'CAM',  // 7
+  'LW',   // 8
+  'RW',   // 9
+  'ST',   // 10
+  'ST',   // 11
+  'CM',   // 12
+  'CB',   // 13
+  'RB',   // 14
 ];
 
 function buildSquadForCompactClub(
@@ -152,67 +167,128 @@ function buildSquadForCompactClub(
   reputation: number,
   starRoster?: string[]
 ): RealClubSeed['squad'] {
-  const rng = createRng(hashStringToSeed(`squad_${clubId}_2025`));
+  const rng = createRng(hashStringToSeed(`squad_${clubId}_2026`));
   const pool = REGIONAL_NAME_POOLS[countryId] ?? REGIONAL_NAME_POOLS.ENG;
   const squad: RealClubSeed['squad'] = [];
   const usedNames = new Set<string>();
 
-  for (let i = 0; i < 25; i++) {
-    const pos = SQUAD_23_POSITIONS[i];
-    const shirtNo = SHIRT_NUMBERS_25[i];
+  const posCounts: Partial<Record<PositionCode, number>> = {
+    GK: 0, LB: 0, CB: 0, RB: 0, CDM: 0, CM: 0, CAM: 0, LW: 0, RW: 0, ST: 0
+  };
+
+  // 1. Process Star Roster real-world footballers
+  if (starRoster && starRoster.length > 0) {
+    for (let i = 0; i < starRoster.length; i++) {
+      const full = starRoster[i].trim();
+      // Retired players are strictly omitted from active senior squads
+      if (RETIRED_PLAYERS_REGISTRY[full]) continue;
+
+      const known = KNOWN_PLAYER_POSITIONS[full];
+      const pos: PositionCode = known ? known.primaryPosition : (LINEUP_TACTICAL_SLOTS[i] || 'CM');
+      posCounts[pos] = (posCounts[pos] || 0) + 1;
+
+      const parts = full.split(/\s+/);
+      const firstName = parts[0];
+      const lastName = parts.slice(1).join(' ') || pool.last[i % pool.last.length];
+      usedNames.add(`${firstName}_${lastName}`);
+
+      const age = known ? (2026 - known.birthYear) : rng.nextInt(22, 31);
+      const isStarter = i < 11;
+      const baseOvr = isStarter ? reputation - 1 : reputation - 3;
+      const targetOvr = Math.max(62, Math.min(92, baseOvr + rng.nextInt(-2, 3)));
+      const nationality = known?.nationality || pool.nationality;
+      const foot: 'Right' | 'Left' | 'Both' =
+        known?.preferredFoot ||
+        (pos === 'LB' || pos === 'RW' ? (rng.chance(0.75) ? 'Left' : 'Right') : (rng.chance(0.18) ? 'Left' : 'Right'));
+      const heightCm =
+        known?.heightCm ||
+        (pos === 'GK' || pos === 'CB' ? rng.nextInt(185, 197) : pos === 'ST' ? rng.nextInt(178, 193) : rng.nextInt(170, 185));
+      const intlCaps = targetOvr >= 82 ? rng.nextInt(15, 75) : targetOvr >= 77 ? rng.nextInt(2, 25) : 0;
+      const shirtNo = i + 1;
+
+      squad.push([
+        firstName,
+        lastName,
+        pos,
+        age,
+        targetOvr,
+        nationality,
+        shirtNo,
+        foot,
+        heightCm,
+        intlCaps,
+      ]);
+    }
+  }
+
+  // 2. Identify Deficit Positions needed to achieve a balanced 25-man squad
+  const deficitList: PositionCode[] = [];
+  const targetKeys: PositionCode[] = ['GK', 'LB', 'CB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
+  for (const pos of targetKeys) {
+    const required = POSITION_TARGETS_25[pos] || 0;
+    const current = posCounts[pos] || 0;
+    const deficit = Math.max(0, required - current);
+    for (let k = 0; k < deficit; k++) {
+      deficitList.push(pos);
+    }
+  }
+
+  // If deficit list exceeds or falls short of 25 - squad.length, adjust
+  const remainingNeeded = Math.max(0, 25 - squad.length);
+  while (deficitList.length > remainingNeeded) {
+    deficitList.pop();
+  }
+  while (deficitList.length < remainingNeeded) {
+    deficitList.push(deficitList.length % 2 === 0 ? 'CM' : 'CB');
+  }
+
+  // 3. Generate Authentic Regional Squad Members for deficit slots
+  for (let idx = 0; idx < remainingNeeded; idx++) {
+    const pos = deficitList[idx];
+    posCounts[pos] = (posCounts[pos] || 0) + 1;
+
     let firstName = '';
     let lastName = '';
-
-    if (starRoster && i < starRoster.length) {
-      const full = starRoster[i].trim();
-      const parts = full.split(/\s+/);
-      if (parts.length === 1) {
-        firstName = parts[0];
-        lastName = pool.last[i % pool.last.length];
-      } else {
-        firstName = parts[0];
-        lastName = parts.slice(1).join(' ');
-      }
-      usedNames.add(`${firstName}_${lastName}`);
-    } else {
-      for (let attempt = 0; attempt < 25; attempt++) {
-        const f = pool.first[(i * 3 + attempt + rng.nextInt(0, pool.first.length - 1)) % pool.first.length];
-        const l = pool.last[(i * 5 + attempt * 2 + rng.nextInt(0, pool.last.length - 1)) % pool.last.length];
-        const key = `${f}_${l}`;
-        if (!usedNames.has(key)) {
-          usedNames.add(key);
-          firstName = f;
-          lastName = l;
-          break;
-        }
-      }
-      if (!firstName) {
-        firstName = pool.first[i % pool.first.length];
-        lastName = `${pool.last[i % pool.last.length]}-${i + 1}`;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const f = pool.first[(idx * 3 + attempt + rng.nextInt(0, pool.first.length - 1)) % pool.first.length];
+      const l = pool.last[(idx * 5 + attempt * 2 + rng.nextInt(0, pool.last.length - 1)) % pool.last.length];
+      const capF = capitalize(f);
+      const capL = capitalize(l);
+      const key = `${capF}_${capL}`;
+      const fullNameLower = `${capF} ${capL}`.toLowerCase();
+      if (!usedNames.has(key) && !KNOWN_STAR_NAMES_LOWER.has(fullNameLower) && !RETIRED_NAMES_LOWER.has(fullNameLower)) {
+        usedNames.add(key);
+        firstName = capF;
+        lastName = capL;
+        break;
       }
     }
+    if (!firstName) {
+      const capF = capitalize(pool.first[(idx * 7) % pool.first.length]);
+      let capL = capitalize(pool.last[(idx * 11) % pool.last.length]);
+      if (usedNames.has(`${capF}_${capL}`) || KNOWN_STAR_NAMES_LOWER.has(`${capF} ${capL}`.toLowerCase())) {
+        capL = `${capL}-${idx + 1}`;
+      }
+      usedNames.add(`${capF}_${capL}`);
+      firstName = capF;
+      lastName = capL;
+    }
 
-    const isStarter = i < 14;
-    const baseOvr = isStarter ? reputation - 1 : reputation - 4;
-    const targetOvr = Math.max(58, Math.min(91, baseOvr + rng.nextInt(-3, 3)));
-    const age = i === 2 || i === 17 || i === 24 ? rng.nextInt(18, 21) : rng.nextInt(21, 33);
+    const baseOvr = reputation - 4;
+    const targetOvr = Math.max(58, Math.min(88, baseOvr + rng.nextInt(-3, 2)));
+    const age = idx < 3 ? rng.nextInt(18, 21) : rng.nextInt(21, 33);
     const foot: 'Right' | 'Left' | 'Both' =
       pos === 'LB' || pos === 'RW'
-        ? rng.chance(0.75)
-          ? 'Left'
-          : 'Right'
-        : rng.chance(0.18)
-          ? 'Left'
-          : rng.chance(0.08)
-            ? 'Both'
-            : 'Right';
+        ? (rng.chance(0.75) ? 'Left' : 'Right')
+        : (rng.chance(0.18) ? 'Left' : 'Right');
     const heightCm =
       pos === 'GK' || pos === 'CB'
         ? rng.nextInt(185, 197)
         : pos === 'ST'
           ? rng.nextInt(178, 193)
           : rng.nextInt(170, 185);
-    const intlCaps = targetOvr >= 82 ? rng.nextInt(15, 75) : targetOvr >= 77 ? rng.nextInt(2, 25) : 0;
+    const intlCaps = targetOvr >= 80 ? rng.nextInt(3, 20) : 0;
+    const shirtNo = squad.length + 1;
 
     squad.push([
       firstName,

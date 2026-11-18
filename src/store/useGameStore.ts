@@ -84,6 +84,7 @@ export type NavTab =
   | 'youth'
   | 'history'
   | 'admin'
+  | 'dataManagement'
   | 'settings'
   | 'matchday';
 

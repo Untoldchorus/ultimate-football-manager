@@ -98,7 +98,7 @@ export const REAL_WORLD_CLUBS: RealClubSeed[] = [
       ['Bukayo', 'Saka', 'RW', 23, 89, 'England', 7, 'Left', 178, 44],
       ['Raheem', 'Sterling', 'RW', 30, 80, 'England', 30, 'Right', 172, 82],
       ['Gabriel', 'Jesus', 'ST', 28, 82, 'Brazil', 9, 'Right', 175, 64],
-      ['Eddie', 'Nketiah', 'ST', 26, 77, 'England', 14, 'Right', 180, 1],
+      ['Kieran', 'Tierney', 'LB', 28, 79, 'Scotland', 3, 'Left', 178, 47],
     ],
   },
   {
@@ -477,7 +477,7 @@ export const REAL_WORLD_CLUBS: RealClubSeed[] = [
       ['Kang-in', 'Lee', 'CAM', 24, 81, 'South Korea', 19, 'Left', 174, 35],
       ['Marco', 'Asensio', 'CAM', 29, 81, 'Spain', 11, 'Left', 182, 38],
       ['Bradley', 'Barcola', 'LW', 22, 84, 'France', 29, 'Right', 182, 11],
-      ['Khvicha', 'Kvaratskhelia', 'LW', 24, 86, 'Georgia', 7, 'Both', 183, 40],
+      ['Presnel', 'Kimpembe', 'CB', 30, 80, 'France', 3, 'Left', 189, 28],
       ['Ousmane', 'Dembélé', 'RW', 28, 86, 'France', 10, 'Both', 178, 53],
       ['Désiré', 'Doué', 'RW', 20, 79, 'France', 14, 'Right', 181, 0],
       ['Gonçalo', 'Ramos', 'ST', 24, 82, 'Portugal', 9, 'Right', 185, 15],

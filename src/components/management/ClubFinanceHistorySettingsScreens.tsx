@@ -14,6 +14,8 @@ import {
   Target,
   Sparkles,
   Eye,
+  Database,
+  ArrowRight,
 } from 'lucide-react';
 import { calculateStandings } from '@/engine/standings';
 import { CompetitionType, Player } from '@/engine/types';
@@ -1113,6 +1115,7 @@ export function SettingsScreen() {
     loadFromSlot,
     importSaveJson,
     importCustomDatabaseEntities,
+    setActiveTab,
   } = useGameStore();
   const [audio, setAudio] = useState(soundManager.getSettings());
   const [importText, setImportText] = useState('');
@@ -1274,6 +1277,39 @@ export function SettingsScreen() {
               <span>Import</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* 2026/27 Football Data & Transfer Synchronization Center */}
+      <div className="bg-gradient-to-r from-slate-900 via-navy-900 to-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3 shadow-lg">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-lime-500/10 border border-lime-500/20 text-lime-400">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                Football Data & Squad Synchronization
+                <span className="text-[10px] bg-slate-800 text-lime-400 font-bold px-2 py-0.5 rounded-full border border-slate-700">
+                  2026/27 Active
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Manage real-world squad rosters, transfer reconciliation, and API provider health.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playUiClick();
+              setActiveTab('dataManagement');
+            }}
+            className="px-4 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-navy-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-transform hover:scale-105"
+          >
+            <span>Open Data Admin</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

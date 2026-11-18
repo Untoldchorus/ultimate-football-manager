@@ -28,12 +28,14 @@ import {
   ChevronRight,
   Flame,
   Globe,
+  Database,
 } from 'lucide-react';
 import { ClubEmpireScreen } from '@/components/empire/ClubEmpireScreen';
 import { ensureEconomyState } from '@/engine/boosterEconomy';
 import { soundManager } from '@/lib/audio';
 import { NavTab, useGameStore } from '@/store/useGameStore';
 import { AdminBalanceDashboard } from '../economy/AdminBalanceDashboard';
+import { DataManagementScreen } from '../admin/DataManagementScreen';
 import { BoosterInventoryScreen } from '../economy/BoosterInventoryScreen';
 import { PremiumStoreScreen } from '../economy/PremiumStoreScreen';
 import { CutsceneModal } from './CutsceneModal';
@@ -151,6 +153,7 @@ export function AppShell() {
         { id: 'store', label: 'Store & Coin Packs', icon: ShoppingBag, badge: 'Offers', badgeColor: 'bg-gold-400/20 text-gold-300' },
         { id: 'inventory', label: 'Booster Inventory', icon: Backpack },
         { id: 'admin', label: 'Admin Balance Center', icon: Shield },
+        { id: 'dataManagement', label: 'Squad & Data Admin', icon: Database, badge: '2026/27', badgeColor: 'bg-lime-400 text-navy-950' },
         { id: 'settings', label: 'Game Settings', icon: Settings },
       ],
     },
@@ -402,6 +405,7 @@ export function AppShell() {
           {activeTab === 'youth' && <YouthAcademyScreen />}
           {activeTab === 'history' && <ClubHistoryScreen />}
           {activeTab === 'admin' && <AdminBalanceDashboard />}
+          {activeTab === 'dataManagement' && <DataManagementScreen />}
           {activeTab === 'settings' && <SettingsScreen />}
           {activeTab === 'matchday' && <MatchdayScreen />}
         </main>
